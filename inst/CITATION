@@ -1,0 +1,12 @@
+bibentry(bibtype="Article",
+         title = "Analysis of compositions of microbiomes with bias correction",
+         author = personList( as.person("Huang Lin"),
+                              as.person("Shyamal Das Peddada")),
+         year = 2020,
+         journal = "Nature communications",
+         volume = "11",
+         number = "1",
+         pages = "1--11",
+         doi = "https://doi.org/10.1038/s41467-020-17041-7",
+         url = "https://www.nature.com/articles/s41467-020-17041-7")
+

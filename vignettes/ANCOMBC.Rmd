@@ -1,0 +1,255 @@
+---
+title: "ANCOM-BC"
+author: 
+  - Huang Lin$^1$
+  - $^1$Department of Biostatistics, University of Pittsburgh, 130 De Soto Street, Pittsburgh, PA 15261 USA
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document: 
+    toc: true
+    theme: united
+vignette: >
+  %\VignetteIndexEntry{ANCOMBC}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA, 
+                      fig.width = 6.25, fig.height = 5)
+
+library(tidyverse)
+library(microbiome)
+library(magrittr)
+library(qwraps2)
+library(ANCOMBC)
+library(DT)
+options(DT.options = list(
+  initComplete = JS("function(settings, json) {",
+  "$(this.api().table().header()).css({'background-color': 
+  '#000', 'color': '#fff'});","}")))
+```
+
+# 1. Introduction
+
+Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC) is a 
+methodology of differential abundance (DA) analysis for microbial absolute
+abundance data. ANCOM-BC estimates the unknown sampling fractions, corrects 
+the bias induced by their differences among samples, and identifies taxa that 
+are differentially abundant according to the covariate of interest.
+
+For more details, please refer to the 
+[ANCOM-BC](https://doi.org/10.1038/s41467-020-17041-7) paper.
+
+# 2. Installation
+
+Download package. 
+
+```{r getPackage, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("ANCOMBC")
+```
+
+Load the package. 
+
+```{r load, eval=FALSE}
+library(ANCOMBC)
+```
+
+# 3. Running ANCOMBC
+
+## 3.1 Intestinal microbiota profiling data
+
+The HITChip Atlas data set is available via the microbiome R package 
+in phyloseq format, and via Data Dryad in tabular format. 
+This data set from [Lahti et al.](https://doi.org/10.1038/ncomms5344)
+comes with 130 genus-like taxonomic groups across 1006 western adults 
+with no reported health complications. 
+Some subjects have also short time series.
+
+```{r importData}
+data(atlas1006) 
+# Subset to baseline
+pseq = subset_samples(atlas1006, time == 0)
+# Re-code the bmi group
+sample_data(pseq)$bmi_group = recode(sample_data(pseq)$bmi_group,
+                                     `underweight` = "lean",
+                                     `lean` = "lean",
+                                     `overweight` = "overweight",
+                                     `obese` = "obese",
+                                     `severeobese` = "obese",
+                                     `morbidobese` = "obese")
+# Re-code the nationality group
+sample_data(pseq)$nation = recode(sample_data(pseq)$nationality,
+                                  `Scandinavia` = "NE",
+                                  `UKIE` = "NE",
+                                  `SouthEurope` = "SE",
+                                  `CentralEurope` = "CE",
+                                  `EasternEurope` = "EE")
+
+# Aggregate to phylum level
+phylum_data = aggregate_taxa(pseq, "Phylum")
+```
+
+## 3.2 Data summary
+
+```{r dataSummary, results = "asis"}
+options(qwraps2_markup = "markdown")
+summary_template =
+  list("Age" =
+       list("min" = ~ min(.data$age, na.rm = T),
+            "max" = ~ max(.data$age, na.rm = T),
+            "mean (sd)" = ~ mean_sd(.data$age, na_rm = T, show_n = "never")),
+       "Gender" =
+       list("F" = ~ n_perc0(.data$sex == "female", na_rm = T),
+            "M" = ~ n_perc0(.data$sex == "male", na_rm = T),
+            "NA" = ~ n_perc0(is.na(.data$sex))),
+       "Nationality" =
+       list("Central Europe" = ~ n_perc0(.data$nation == "CE", na_rm = T),
+            "Eastern Europe" = ~ n_perc0(.data$nation == "EE", na_rm = T),
+            "Northern Europe" = ~ n_perc0(.data$nation == "NE", na_rm = T),
+            "Southern Europe" = ~ n_perc0(.data$nation == "SE", na_rm = T),
+            "US" = ~ n_perc0(.data$nation == "US", na_rm = T),
+            "NA" = ~ n_perc0(is.na(.data$nation))),
+       "BMI" =
+       list("Lean" = ~ n_perc0(.data$bmi_group == "lean", na_rm = T),
+            "Overweight" = ~ n_perc0(.data$bmi_group == "overweight", 
+                                     na_rm = T),
+            "Obese" = ~ n_perc0(.data$bmi_group == "obese", na_rm = T),
+            "NA" = ~ n_perc0(is.na(.data$bmi_group)))
+       )
+data_summary = summary_table(meta(pseq), summary_template)
+data_summary
+```
+
+1. The number of samples: `r nsamples(phylum_data)`.
+
+2. The number of phyla: `r ntaxa(phylum_data)`.
+
+## 3.3 Running ancombc function
+
+```{r ancombc}
+feature_table = abundances(phylum_data); meta_data = meta(phylum_data)
+# ancombc requires an id column for metadata
+meta_data = meta_data %>% rownames_to_column("sample_id")
+sample_id = "sample_id"; formula = "age + nation + bmi_group"
+p_adj_method = "holm"; zero_cut = 0.90; lib_cut = 1000; group = "nation"
+struc_zero = TRUE; neg_lb = TRUE; tol = 1e-5; max_iter = 100
+conserve = TRUE; alpha = 0.05; global = TRUE
+
+out = ancombc(feature_table, meta_data, sample_id, formula, p_adj_method,
+              zero_cut, lib_cut, group, struc_zero, neg_lb,
+              tol, max_iter, conserve, alpha, global)
+
+res = out$res
+res_global = out$res_global
+```
+
+## 3.4 ANCOMBC primary result
+
+### 3.41 Coefficients
+
+```{r}
+tab_coef = res$beta
+col_name = c("Intercept", "Age", "EE - CE", "NE - CE", "SE - CE", "US - CE", 
+             "Oerweight - Lean", "Obese - Lean")
+colnames(tab_coef) = col_name
+tab_coef %>% datatable(caption = "Coefficients from the Primary Result") %>%
+      formatRound(col_name, digits = 2)
+```
+
+### 3.42 SEs
+
+```{r}
+tab_se = res$se
+colnames(tab_se) = col_name
+tab_se %>% datatable(caption = "SEs from the Primary Result") %>%
+      formatRound(col_name, digits = 2)
+```
+
+### 3.43 Test statistics
+
+```{r}
+tab_w = res$W
+colnames(tab_w) = col_name
+tab_w %>% datatable(caption = "Test Statistics from the Primary Result") %>%
+      formatRound(col_name, digits = 2)
+```
+
+### 3.44 Differentially abundant taxa
+
+```{r}
+tab_diff = res$diff_abn
+colnames(tab_diff) = col_name
+tab_diff %>% 
+  datatable(caption = "Differentially Abundant Taxa 
+            from the Primary Result")
+```
+
+### 3.45 Visualizations for "age"
+
+*"Age" is a continuous variable.*
+
+```{r}
+df_fig1 = data.frame(res$beta * res$diff_abn, check.names = FALSE) %>% 
+  rownames_to_column("taxon_id")
+df_fig2 = data.frame(res$se * res$diff_abn, check.names = FALSE) %>% 
+  rownames_to_column("taxon_id")
+colnames(df_fig2)[-1] = paste0(colnames(df_fig2)[-1], "SD")
+df_fig = df_fig1 %>% left_join(df_fig2, by = "taxon_id") %>%
+  transmute(taxon_id, age, ageSD) %>%
+  filter(age != 0) %>% arrange(desc(age)) %>%
+  mutate(group = ifelse(age > 0, "g1", "g2"))
+df_fig$taxon_id = factor(df_fig$taxon_id, levels = df_fig$taxon_id)
+  
+p = ggplot(data = df_fig, 
+           aes(x = taxon_id, y = age, fill = group, color = group)) + 
+  geom_bar(stat = "identity", width = 0.7, 
+           position = position_dodge(width = 0.4)) +
+  geom_errorbar(aes(ymin = age - ageSD, ymax = age + ageSD), width = 0.2,
+                position = position_dodge(0.05), color = "black") + 
+  labs(x = NULL, y = "Log fold change", 
+       title = "Waterfall Plot for the Age Effect") + 
+  theme_bw() + 
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.minor.y = element_blank(),
+        axis.text.x = element_text(angle = 60, hjust = 1))
+p
+```
+
+## 3.5 ANCOMBC global test result
+
+### 3.51 Test statistics
+
+```{r}
+tab_w = data.frame(Nationality = res_global$W)
+tab_w %>% datatable(caption = "Test Statistics 
+                    from the Global Test Result") %>%
+      formatRound(c("Nationality"), digits = 2)
+```
+
+### 3.52 Differentially abundant taxa
+
+```{r}
+tab_diff = data.frame(Nationality = res_global$diff_abn)
+tab_diff %>% datatable(caption = "Differentially Abundant Taxa 
+                       from the Global Test Result")
+```
+
+
+# Session information
+
+```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
+sessionInfo()
+```
+
+
+
+
+
+
+
+
+

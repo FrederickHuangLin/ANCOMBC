@@ -1,0 +1,35 @@
+Package: ANCOMBC
+Type: Package
+Title: Analysis of compositions of microbiomes with bias correction
+Version: 0.99.0
+Description: ANCOMBC is a package for normalizing the microbial absolute 
+    abundance data and identifying taxa that are differentially abundant with 
+    respect to the covariate of interest.
+Date: 2020-08-10
+Authors@R: c(
+    person(given = "Huang", 
+           family = "Lin", 
+           email = "HUL40@pitt.edu", 
+           role = c("cre", "aut"),
+           comment = c(ORCID = "https://orcid.org/0000-0002-4892-7871")),
+    person(given = c("Shyamal", "Das"), 
+           family = "Peddada", 
+           email = "Shyamal.Peddada@nih.gov", 
+           role = "aut",
+           comment = c(ORCID = "https://orcid.org/0000-0002-5014-6513")))
+License: Artistic-2.0
+LazyData: true
+Imports: stats, MASS, nloptr, Rdpack
+Suggests: knitr, microbiome, tidyverse, testthat, DT, magrittr, qwraps2
+biocViews: 
+    DifferentialExpression, 
+    Microbiome, 
+    Normalization, 
+    Sequencing, 
+    Software
+BugReports: https://github.com/FrederickHuangLin/ANCOMBC/issues
+URL: https://github.com/FrederickHuangLin/ANCOMBC
+VignetteBuilder: knitr
+RdMacros: Rdpack
+Encoding: UTF-8
+RoxygenNote: 7.1.1
