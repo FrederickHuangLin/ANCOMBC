@@ -1,20 +1,27 @@
 em_iter = function(Delta, nu0, pi0_0, pi1_0, pi2_0, delta_0,
                    l1_0, l2_0, kappa1_0, kappa2_0, tol, max_iter) {
     # Store all paras in vectors/matrices
-    pi0_vec = c(pi0_0); pi1_vec = c(pi1_0); pi2_vec = c(pi2_0)
-    delta_vec = c(delta_0); l1_vec = c(l1_0); l2_vec = c(l2_0)
-    kappa1_vec = c(kappa1_0); kappa2_vec = c(kappa2_0)
+    pi0_vec = pi0_0
+    pi1_vec = pi1_0
+    pi2_vec = pi2_0
+    delta_vec = delta_0
+    l1_vec = l1_0
+    l2_vec = l2_0
+    kappa1_vec = kappa1_0
+    kappa2_vec = kappa2_0
     n_taxa = length(Delta)
 
     # E-M iteration
-    iterNum = 0; epsilon = 100
+    iterNum = 0
+    epsilon = 100
     while (epsilon > tol & iterNum < max_iter) {
         # Current value of paras
         pi0 = pi0_vec[length(pi0_vec)]
         pi1 = pi1_vec[length(pi1_vec)]
         pi2 = pi2_vec[length(pi2_vec)]
         delta = delta_vec[length(delta_vec)]
-        l1 = l1_vec[length(l1_vec)]; l2 = l2_vec[length(l2_vec)]
+        l1 = l1_vec[length(l1_vec)]
+        l2 = l2_vec[length(l2_vec)]
         kappa1 = kappa1_vec[length(kappa1_vec)]
         kappa2 = kappa2_vec[length(kappa2_vec)]
 
@@ -27,9 +34,12 @@ em_iter = function(Delta, nu0, pi0_0, pi1_0, pi2_0, delta_0,
         pdf2 = vapply(seq(n_taxa), function(i)
             dnorm(Delta[i], delta + l2, sqrt(nu0[i] + kappa2)),
             FUN.VALUE = double(1))
-        r0i = pi0*pdf0/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2); r0i[is.na(r0i)] = 0
-        r1i = pi1*pdf1/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2); r1i[is.na(r1i)] = 0
-        r2i = pi2*pdf2/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2); r2i[is.na(r2i)] = 0
+        r0i = pi0*pdf0/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2)
+        r0i[is.na(r0i)] = 0
+        r1i = pi1*pdf1/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2)
+        r1i[is.na(r1i)] = 0
+        r2i = pi2*pdf2/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2)
+        r2i[is.na(r2i)] = 0
 
         # M-step
         pi0_new = mean(r0i, na.rm = TRUE)
@@ -69,7 +79,8 @@ em_iter = function(Delta, nu0, pi0_0, pi1_0, pi2_0, delta_0,
         pi1_vec = c(pi1_vec, pi1_new)
         pi2_vec = c(pi2_vec, pi2_new)
         delta_vec = c(delta_vec, delta_new)
-        l1_vec = c(l1_vec, l1_new); l2_vec = c(l2_vec, l2_new)
+        l1_vec = c(l1_vec, l1_new)
+        l2_vec = c(l2_vec, l2_new)
         kappa1_vec = c(kappa1_vec, kappa1_new)
         kappa2_vec = c(kappa2_vec, kappa2_new)
 

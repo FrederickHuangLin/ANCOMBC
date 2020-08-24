@@ -6,19 +6,19 @@ data(atlas1006)
 pseq = subset_samples(atlas1006, time == 0)
 # Re-code the bmi group
 sample_data(pseq)$bmi_group = recode(sample_data(pseq)$bmi_group,
-                                     `underweight` = "lean",
-                                     `lean` = "lean",
-                                     `overweight` = "overweight",
-                                     `obese` = "obese",
-                                     `severeobese` = "obese",
-                                     `morbidobese` = "obese")
+                                     underweight = "lean",
+                                     lean = "lean",
+                                     overweight = "overweight",
+                                     obese = "obese",
+                                     severeobese = "obese",
+                                     morbidobese = "obese")
 # Re-code the nationality group
 sample_data(pseq)$nation = recode(sample_data(pseq)$nationality,
-                                  `Scandinavia` = "NE",
-                                  `UKIE` = "NE",
-                                  `SouthEurope` = "SE",
-                                  `CentralEurope` = "CE",
-                                  `EasternEurope` = "EE")
+                                  Scandinavia = "NE",
+                                  UKIE = "NE",
+                                  SouthEurope = "SE",
+                                  CentralEurope = "CE",
+                                  EasternEurope = "EE")
 
 # Aggregate to phylum level
 phylum_data = aggregate_taxa(pseq, "Phylum")

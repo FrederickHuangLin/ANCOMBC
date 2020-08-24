@@ -89,6 +89,8 @@ a \code{list} with components:
         \code{group} variable.}
         \item{ \code{samp_frac}, a numeric vector of estimated sampling
         fractions in log scale. }
+        \item{ \code{resid}, a \code{matrix} of residuals from the ANCOM-BC
+        log-linear model. Rows are taxa and columns are samples.}
         \item{ \code{delta_em}, estimated bias terms through E-M algorithm. }
         \item{ \code{delta_wls}, estimated bias terms through weighted
         least squares (WLS) algorithm.}
@@ -170,14 +172,12 @@ phylum_data = aggregate_taxa(pseq, "Phylum")
 feature_table = abundances(phylum_data); meta_data = meta(phylum_data)
 # ancombc requires an id column for metadata
 meta_data = meta_data \%>\% rownames_to_column("sample_id")
-sample_id = "sample_id"; formula = "age + nation + bmi_group"
-p_adj_method = "holm"; zero_cut = 0.90; lib_cut = 1000; group = "nation"
-struc_zero = TRUE; neg_lb = TRUE; tol = 1e-05; max_iter = 100
-conserve = TRUE; alpha = 0.05; global = TRUE
 
-out = ancombc(feature_table, meta_data, sample_id, formula,
-              p_adj_method, zero_cut, lib_cut, group, struc_zero,
-              neg_lb, tol, max_iter, conserve, alpha, global)
+out = ancombc(feature_table = feature_table, meta_data = meta_data,
+              sample_id = "sample_id", formula = "age + nation + bmi_group",
+              p_adj_method = "holm", zero_cut = 0.90, lib_cut = 1000,
+              group = "nation", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5,
+              max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE)
 
 res = out$res
 res_global = out$res_global

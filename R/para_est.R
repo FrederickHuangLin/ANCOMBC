@@ -1,10 +1,10 @@
 para_est = function(y, meta_data, formula, tol, max_iter) {
-    options(na.action = "na.pass") # Keep NA's in rows of x
-    x = model.matrix(formula(paste0("~", formula)), data = meta_data)
-    options(na.action = "na.omit") # Switch it back
-    taxa_id = rownames(y); n_taxa = nrow(y)
-    samp_id = colnames(y); n_samp = ncol(y)
-    covariates = colnames(x); n_covariates = length(covariates)
+    x = get_x(formula, meta_data)
+    taxa_id = rownames(y)
+    n_taxa = nrow(y)
+    samp_id = colnames(y)
+    n_samp = ncol(y)
+    covariates = colnames(x)
 
     # Sampling fractions
     d = rep(0, n_samp)
@@ -23,7 +23,8 @@ para_est = function(y, meta_data, formula, tol, max_iter) {
     beta = Reduce('rbind', beta)
 
     # Iterative least square
-    iterNum = 0; epsilon = 100
+    iterNum = 0
+    epsilon = 100
     while (epsilon > tol & iterNum < max_iter) {
         # Updating beta
         fits = lapply(seq_len(n_taxa), function(i) {
@@ -53,7 +54,8 @@ para_est = function(y, meta_data, formula, tol, max_iter) {
         epsilon = sqrt(sum((beta_new - beta)^2, na.rm = TRUE) +
                            sum((d_new - d)^2, na.rm = TRUE))
         iterNum = iterNum + 1
-        beta = beta_new; d = d_new
+        beta = beta_new
+        d = d_new
     }
 
     # Regression residuals
@@ -69,12 +71,15 @@ para_est = function(y, meta_data, formula, tol, max_iter) {
 
     # Variance-covariance matrices of coefficients
     fiuo_var_cov = var_cov_est(x, e, n_taxa)
-    var_cov_hat = fiuo_var_cov$var_cov_hat; var_hat = fiuo_var_cov$var_hat
+    var_cov_hat = fiuo_var_cov$var_cov_hat
+    var_hat = fiuo_var_cov$var_hat
 
-    colnames(beta) = covariates; rownames(beta) = taxa_id
+    colnames(beta) = covariates
+    rownames(beta) = taxa_id
     names(d) = samp_id
     names(var_cov_hat) = taxa_id
-    colnames(var_hat) = covariates; rownames(var_hat) = taxa_id
+    colnames(var_hat) = covariates
+    rownames(var_hat) = taxa_id
 
     fiuo_para = list(beta = beta, d = d, e = e,
                      var_cov_hat = var_cov_hat, var_hat = var_hat)

@@ -1,5 +1,6 @@
 var_cov_est = function(x, e, n_taxa) {
-    covariates = colnames(x); n_covariates = length(covariates)
+    covariates = colnames(x)
+    n_covariates = length(covariates)
     n_samp = nrow(x)
     XTX_inv = MASS::ginv(t(x[complete.cases(x), ]) %*% x[complete.cases(x), ])
     var_cov_hat = vector(mode = "list", length = n_taxa) # Covariances

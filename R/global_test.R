@@ -1,7 +1,8 @@
 # Global test
 global_test = function(y, x, group, beta_hat, var_cov_hat, p_adj_method, alpha){
-    taxa_id = rownames(y); n_taxa = nrow(y)
-    covariates = colnames(x); n_covariates = length(covariates)
+    taxa_id = rownames(y)
+    n_taxa = nrow(y)
+    covariates = colnames(x)
 
     res_global = data.frame(matrix(NA, nrow = n_taxa, ncol = 4))
     rownames(res_global) = taxa_id
@@ -29,8 +30,9 @@ global_test = function(y, x, group, beta_hat, var_cov_hat, p_adj_method, alpha){
     # Model summary
     q_global = p.adjust(res_global[, "p_val"], method = p_adj_method)
     q_global[is.na(q_global)] = 1
-    diff_global = ifelse(q_global < alpha, TRUE, FALSE)
+    diff_global = q_global < alpha & !is.na(q_global)
 
-    res_global$q_val = q_global; res_global$diff_abn = diff_global
+    res_global$q_val = q_global
+    res_global$diff_abn = diff_global
     return(res_global)
 }

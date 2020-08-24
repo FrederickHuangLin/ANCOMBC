@@ -69,6 +69,8 @@
 #'         \code{group} variable.}
 #'         \item{ \code{samp_frac}, a numeric vector of estimated sampling
 #'         fractions in log scale. }
+#'         \item{ \code{resid}, a \code{matrix} of residuals from the ANCOM-BC
+#'         log-linear model. Rows are taxa and columns are samples.}
 #'         \item{ \code{delta_em}, estimated bias terms through E-M algorithm. }
 #'         \item{ \code{delta_wls}, estimated bias terms through weighted
 #'         least squares (WLS) algorithm.}
@@ -131,14 +133,12 @@
 #' feature_table = abundances(phylum_data); meta_data = meta(phylum_data)
 #' # ancombc requires an id column for metadata
 #' meta_data = meta_data %>% rownames_to_column("sample_id")
-#' sample_id = "sample_id"; formula = "age + nation + bmi_group"
-#' p_adj_method = "holm"; zero_cut = 0.90; lib_cut = 1000; group = "nation"
-#' struc_zero = TRUE; neg_lb = TRUE; tol = 1e-05; max_iter = 100
-#' conserve = TRUE; alpha = 0.05; global = TRUE
 #'
-#' out = ancombc(feature_table, meta_data, sample_id, formula,
-#'               p_adj_method, zero_cut, lib_cut, group, struc_zero,
-#'               neg_lb, tol, max_iter, conserve, alpha, global)
+#' out = ancombc(feature_table = feature_table, meta_data = meta_data,
+#'               sample_id = "sample_id", formula = "age + nation + bmi_group",
+#'               p_adj_method = "holm", zero_cut = 0.90, lib_cut = 1000,
+#'               group = "nation", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5,
+#'               max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE)
 #'
 #' res = out$res
 #' res_global = out$res_global
@@ -164,16 +164,18 @@ ancombc = function(feature_table, meta_data, sample_id, formula,
   # 1. Data pre-processing
   fiuo_prep = data_prep(feature_table, meta_data, sample_id,
                         group, zero_cut, lib_cut, global = global)
-  feature_table = fiuo_prep$feature_table; meta_data = fiuo_prep$meta_data
+  feature_table = fiuo_prep$feature_table
+  meta_data = fiuo_prep$meta_data
   global = fiuo_prep$global
-  taxa_id = rownames(feature_table); n_taxa = nrow(feature_table)
-  samp_id = colnames(feature_table); n_samp = ncol(feature_table)
+  # samp_id = colnames(feature_table)
+  # taxa_id = rownames(feature_table)
+  # n_samp = ncol(feature_table)
+  n_taxa = nrow(feature_table)
   # Add pseudocount (1) and take logarithm.
   y = log(feature_table + 1)
-  options(na.action = "na.pass") # Keep NA's in rows of x
-  x = model.matrix(formula(paste0("~", formula)), data = meta_data)
-  options(na.action = "na.omit") # Switch it back
-  covariates = colnames(x); n_covariates = length(covariates)
+  x = get_x(formula, meta_data)
+  covariates = colnames(x)
+  n_covariates = length(covariates)
 
   # 2. Identify taxa with structural zeros
   if (struc_zero) {
@@ -185,23 +187,29 @@ ancombc = function(feature_table, meta_data, sample_id, formula,
 
   # 3. Estimation of parameters
   fiuo_para = para_est(y, meta_data, formula, tol, max_iter)
-  beta = fiuo_para$beta; d = fiuo_para$d; e = fiuo_para$e
-  var_cov_hat = fiuo_para$var_cov_hat; var_hat = fiuo_para$var_hat
+  beta = fiuo_para$beta
+  d = fiuo_para$d
+  e = fiuo_para$e
+  var_cov_hat = fiuo_para$var_cov_hat
+  var_hat = fiuo_para$var_hat
 
   # 4. Estimation of the between-sample bias
   fiuo_bias = bias_est(beta, var_hat, tol, max_iter, n_taxa)
-  delta_em = fiuo_bias$delta_em; delta_wls = fiuo_bias$delta_wls
+  delta_em = fiuo_bias$delta_em
+  delta_wls = fiuo_bias$delta_wls
   var_delta = fiuo_bias$var_delta
 
   # 5. Coefficients, standard error, and sampling fractions
   fiuo_fit = fit_summary(y, x, beta, var_hat, delta_em, var_delta, conserve)
-  beta_hat = fiuo_fit$beta_hat; se_hat = fiuo_fit$se_hat; d_hat = fiuo_fit$d_hat
+  beta_hat = fiuo_fit$beta_hat
+  se_hat = fiuo_fit$se_hat
+  d_hat = fiuo_fit$d_hat
 
   # 6. Primary results
   W = beta_hat/se_hat
   p = 2 * pnorm(abs(W), mean = 0, sd = 1, lower.tail = FALSE)
   q = apply(p, 2, function(x) p.adjust(x, method = p_adj_method))
-  diff_abn = ifelse(q < alpha, TRUE, FALSE)
+  diff_abn = q < alpha & !is.na(q)
   res = list(beta = data.frame(beta_hat, check.names = FALSE),
              se = data.frame(se_hat, check.names = FALSE),
              W = data.frame(W, check.names = FALSE),
@@ -218,11 +226,13 @@ ancombc = function(feature_table, meta_data, sample_id, formula,
   # 8. Combine the information of structural zeros
   fiuo_out = res_combine_zero(x, group, struc_zero, zero_ind, alpha,
                               global, res, res_global)
-  res = fiuo_out$res; res_global = fiuo_out$res_global
+  res = fiuo_out$res
+  res_global = fiuo_out$res_global
 
   # 9. Outputs
   out = list(feature_table = feature_table, zero_ind = zero_ind,
-             samp_frac = d_hat, delta_em = delta_em, delta_wls = delta_wls,
+             samp_frac = d_hat, resid = e,
+             delta_em = delta_em, delta_wls = delta_wls,
              res = res, res_global = res_global)
   return(out)
 }
