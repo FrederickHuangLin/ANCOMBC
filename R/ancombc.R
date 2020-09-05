@@ -20,49 +20,45 @@
 #' recommended to set \code{neg_lb = TRUE} when the sample size per group is
 #' relatively large (e.g. > 30).
 #'
-#' @param feature_table a \code{data.frame} or \code{matrix} representing
-#' observed microbial absolute abundance table with taxa in rows
-#' (\code{rownames} are taxa id) and samples in columns (\code{colnames} are
-#' sample id). Note that this is the absolute abundance table, transforming it
-#' to relative abundance table (where the column totals are equal to 1)
-#' is deprecated
-#' @param meta_data a \code{data.frame} or \code{matrix} containing an ID column
-#' and all other variables. The ID column of \code{meta_data} is the
-#' \code{colnames} for \code{feature_table}
-#' @param sample_id the name of the ID column in \code{meta_data}
+#' @param phyloseq a phyloseq-class object, which consists of a feature table
+#' (microbial observed abundance table), a sample metadata, a taxonomy table
+#' (optional), and a phylogenetic tree (optional). The row names of the
+#' metadata must match the sample names of the feature table, and the row names
+#' of the taxonomy table must match the taxon (feature) names of the feature
+#' table. See \code{\link[phyloseq]{phyloseq}} for more details.
 #' @param formula the character string expresses how the microbial absolute
-#' abundances for each taxon depend on the variables in \code{meta_data}.
+#' abundances for each taxon depend on the variables in metadata.
 #' @param p_adj_method method to adjust p-values by. Default is "holm".
 #' Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 #' "fdr", "none". See \code{\link[stats]{p.adjust}} for more details.
 #' @param zero_cut a numerical fraction between 0 and 1. Taxa with proportion of
 #' zeroes greater than \code{zero_cut} will be excluded in the analysis. Default
-#' is 0.90
+#' is 0.90.
 #' @param lib_cut a numerical threshold for filtering samples based on library
 #' sizes. Samples with library sizes less than \code{lib_cut} will be
-#' excluded in the analysis
-#' @param group the name of the group variable in \code{meta_data}. Specifying
+#' excluded in the analysis.
+#' @param group the name of the group variable in metadata. Specifying
 #' \code{group} is required for detecting structural zeros and
-#' performing global test
-#' @param struc_zero whether to detect structural zeros. Default is FALSE
+#' performing global test.
+#' @param struc_zero whether to detect structural zeros. Default is FALSE.
 #' @param neg_lb whether to classify a taxon as a structural zero in the
-#' corresponding experimental group using its asymptotic lower bound.
-#' Default is FALSE
+#' corresponding study group using its asymptotic lower bound.
+#' Default is FALSE.
 #' @param tol the iteration convergence tolerance for the E-M algorithm.
-#' Default is 1e-05
+#' Default is 1e-05.
 #' @param max_iter the maximum number of iterations for the E-M algorithm.
-#' Default is 100
+#' Default is 100.
 #' @param conserve whether to use a conservative variance estimate of
 #' the test statistic. It is recommended if the sample size is small and/or
 #' the number of differentially abundant taxa is believed to be large.
 #' Default is FALSE.
-#' @param alpha level of significance. Default is 0.05
-#' @param global whether to perform global test. Default is FALSE
+#' @param alpha level of significance. Default is 0.05.
+#' @param global whether to perform global test. Default is FALSE.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
 #'         \item{ \code{feature_table}, a \code{data.frame} of pre-processed
-#'         (based on \code{zero_cut} and \code{lib_cut}) microbial absolute
+#'         (based on \code{zero_cut} and \code{lib_cut}) microbial observed
 #'         abundance table. }
 #'         \item{ \code{zero_ind}, a logical \code{matrix} with TRUE indicating
 #'         the taxon is identified as a structural zero for the specified
@@ -106,7 +102,33 @@
 #'         }
 #'
 #' @examples
-#' library(microbiome); library(tidyverse)
+#' #================Build a Phyloseq-Class Object from Scratch==================
+#' library(phyloseq)
+#'
+#' otu_mat = matrix(sample(1:100, 100, replace = TRUE), nrow = 10, ncol = 10)
+#' rownames(otu_mat) = paste0("taxon", 1:nrow(otu_mat))
+#' colnames(otu_mat) = paste0("sample", 1:ncol(otu_mat))
+#'
+#'
+#' meta = data.frame(group = sample(LETTERS[1:4], size = 10, replace = TRUE),
+#'                   row.names = paste0("sample", 1:ncol(otu_mat)),
+#'                   stringsAsFactors = FALSE)
+#'
+#' tax_mat = matrix(sample(letters, 70, replace = TRUE),
+#'                  nrow = nrow(otu_mat), ncol = 7)
+#' rownames(tax_mat) = rownames(otu_mat)
+#' colnames(tax_mat) = c("Kingdom", "Phylum", "Class", "Order",
+#'                       "Family", "Genus", "Species")
+#'
+#' OTU = otu_table(otu_mat, taxa_are_rows = TRUE)
+#' META = sample_data(meta)
+#' TAX = tax_table(tax_mat)
+#' physeq = phyloseq(OTU, META, TAX)
+#'
+#' #========================Run ANCOMBC Using a Real Data=======================
+#'
+#' library(microbiome)
+#' library(tidyverse)
 #' data(atlas1006)
 #' # Subset to baseline
 #' pseq = subset_samples(atlas1006, time == 0)
@@ -129,13 +151,7 @@
 #' # Aggregate to phylum level
 #' phylum_data = aggregate_taxa(pseq, "Phylum")
 #'
-#' # Run ancombc
-#' feature_table = abundances(phylum_data); meta_data = meta(phylum_data)
-#' # ancombc requires an id column for metadata
-#' meta_data = meta_data %>% rownames_to_column("sample_id")
-#'
-#' out = ancombc(feature_table = feature_table, meta_data = meta_data,
-#'               sample_id = "sample_id", formula = "age + nation + bmi_group",
+#' out = ancombc(phyloseq = phylum_data, formula = "age + nation + bmi_group",
 #'               p_adj_method = "holm", zero_cut = 0.90, lib_cut = 1000,
 #'               group = "nation", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5,
 #'               max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE)
@@ -151,19 +167,18 @@
 #' \insertRef{lin2020analysis}{ANCOMBC}
 #'
 #' @import stats
+#' @import phyloseq
 #' @importFrom MASS ginv
 #' @importFrom nloptr neldermead
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancombc = function(feature_table, meta_data, sample_id, formula,
-                   p_adj_method = "holm", zero_cut = 0.90, lib_cut,
-                   group = NULL, struc_zero = FALSE, neg_lb = FALSE,
-                   tol = 1e-05, max_iter = 100, conserve = FALSE,
-                   alpha = 0.05, global = FALSE){
+ancombc = function(phyloseq, formula, p_adj_method = "holm", zero_cut = 0.90,
+                   lib_cut, group = NULL, struc_zero = FALSE, neg_lb = FALSE,
+                   tol = 1e-05, max_iter = 100, conserve = FALSE, alpha = 0.05,
+                   global = FALSE){
   # 1. Data pre-processing
-  fiuo_prep = data_prep(feature_table, meta_data, sample_id,
-                        group, zero_cut, lib_cut, global = global)
+  fiuo_prep = data_prep(phyloseq, group, zero_cut, lib_cut, global = global)
   feature_table = fiuo_prep$feature_table
   meta_data = fiuo_prep$meta_data
   global = fiuo_prep$global

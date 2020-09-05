@@ -1,15 +1,11 @@
 # Data pre-processing
-data_prep = function(feature_table, meta_data, sample_id,
-                     group, zero_cut, lib_cut, global) {
+data_prep = function(phyloseq, group, zero_cut, lib_cut, global = global) {
+    feature_table = as(otu_table(phyloseq), "matrix")
     feature_table = data.frame(feature_table, check.names = FALSE)
-    meta_data = data.frame(meta_data, check.names = FALSE)
+    meta_data = as(sample_data(phyloseq), "data.frame")
     # Drop unused levels
     meta_data[] = lapply(meta_data, function(x)
         if(is.factor(x)) factor(x) else x)
-    # Match sample IDs between metadata and feature table
-    id = intersect(meta_data[, sample_id], colnames(feature_table))
-    feature_table = feature_table[, id]
-    meta_data = meta_data[match(id, meta_data[, sample_id]), ]
     # Check the group variable
     if (is.null(group)) {
         if (global) {

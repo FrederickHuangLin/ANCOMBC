@@ -1,5 +1,8 @@
 context("Testing parameter estimation function")
-library(ANCOMBC); library(testthat); library(tidyverse); library(microbiome)
+library(ANCOMBC)
+library(testthat)
+library(tidyverse)
+library(microbiome)
 
 data(atlas1006)
 # Subset to baseline
@@ -26,15 +29,12 @@ phylum_data = aggregate_taxa(pseq, "Phylum")
 # Test
 test_that("`para_test` function provides expected values prior to the
           E-M algorithm", {
-      feature_table = abundances(phylum_data); meta_data = meta(phylum_data)
-      meta_data = meta_data %>% rownames_to_column("sample_id")
-      sample_id = "sample_id"; group = "nation"; zero_cut = 0.90; lib_cut = 1000
+      phyloseq = phylum_data; group = "nation"; zero_cut = 0.90; lib_cut = 1000
       global = TRUE; formula = "age + nation + bmi_group"
       tol = 1e-5; max_iter = 100
 
       # Data pre-processing
-      fiuo_prep = data_prep(feature_table, meta_data, sample_id,
-                            group, zero_cut, lib_cut, global)
+      fiuo_prep = data_prep(phyloseq, group, zero_cut, lib_cut, global)
       feature_table = fiuo_prep$feature_table; meta_data = fiuo_prep$meta_data
       y = log(feature_table + 1)
 
