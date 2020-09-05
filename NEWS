@@ -1,2 +1,8 @@
-Changes in version 1.0.0 (2020-09-05)
-+ Release!
+Changes in version 0.99.2 (2020-09-05)
++ Integrating with phyloseq-class experiment-level object
+
+Changes in version 0.99.1 (2020-08-23)
++ Addressed reviewer's comments
+
+Changes in version 0.99.0 (2020-08-10)
++ Submitted to Bioconductor
