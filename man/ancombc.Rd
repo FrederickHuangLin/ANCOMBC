@@ -80,9 +80,10 @@ a \code{list} with components:
         the taxon is identified as a structural zero for the specified
         \code{group} variable.}
         \item{ \code{samp_frac}, a numeric vector of estimated sampling
-        fractions in log scale. }
+        fractions in log scale (natural log). }
         \item{ \code{resid}, a \code{matrix} of residuals from the ANCOM-BC
-        log-linear model. Rows are taxa and columns are samples.}
+        log-linear (natural log) model.
+        Rows are taxa and columns are samples.}
         \item{ \code{delta_em}, estimated bias terms through E-M algorithm. }
         \item{ \code{delta_wls}, estimated bias terms through weighted
         least squares (WLS) algorithm.}
@@ -90,7 +91,7 @@ a \code{list} with components:
         which consists of:}
         \itemize{
         \item{ \code{beta}, a \code{data.frame} of coefficients obtained
-        from the ANCOM-BC log-linear model. }
+        from the ANCOM-BC log-linear (natural log) model. }
         \item{ \code{se}, a \code{data.frame} of standard errors (SEs) of
         \code{beta}. }
         \item{ \code{W}, a \code{data.frame} of test statistics.
