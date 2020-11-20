@@ -17,6 +17,12 @@ fit_summary = function(y, x, beta, var_hat, delta_em, var_delta, conserve) {
     }
     d_hat = colMeans(d_hat, na.rm = TRUE)
 
+    # Remove uninformative intercept column
+    beta_hat = beta_hat[, setdiff(colnames(beta_hat), "(Intercept)"),
+                        drop = FALSE]
+    se_hat = se_hat[, setdiff(colnames(se_hat), "(Intercept)"),
+                    drop = FALSE]
+
     fiuo_fit = list(beta_hat = beta_hat, se_hat = se_hat, d_hat = d_hat)
     return(fiuo_fit)
 }

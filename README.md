@@ -7,14 +7,9 @@ Currently, the ANCOMBC package has been accepted on Bioconductor and added to it
 
 ## To install the latest release version of ANCOMBC
 
-1. In order to use the ‘bioc-devel’ version of *Bioconductor* during the mid-April to mid-October release cycle, use the release version of *R* and invoke the function `install(version="devel")`
-2. In order to use the ‘bioc-devel’ version of *Bioconductor* during the mid-October to mid-April release cycle, you must install the devel version of *R* and invoke the function `install(version="devel")`
-3. For details, see: https://bioconductor.org/developers/how-to/useDevel/
-
 ```r
 if (!requireNamespace("BiocManager", quietly=TRUE))
     install.packages("BiocManager")
-BiocManager::install(version = "devel")
 BiocManager::install("ANCOMBC")
 ```
 

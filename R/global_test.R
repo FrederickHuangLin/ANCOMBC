@@ -1,5 +1,6 @@
 # Global test
 global_test = function(y, x, group, beta_hat, var_cov_hat, p_adj_method, alpha){
+    x = x[, setdiff(colnames(x), "(Intercept)"), drop = FALSE]
     taxa_id = rownames(y)
     n_taxa = nrow(y)
     covariates = colnames(x)
@@ -10,9 +11,11 @@ global_test = function(y, x, group, beta_hat, var_cov_hat, p_adj_method, alpha){
 
     group_ind = grepl(group, covariates)
     # Loop over the parameter of interest
-    beta_hat_sub = beta_hat[, group_ind]
-    var_cov_hat_sub = lapply(var_cov_hat, function(x)
-        x = x[group_ind, group_ind])
+    beta_hat_sub = beta_hat[, group_ind, drop = FALSE]
+    var_cov_hat_sub = lapply(var_cov_hat, function(x) {
+        x = x[-1, -1, drop = FALSE]
+        x = x[group_ind, group_ind, drop = FALSE]
+    })
 
     for (i in seq_len(n_taxa)) {
         # Loop over taxa

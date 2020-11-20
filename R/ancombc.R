@@ -129,11 +129,12 @@
 #' #========================Run ANCOMBC Using a Real Data=======================
 #'
 #' library(phyloseq)
+#' library(microbiome)
 #' library(tidyverse)
 #' data(GlobalPatterns)
 #'
 #' # Aggregate to phylum level
-#' phylum_data = tax_glom(GlobalPatterns, "Phylum")
+#' phylum_data = aggregate_taxa(GlobalPatterns, "Phylum")
 #' # The taxonomy table
 #' tax_mat = as(tax_table(phylum_data), "matrix")
 #'
@@ -156,6 +157,7 @@
 #'
 #' @import stats
 #' @import phyloseq
+#' @import microbiome
 #' @importFrom MASS ginv
 #' @importFrom nloptr neldermead
 #' @importFrom Rdpack reprompt

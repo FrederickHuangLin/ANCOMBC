@@ -153,7 +153,7 @@ abundant (TRUE) or not (FALSE).
 
 ```{r}
 tab_coef = res$beta
-col_name = c("Intercept", "Age", "EE - CE", "NE - CE", "SE - CE", "US - CE", 
+col_name = c("Age", "EE - CE", "NE - CE", "SE - CE", "US - CE", 
              "Oerweight - Lean", "Obese - Lean")
 colnames(tab_coef) = col_name
 tab_coef %>% datatable(caption = "Coefficients from the Primary Result") %>%
@@ -249,7 +249,8 @@ It contains: 1) test statistics; 2) p-values; 3) adjusted p-values;
 ### 3.51 Test statistics
 
 ```{r}
-tab_w = data.frame(Nationality = res_global$W)
+tab_w = res_global[, "W", drop = FALSE]
+colnames(tab_w) = "Nationality"
 tab_w %>% datatable(caption = "Test Statistics 
                     from the Global Test Result") %>%
       formatRound(c("Nationality"), digits = 2)
@@ -258,7 +259,8 @@ tab_w %>% datatable(caption = "Test Statistics
 ### 3.52 P-values
 
 ```{r}
-tab_p = data.frame(Nationality = res_global$p_val)
+tab_p = res_global[, "p_val", drop = FALSE]
+colnames(tab_p) = "Nationality"
 tab_p %>% datatable(caption = "P-values 
                     from the Global Test Result") %>%
       formatRound(c("Nationality"), digits = 2)
@@ -267,7 +269,8 @@ tab_p %>% datatable(caption = "P-values
 ### 3.53 Adjusted p-values
 
 ```{r}
-tab_q = data.frame(Nationality = res_global$q_val)
+tab_q = res_global[, "q_val", drop = FALSE]
+colnames(tab_q) = "Nationality"
 tab_q %>% datatable(caption = "Adjusted p-values 
                     from the Global Test Result") %>%
       formatRound(c("Nationality"), digits = 2)
@@ -276,7 +279,8 @@ tab_q %>% datatable(caption = "Adjusted p-values
 ### 3.54 Differentially abundant taxa
 
 ```{r}
-tab_diff = data.frame(Nationality = res_global$diff_abn)
+tab_diff = res_global[, "diff_abn", drop = FALSE]
+colnames(tab_diff) = "Nationality"
 tab_diff %>% datatable(caption = "Differentially Abundant Taxa 
                        from the Global Test Result")
 ```
