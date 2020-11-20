@@ -1,17 +1,5 @@
-Changes in version 0.99.5 (2020-10-19)
-+ Update README
+version 1.1.1 (last update 2020-11-20)
++ Integrating with functions from the microbiome package.
 
-Changes in version 0.99.4 (2020-09-26)
-+ Update README
-
-Changes in version 0.99.3 (2020-09-13)
-+ Using the GlobalPatterns dataset in the examples
-
-Changes in version 0.99.2 (2020-09-05)
-+ Integrating with phyloseq-class experiment-level object
-
-Changes in version 0.99.1 (2020-08-23)
-+ Addressed reviewer's comments
-
-Changes in version 0.99.0 (2020-08-10)
-+ Submitted to Bioconductor
+version 1.0.0: (2020-10-31)
++ Release!

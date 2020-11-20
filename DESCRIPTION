@@ -7,7 +7,7 @@ Description: ANCOMBC is a package for normalizing the microbial absolute
     identifying taxa (e.g. phyla, families, genera, species, etc.) that are 
     differentially abundant with respect to the covariate of interest (e.g.
     study groups) between two or more groups of multiple samples.
-Date: 2020-11-02
+Date: 2020-11-20
 Authors@R: c(
     person(given = "Huang", 
            family = "Lin", 

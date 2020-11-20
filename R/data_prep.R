@@ -1,8 +1,7 @@
 # Data pre-processing
 data_prep = function(phyloseq, group, zero_cut, lib_cut, global = global) {
-    feature_table = as(otu_table(phyloseq), "matrix")
-    feature_table = data.frame(feature_table, check.names = FALSE)
-    meta_data = as(sample_data(phyloseq), "data.frame")
+    feature_table = abundances(phyloseq)
+    meta_data = meta(phyloseq)
     # Drop unused levels
     meta_data[] = lapply(meta_data, function(x)
         if(is.factor(x)) factor(x) else x)

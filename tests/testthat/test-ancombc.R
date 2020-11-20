@@ -44,7 +44,7 @@ test_that("`ancombc` function provides expected results", {
    # Testing
    test_output = signif(c(res$W[1, 1], res_global$W[2]), 2)
 
-   expect_equal(test_output, c(48, 75))
+   expect_equal(test_output, c(-9.8, 75))
 })
 
 
