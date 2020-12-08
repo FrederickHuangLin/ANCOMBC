@@ -1,3 +1,7 @@
+version 1.1.2 (last update 2020-12-08)
++ Bug fix: fix the bug that the sampling fraction estimate will return a
+single number instead of a vector.
+
 version 1.1.1 (last update 2020-11-20)
 + Integrating with functions from the microbiome package.
 

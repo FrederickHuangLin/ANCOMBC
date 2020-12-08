@@ -10,10 +10,9 @@ fit_summary = function(y, x, beta, var_hat, delta_em, var_delta, conserve) {
                           2 * sqrt(sweep(var_hat, 2, c(0, var_delta), "*")))
     }else{ se_hat = sqrt(var_hat) }
 
-    d_hat = vector()
+    d_hat = matrix(NA, nrow = nrow(y), ncol = ncol(y))
     for (i in seq_len(n_taxa)) {
-        d_hat_i = y[i, ] - x %*% beta_hat[i, ]
-        d_hat = rbind(d_hat, d_hat_i)
+        d_hat[i, ] = y[i, ] - x %*% beta_hat[i, ]
     }
     d_hat = colMeans(d_hat, na.rm = TRUE)
 
