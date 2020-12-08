@@ -64,7 +64,11 @@
 #'         the taxon is identified as a structural zero for the specified
 #'         \code{group} variable.}
 #'         \item{ \code{samp_frac}, a numeric vector of estimated sampling
-#'         fractions in log scale (natural log). }
+#'         fractions in log scale (natural log). Note that for each sample,
+#'         if it contains missing values for any variable specified in the
+#'         \code{formula}}, the corresponding sampling fraction estimate
+#'         for this sample will return \code{NA} since the sampling fraction
+#'         is not estimable with the presence of missing values.
 #'         \item{ \code{resid}, a \code{matrix} of residuals from the ANCOM-BC
 #'         log-linear (natural log) model.
 #'         Rows are taxa and columns are samples.}

@@ -206,7 +206,32 @@ tab_diff %>%
             from the Primary Result")
 ```
 
-### 3.45 Visualizations for "age"
+### 3.47 Bias-adjusted abundances
+
+Step 1: estimate sample-specific sampling fractions (log scale). Note that for 
+each sample, if it contains missing values for any variable specified in the 
+formula, the corresponding sampling fraction estimate for this sample will 
+return NA since the sampling fraction is not estimable with the presence of 
+missing values.
+
+Step 2: adjust the log observed abundances by subtracting the estimated 
+sampling fraction from log observed abundances of each sample.
+
+```{r}
+samp_frac = out$samp_frac
+# Replace NA with 0
+samp_frac[is.na(samp_frac)] = 0 
+
+# Add pesudo-count (1) to avoid taking the log of 0
+log_obs_abn = log(abundances(phylum_data) + 1) 
+# Adjust the log observed abundances
+log_obs_abn_adj = t(t(log_obs_abn) - samp_frac)
+# Show the first 6 samples
+round(log_obs_abn_adj[, 1:6], 2) %>% 
+  datatable(caption = "Bias-adjusted log observed abundances")
+```
+
+### 3.48 Visualizations for "age"
 
 *"Age" is a continuous variable.*
 
