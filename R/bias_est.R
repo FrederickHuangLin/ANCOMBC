@@ -17,10 +17,13 @@ bias_est = function(beta, var_hat, tol, max_iter, n_taxa) {
         delta_0 = mean(Delta[Delta >= quantile(Delta, 0.25, na.rm = TRUE)&
                                  Delta <= quantile(Delta, 0.75, na.rm = TRUE)],
                        na.rm = TRUE)
+        if(is.na(delta_0)) delta_0 = mean(Delta, na.rm = TRUE)
         l1_0 = mean(Delta[Delta < quantile(Delta, 0.125, na.rm = TRUE)],
                     na.rm = TRUE)
+        if(is.na(l1_0)) l1_0 = min(Delta, na.rm = TRUE)
         l2_0 = mean(Delta[Delta > quantile(Delta, 0.875, na.rm = TRUE)],
                     na.rm = TRUE)
+        if(is.na(l2_0)) l2_0 = max(Delta, na.rm = TRUE)
         kappa1_0 = var(Delta[Delta < quantile(Delta, 0.125, na.rm = TRUE)],
                        na.rm = TRUE)
         if(is.na(kappa1_0)|kappa1_0 == 0) kappa1_0 = 1
