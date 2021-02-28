@@ -32,8 +32,8 @@ data_prep = function(phyloseq, group, zero_cut, lib_cut, global = global) {
     lib_size = colSums(feature_table, na.rm = TRUE)
     if(any(lib_size < lib_cut)){
         subj_del = which(lib_size < lib_cut)
-        feature_table = feature_table[, - subj_del]
-        meta_data = meta_data[- subj_del, ]
+        feature_table = feature_table[, - subj_del, drop = FALSE]
+        meta_data = meta_data[- subj_del, , drop = FALSE]
     }
     fiuo_prep = list(feature_table = feature_table,
                      meta_data = meta_data,
