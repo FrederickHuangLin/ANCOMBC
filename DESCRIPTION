@@ -21,7 +21,7 @@ Authors@R: c(
            comment = c(ORCID = "0000-0002-5014-6513")))
 License: Artistic-2.0
 Imports: stats, MASS, nloptr, Rdpack, phyloseq, microbiome
-Suggests: knitr, tidyverse, testthat, DT, magrittr, qwraps2
+Suggests: knitr, tidyverse, testthat, DT, magrittr, qwraps2 (>= 0.5.0)
 biocViews: 
     DifferentialExpression, 
     Microbiome, 
