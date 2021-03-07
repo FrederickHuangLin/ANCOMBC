@@ -99,27 +99,27 @@ phylum_data = aggregate_taxa(pseq, "Phylum")
 options(qwraps2_markup = "markdown")
 summary_template =
   list("Age" =
-       list("min" = ~ min(.data$age, na.rm = TRUE),
-            "max" = ~ max(.data$age, na.rm = TRUE),
-            "mean (sd)" = ~ mean_sd(.data$age, na_rm = TRUE, 
-                                    show_n = "never")),
+         list("min" = ~ min(age, na.rm = TRUE),
+              "max" = ~ max(age, na.rm = TRUE),
+              "mean (sd)" = ~ mean_sd(age, na_rm = TRUE, 
+                                      show_n = "never")),
        "Gender" =
-       list("F" = ~ n_perc0(.data$sex == "female", na_rm = TRUE),
-            "M" = ~ n_perc0(.data$sex == "male", na_rm = TRUE),
-            "NA" = ~ n_perc0(is.na(.data$sex))),
+         list("F" = ~ n_perc0(sex == "female", na_rm = TRUE),
+              "M" = ~ n_perc0(sex == "male", na_rm = TRUE),
+              "NA" = ~ n_perc0(is.na(sex))),
        "Nationality" =
-       list("Central Europe" = ~ n_perc0(.data$nation == "CE", na_rm = TRUE),
-            "Eastern Europe" = ~ n_perc0(.data$nation == "EE", na_rm = TRUE),
-            "Northern Europe" = ~ n_perc0(.data$nation == "NE", na_rm = TRUE),
-            "Southern Europe" = ~ n_perc0(.data$nation == "SE", na_rm = TRUE),
-            "US" = ~ n_perc0(.data$nation == "US", na_rm = TRUE),
-            "NA" = ~ n_perc0(is.na(.data$nation))),
+         list("Central Europe" = ~ n_perc0(nation == "CE", na_rm = TRUE),
+              "Eastern Europe" = ~ n_perc0(nation == "EE", na_rm = TRUE),
+              "Northern Europe" = ~ n_perc0(nation == "NE", na_rm = TRUE),
+              "Southern Europe" = ~ n_perc0(nation == "SE", na_rm = TRUE),
+              "US" = ~ n_perc0(nation == "US", na_rm = TRUE),
+              "NA" = ~ n_perc0(is.na(nation))),
        "BMI" =
-       list("Lean" = ~ n_perc0(.data$bmi_group == "lean", na_rm = TRUE),
-            "Overweight" = ~ n_perc0(.data$bmi_group == "overweight", 
-                                     na_rm = TRUE),
-            "Obese" = ~ n_perc0(.data$bmi_group == "obese", na_rm = TRUE),
-            "NA" = ~ n_perc0(is.na(.data$bmi_group)))
+         list("Lean" = ~ n_perc0(bmi_group == "lean", na_rm = TRUE),
+              "Overweight" = ~ n_perc0(bmi_group == "overweight", 
+                                       na_rm = TRUE),
+              "Obese" = ~ n_perc0(bmi_group == "obese", na_rm = TRUE),
+              "NA" = ~ n_perc0(is.na(bmi_group)))
        )
 data_summary = summary_table(meta(pseq), summary_template)
 data_summary
