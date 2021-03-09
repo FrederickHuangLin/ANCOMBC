@@ -1,3 +1,6 @@
+version 1.0.5 (last update 2021-03-09)
++ Bugs fix: fix the bug of inflated p-values and inconsistent output formats.
+
 version 1.0.4 (last update 2021-02-28)
 + Bug fix: fix the bug when metadata contains only a single variable and some
 samples were removed with the minimum library size cutoff.

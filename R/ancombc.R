@@ -36,7 +36,7 @@
 #' is 0.90.
 #' @param lib_cut a numerical threshold for filtering samples based on library
 #' sizes. Samples with library sizes less than \code{lib_cut} will be
-#' excluded in the analysis.
+#' excluded in the analysis. Default is 0, i.e. do not filter any sample.
 #' @param group the name of the group variable in metadata. Specifying
 #' \code{group} is required for detecting structural zeros and
 #' performing global test.
@@ -168,9 +168,9 @@
 #'
 #' @export
 ancombc = function(phyloseq, formula, p_adj_method = "holm", zero_cut = 0.90,
-                   lib_cut, group = NULL, struc_zero = FALSE, neg_lb = FALSE,
-                   tol = 1e-05, max_iter = 100, conserve = FALSE, alpha = 0.05,
-                   global = FALSE){
+                   lib_cut = 0, group = NULL, struc_zero = FALSE,
+                   neg_lb = FALSE, tol = 1e-05, max_iter = 100,
+                   conserve = FALSE, alpha = 0.05, global = FALSE){
   # 1. Data pre-processing
   fiuo_prep = data_prep(phyloseq, group, zero_cut, lib_cut, global = global)
   feature_table = fiuo_prep$feature_table
