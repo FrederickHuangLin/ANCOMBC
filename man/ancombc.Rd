@@ -11,7 +11,7 @@ ancombc(
   formula,
   p_adj_method = "holm",
   zero_cut = 0.9,
-  lib_cut,
+  lib_cut = 0,
   group = NULL,
   struc_zero = FALSE,
   neg_lb = FALSE,
@@ -43,7 +43,7 @@ is 0.90.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
-excluded in the analysis.}
+excluded in the analysis. Default is 0, i.e. do not filter any sample.}
 
 \item{group}{the name of the group variable in metadata. Specifying
 \code{group} is required for detecting structural zeros and
