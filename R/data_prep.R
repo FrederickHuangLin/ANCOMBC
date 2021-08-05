@@ -8,15 +8,35 @@ data_prep = function(phyloseq, group, zero_cut, lib_cut, global = global) {
     # Check the group variable
     if (is.null(group)) {
         if (global) {
-            stop("Please specify the group variable for the global test.")
+            stop("Please specify the group variable for the global test",
+                 call. = FALSE)
         }
     } else {
+        # Check the number of groups
         n_level = length(unique(meta_data[, group]))
         if (n_level < 2) {
-            stop("The group variable should have >= 2 categories.")
+            stop("The group variable should have >= 2 categories",
+                 call. = FALSE)
         } else if (n_level < 3) {
             global = FALSE
-            warning("The multi-group comparison will be deactivated as the group variable has < 3 categories.")
+            warning("The multi-group comparison will be deactivated as the group variable has < 3 categories",
+                    call. = FALSE)
+        }
+
+        # Check the sample size per group
+        size_per_group = tapply(meta_data[, group], meta_data[, group], length)
+        if (any(size_per_group < 2)) {
+            stop_txt = sprintf(paste("Sample size per group should be >= 2",
+                                     "Small sample size detected for the following group(s): ",
+                                     paste(names(size_per_group)[which(size_per_group < 2)], collapse = " "),
+                                     sep = "\n"))
+            stop(stop_txt, call. = FALSE)
+        } else if (any(size_per_group < 5)) {
+            warning_txt = sprintf(paste("Small sample size detected for the following group(s): ",
+                                        paste(names(size_per_group)[which(size_per_group < 5)], collapse = " "),
+                                        "ANCOM-BC results would be unstable when the sample size is < 5 per group",
+                                        sep = "\n"))
+            warning(warning_txt, call. = FALSE)
         }
     }
 

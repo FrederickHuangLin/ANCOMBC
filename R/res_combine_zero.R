@@ -5,8 +5,8 @@ res_combine_zero = function(x, group, struc_zero, zero_ind, alpha,
     # Set p/q-values of structural zeros to be 0s.
     if (struc_zero) {
         group_ind = grepl(group, covariates)
-        zero_mask = 1 - apply(zero_ind, 1, function(x)
-            sum(x) > 0 & sum(x) < ncol(zero_ind))
+        zero_mask = 1 - abs((zero_ind - zero_ind[, 1]))
+        zero_mask = zero_mask[, -1]
         res$p_val[, group_ind] = res$p_val[, group_ind] * zero_mask
         res$q_val[, group_ind] = res$q_val[, group_ind] * zero_mask
         res$diff_abn = data.frame(res$q_val < alpha & !is.na(res$q_val),

@@ -1,3 +1,6 @@
+version 1.2.1 (last update 2021-08-05)
++ Add warnings for small sample size.
+
 version 1.1.5 (last update 2021-03-09)
 + Bugs fix: fix the bug of inflated p-values and inconsistent output formats.
 

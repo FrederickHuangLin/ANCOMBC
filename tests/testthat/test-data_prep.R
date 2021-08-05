@@ -33,7 +33,7 @@ test_that("`data_prep` function returns error when the group variable is
     lib_cut = 1000; global = TRUE
 
     expect_error(data_prep(phyloseq, group, zero_cut, lib_cut, global),
-                 "Please specify the group variable for the global test.")
+                 "Please specify the group variable for the global test")
 })
 
 # Test 2
@@ -47,7 +47,7 @@ test_that("`data_prep` function returns error when the number of categories for
     lib_cut = 1000; global = TRUE
 
     expect_error(data_prep(phyloseq, group, zero_cut, lib_cut, global),
-                 "The group variable should have >= 2 categories.")
+                 "The group variable should have >= 2 categories")
 })
 
 # Test 3
@@ -64,5 +64,6 @@ test_that("`data_prep` function should only activate the global test when the
       fiuo_prep = data_prep(phyloseq, group, zero_cut, lib_cut, global)
       expect_equal(fiuo_prep$global, FALSE)
 })
+
 
 

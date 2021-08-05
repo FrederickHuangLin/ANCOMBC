@@ -181,10 +181,9 @@ ancombc = function(phyloseq, formula, p_adj_method = "holm", zero_cut = 0.90,
   # n_samp = ncol(feature_table)
   n_taxa = nrow(feature_table)
   if (n_taxa < 10) {
-    warning_message = paste0("The number of taxa is too small.", "\n",
-                             "ANCOMBC results would be unreliable since its methodology requires a relatively large number of taxa.", "\n",
-                             "Typically, the number of taxa is >= 10, the current number of taxa is ", n_taxa, ".")
-    warning(warning_message)
+    warning_txt = sprintf(paste0("ANCOM-BC results would be unreliable when the number of taxa is too small (e.g. < 10)\n",
+                                 "The number of taxa in the current dataset is: ", n_taxa))
+    warning(warning_txt, call. = FALSE)
   }
   # Add pseudocount (1) and take logarithm.
   y = log(feature_table + 1)
