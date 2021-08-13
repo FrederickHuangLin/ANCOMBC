@@ -1,13 +1,13 @@
 Package: ANCOMBC
 Type: Package
 Title: Analysis of compositions of microbiomes with bias correction
-Version: 1.3.1
+Version: 1.3.2
 Description: ANCOMBC is a package for normalizing the microbial observed
     abundance data due to unequal sampling fractions across samples, and 
     identifying taxa (e.g. phyla, families, genera, species, etc.) that are 
     differentially abundant with respect to the covariate of interest (e.g.
     study groups) between two or more groups of multiple samples.
-Date: 2021-08-05
+Date: 2021-08-13
 Authors@R: c(
     person(given = "Huang", 
            family = "Lin", 
@@ -21,7 +21,7 @@ Authors@R: c(
            comment = c(ORCID = "0000-0002-5014-6513")))
 License: Artistic-2.0
 Imports: stats, MASS, nloptr, Rdpack, phyloseq, microbiome
-Suggests: knitr, tidyverse, testthat, DT, magrittr, qwraps2 (>= 0.5.0), GSE62944
+Suggests: knitr, tidyverse, testthat, DT, magrittr, qwraps2 (>= 0.5.0), rmarkdown
 biocViews: 
     DifferentialExpression, 
     Microbiome, 
