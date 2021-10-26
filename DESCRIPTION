@@ -1,7 +1,7 @@
 Package: ANCOMBC
 Type: Package
 Title: Analysis of compositions of microbiomes with bias correction
-Version: 1.4.0
+Version: 1.5.0
 Description: ANCOMBC is a package for normalizing the microbial observed
     abundance data due to unequal sampling fractions across samples, and 
     identifying taxa (e.g. phyla, families, genera, species, etc.) that are 
