@@ -2,7 +2,7 @@
 title: "ANCOM-BC"
 author: 
   - Huang Lin$^1$
-  - $^1$Department of Biostatistics, University of Pittsburgh, 130 De Soto Street, Pittsburgh, PA 15261 USA
+  - $^1$NICHD, 6710B Rockledge Dr, Bethesda, MD 20892
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   html_document: 
@@ -18,12 +18,14 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA, 
                       fig.width = 6.25, fig.height = 5)
-
+library(ANCOMBC)
 library(tidyverse)
 library(microbiome)
 library(magrittr)
 library(qwraps2)
-library(ANCOMBC)
+library(corrplot)
+library(limma)
+library(ggforce)
 library(DT)
 options(DT.options = list(
   initComplete = JS("function(settings, json) {",
@@ -35,12 +37,30 @@ options(DT.options = list(
 
 Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC) [@lin2020analysis] 
 is a methodology of differential abundance (DA) analysis for microbial absolute
-abundance data. ANCOM-BC estimates the unknown sampling fractions, corrects 
-the bias induced by their differences among samples, and identifies taxa that 
-are differentially abundant according to the covariate of interest.
-
+abundances. ANCOM-BC estimates the unknown sampling fractions, corrects 
+the bias induced by their differences through a log linear regression model 
+including the estimated sampling fraction as an offset terms, and identifies 
+taxa that are differentially abundant according to the variable of interest. 
 For more details, please refer to the 
 [ANCOM-BC](https://doi.org/10.1038/s41467-020-17041-7) paper.
+
+Analysis of Composition of Microbiomes (ANCOM) [@mandal2015analysis] is also a 
+DA analysis for microbial absolute abundances. It accounts for the 
+compositionality of microbiome data by performing the additive log ratio (ALR) 
+transformation. ANCOM employs a heuristic strategy to declare taxa that are 
+significantly differentially abundant. For a given taxon, the output W statistic 
+represents the number ALR transformed models where the taxon is differentially 
+abundant with regard to the variable of interest. Larger the value of W, the 
+more likely the taxon is differentially abundant. For more details, 
+please refer to the 
+[ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663) paper.
+
+Sparse Estimation of Correlations among Microbiomes (SECOM) is a methodology
+which aims to detect both linear and nonlinear relationships between a pair of 
+taxa within an ecosystem (e.g. gut) or across ecosystems (e.g. gut and tongue).
+SECOM corrects both sample-specific and taxon-specific biases, obtains a
+consistent estimator for the correlation matrix of microbial absolute 
+abundances, while maintaining the underlying true sparsity.
 
 # 2. Installation
 
@@ -58,163 +78,273 @@ Load the package.
 library(ANCOMBC)
 ```
 
-# 3. Running ANCOMBC
+# 3. Example Data {.tabset}
 
-## 3.1 Intestinal microbiota profiling data
+## Cross-sectional data
 
 The HITChip Atlas data set [@lahti2014tipping] is available via the 
 microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
-format, and via Data Dryad in tabular format. 
-This data set comes with 130 genus-like taxonomic groups across 1006 western 
-adults with no reported health complications. 
-Some subjects have also short time series.
+format. 
 
-```{r importData}
+```{r data1}
 data(atlas1006) 
 # Subset to baseline
 pseq = subset_samples(atlas1006, time == 0)
+
 # Re-code the bmi group
 sample_data(pseq)$bmi_group = recode(sample_data(pseq)$bmi_group,
-                                     underweight = "lean",
                                      lean = "lean",
                                      overweight = "overweight",
                                      obese = "obese",
                                      severeobese = "obese",
                                      morbidobese = "obese")
-# Re-code the nationality group
-sample_data(pseq)$nation = recode(sample_data(pseq)$nationality,
+# Subset to lean and obese subjects
+pseq = subset_samples(pseq, bmi_group %in% c("lean", "obese"))
+
+# Create the region variable
+sample_data(pseq)$region = recode(sample_data(pseq)$nationality,
                                   Scandinavia = "NE",
                                   UKIE = "NE",
                                   SouthEurope = "SE",
                                   CentralEurope = "CE",
                                   EasternEurope = "EE")
 
-# Aggregate to phylum level
+# Discard "EE" as it contains only 1 subject
+pseq = subset_samples(pseq, region != "EE")
+# Genus level data
+genus_data = aggregate_taxa(pseq, "Genus")
+# Family level data
+family_data = aggregate_taxa(pseq, "Family")
+# Phylum level data
 phylum_data = aggregate_taxa(pseq, "Phylum")
+
+print(genus_data)
+print(family_data)
+print(phylum_data)
 ```
 
-## 3.2 Data summary
+## Longitudinal data
 
-```{r dataSummary, results = "asis"}
-options(qwraps2_markup = "markdown")
-summary_template =
-  list("Age" =
-         list("min" = ~ min(age, na.rm = TRUE),
-              "max" = ~ max(age, na.rm = TRUE),
-              "mean (sd)" = ~ mean_sd(age, na_rm = TRUE, 
-                                      show_n = "never")),
-       "Gender" =
-         list("F" = ~ n_perc0(sex == "female", na_rm = TRUE),
-              "M" = ~ n_perc0(sex == "male", na_rm = TRUE),
-              "NA" = ~ n_perc0(is.na(sex))),
-       "Nationality" =
-         list("Central Europe" = ~ n_perc0(nation == "CE", na_rm = TRUE),
-              "Eastern Europe" = ~ n_perc0(nation == "EE", na_rm = TRUE),
-              "Northern Europe" = ~ n_perc0(nation == "NE", na_rm = TRUE),
-              "Southern Europe" = ~ n_perc0(nation == "SE", na_rm = TRUE),
-              "US" = ~ n_perc0(nation == "US", na_rm = TRUE),
-              "NA" = ~ n_perc0(is.na(nation))),
-       "BMI" =
-         list("Lean" = ~ n_perc0(bmi_group == "lean", na_rm = TRUE),
-              "Overweight" = ~ n_perc0(bmi_group == "overweight", 
-                                       na_rm = TRUE),
-              "Obese" = ~ n_perc0(bmi_group == "obese", na_rm = TRUE),
-              "NA" = ~ n_perc0(is.na(bmi_group)))
-       )
-data_summary = summary_table(meta(pseq), summary_template)
-data_summary
+A two-week diet swap study between western (USA) and traditional (rural Africa) 
+diets [@lahti2014tipping]. The data set is available via the 
+microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+format.
+
+```{r data2}
+data(dietswap)
+
+# Aggregate to family level
+family_data2 = aggregate_taxa(dietswap, "Family")
+
+print(family_data2)
 ```
 
-1. The number of samples: `r nsamples(phylum_data)`.
+# 4. ANCOMBC Implementation
 
-2. The number of phyla: `r ntaxa(phylum_data)`.
-
-## 3.3 Running ancombc function
+## 4.1 Run ancombc function
 
 ```{r ancombc}
-out = ancombc(phyloseq = phylum_data, formula = "age + nation + bmi_group", 
-              p_adj_method = "holm", zero_cut = 0.90, lib_cut = 1000, 
-              group = "nation", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
+out = ancombc(phyloseq = family_data, formula = "age + region + bmi_group", 
+              p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
+              group = "region", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
               max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE)
 
 res = out$res
 res_global = out$res_global
 ```
 
-## 3.4 ANCOMBC primary result
+## 4.2 ANCOMBC primary result {.tabset}
 
 Result from the ANCOM-BC log-linear model to determine taxa that are 
 differentially abundant according to the covariate of interest. It contains: 
-1) coefficients; 2) standard errors; 3) test statistics; 4) p-values; 
+1) log fold changes; 2) standard errors; 3) test statistics; 4) p-values; 
 5) adjusted p-values; 6) indicators whether the taxon is differentially 
 abundant (TRUE) or not (FALSE).
 
-### 3.41 Coefficients
+### LFC
 
 ```{r}
-tab_coef = res$beta
-col_name = c("Age", "EE - CE", "NE - CE", "SE - CE", "US - CE", 
-             "Oerweight - Lean", "Obese - Lean")
-colnames(tab_coef) = col_name
-tab_coef %>% datatable(caption = "Coefficients from the Primary Result") %>%
-      formatRound(col_name, digits = 2)
+tab_lfc = res$lfc
+col_name = c("Age", "NE - CE", "SE - CE", "US - CE", "Obese - Lean")
+colnames(tab_lfc) = col_name
+tab_lfc %>% 
+  datatable(caption = "Log Fold Changes from the Primary Result") %>%
+  formatRound(col_name, digits = 2)
 ```
 
-### 3.42 SEs
+### SE
 
 ```{r}
 tab_se = res$se
 colnames(tab_se) = col_name
-tab_se %>% datatable(caption = "SEs from the Primary Result") %>%
-      formatRound(col_name, digits = 2)
+tab_se %>% 
+  datatable(caption = "SEs from the Primary Result") %>%
+  formatRound(col_name, digits = 2)
 ```
 
-### 3.43 Test statistics
+### Test statistic
 
 ```{r}
 tab_w = res$W
 colnames(tab_w) = col_name
-tab_w %>% datatable(caption = "Test Statistics from the Primary Result") %>%
-      formatRound(col_name, digits = 2)
+tab_w %>% 
+  datatable(caption = "Test Statistics from the Primary Result") %>%
+  formatRound(col_name, digits = 2)
 ```
 
-### 3.44 P-values
+### P-values
 
 ```{r}
 tab_p = res$p_val
 colnames(tab_p) = col_name
-tab_p %>% datatable(caption = "P-values from the Primary Result") %>%
-      formatRound(col_name, digits = 2)
+tab_p %>% 
+  datatable(caption = "P-values from the Primary Result") %>%
+  formatRound(col_name, digits = 2)
 ```
 
-### 3.45 Adjusted p-values
+### Adjusted p-values
 
 ```{r}
 tab_q = res$q
 colnames(tab_q) = col_name
-tab_q %>% datatable(caption = "Adjusted p-values from the Primary Result") %>%
-      formatRound(col_name, digits = 2)
+tab_q %>% 
+  datatable(caption = "Adjusted p-values from the Primary Result") %>%
+  formatRound(col_name, digits = 2)
 ```
 
-### 3.46 Differentially abundant taxa
+### Differentially abundant taxa
 
 ```{r}
 tab_diff = res$diff_abn
 colnames(tab_diff) = col_name
 tab_diff %>% 
-  datatable(caption = "Differentially Abundant Taxa 
-            from the Primary Result")
+  datatable(caption = "Differentially Abundant Taxa from the Primary Result")
 ```
 
-### 3.47 Bias-adjusted abundances
+### Visualization for age
 
-Step 1: estimate sample-specific sampling fractions (log scale). Note that for 
-each sample, if it contains missing values for any variable specified in the 
+```{r}
+df_lfc = data.frame(res$lfc * res$diff_abn, check.names = FALSE) %>% 
+  rownames_to_column("taxon_id")
+df_se = data.frame(res$se * res$diff_abn, check.names = FALSE) %>% 
+  rownames_to_column("taxon_id")
+colnames(df_se)[-1] = paste0(colnames(df_se)[-1], "SE")
+
+df_fig_age = df_lfc %>% 
+  dplyr::left_join(df_se, by = "taxon_id") %>%
+  dplyr::transmute(taxon_id, age, ageSE) %>%
+  dplyr::filter(age != 0) %>% 
+  dplyr::arrange(desc(age)) %>%
+  dplyr::mutate(direct = ifelse(age > 0, "Positive LFC", "Negative LFC"))
+df_fig_age$taxon_id = factor(df_fig_age$taxon_id, levels = df_fig_age$taxon_id)
+df_fig_age$direct = factor(df_fig_age$direct, 
+                        levels = c("Positive LFC", "Negative LFC"))
+  
+p_age = ggplot(data = df_fig_age, 
+           aes(x = taxon_id, y = age, fill = direct, color = direct)) + 
+  geom_bar(stat = "identity", width = 0.7, 
+           position = position_dodge(width = 0.4)) +
+  geom_errorbar(aes(ymin = age - ageSE, ymax = age + ageSE), width = 0.2,
+                position = position_dodge(0.05), color = "black") + 
+  labs(x = NULL, y = "Log fold change", 
+       title = "Waterfall Plot of Age") + 
+  scale_fill_discrete(name = NULL) +
+  scale_color_discrete(name = NULL) +
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid.minor.y = element_blank(),
+        axis.text.x = element_text(angle = 60, hjust = 1))
+p_age
+```
+
+### Visualization for BMI
+
+```{r}
+df_fig_bmi = df_lfc %>% 
+  dplyr::left_join(df_se, by = "taxon_id") %>%
+  dplyr::transmute(taxon_id, bmi = bmi_groupobese, bmiSE = bmi_groupobeseSE) %>%
+  dplyr::filter(bmi != 0) %>% 
+  dplyr::arrange(desc(bmi)) %>%
+  dplyr::mutate(direct = ifelse(bmi > 0, "Positive LFC", "Negative LFC"))
+df_fig_bmi$taxon_id = factor(df_fig_bmi$taxon_id, levels = df_fig_bmi$taxon_id)
+df_fig_bmi$direct = factor(df_fig_bmi$direct, 
+                        levels = c("Positive LFC", "Negative LFC"))
+  
+p_bmi = ggplot(data = df_fig_bmi, 
+           aes(x = taxon_id, y = bmi, fill = direct, color = direct)) + 
+  geom_bar(stat = "identity", width = 0.7, 
+           position = position_dodge(width = 0.4)) +
+  geom_errorbar(aes(ymin = bmi - bmiSE, ymax = bmi + bmiSE), width = 0.2,
+                position = position_dodge(0.05), color = "black") + 
+  labs(x = NULL, y = "Log fold change", 
+       title = "Waterfall Plot of BMI (Obese - Lean)") + 
+  scale_fill_discrete(name = NULL) +
+  scale_color_discrete(name = NULL) +
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid.minor.y = element_blank(),
+        axis.text.x = element_text(angle = 60, hjust = 1))
+p_bmi
+```
+
+## 4.3 ANCOMBC global test result {.tabset}
+
+Result from the ANCOM-BC global test to determine taxa that are 
+differentially abundant between at least two groups across three or more 
+different groups. In this example, we want to identify taxa that are 
+differentially abundant between at least two regions across CE, NE, SE, and US.
+The result contains: 1) test statistics; 2) p-values; 3) adjusted p-values; 
+4) indicators whether the taxon is differentially abundant (TRUE) or not 
+(FALSE).
+
+### Test statistics
+
+```{r}
+tab_w = res_global[, "W", drop = FALSE]
+colnames(tab_w) = "Region"
+tab_w %>% datatable(caption = "Test Statistics 
+                    from the Global Test Result") %>%
+      formatRound(c("Region"), digits = 2)
+```
+
+### P-values
+
+```{r}
+tab_p = res_global[, "p_val", drop = FALSE]
+colnames(tab_p) = "Region"
+tab_p %>% datatable(caption = "P-values 
+                    from the Global Test Result") %>%
+      formatRound(c("Region"), digits = 2)
+```
+
+### Adjusted p-values
+
+```{r}
+tab_q = res_global[, "q_val", drop = FALSE]
+colnames(tab_q) = "Region"
+tab_q %>% datatable(caption = "Adjusted p-values 
+                    from the Global Test Result") %>%
+      formatRound(c("Region"), digits = 2)
+```
+
+### Differentially abundant taxa
+
+```{r}
+tab_diff = res_global[, "diff_abn", drop = FALSE]
+colnames(tab_diff) = "Region"
+tab_diff %>% datatable(caption = "Differentially Abundant Taxa 
+                       from the Global Test Result")
+```
+
+### Bias-corrected abundances
+
+Step 1: estimate sample-specific sampling fractions (in log scale). Note that
+for each sample, if it contains missing values for any variable specified in the 
 formula, the corresponding sampling fraction estimate for this sample will 
-return NA since the sampling fraction is not estimable with the presence of 
+be NA since the sampling fraction is not estimable with the presence of 
 missing values.
 
-Step 2: adjust the log observed abundances by subtracting the estimated 
+Step 2: correct the log observed abundances by subtracting the estimated 
 sampling fraction from log observed abundances of each sample.
 
 ```{r}
@@ -223,91 +353,270 @@ samp_frac = out$samp_frac
 samp_frac[is.na(samp_frac)] = 0 
 
 # Add pesudo-count (1) to avoid taking the log of 0
-log_obs_abn = log(abundances(phylum_data) + 1) 
+log_obs_abn = log(abundances(family_data) + 1) 
 # Adjust the log observed abundances
 log_obs_abn_adj = t(t(log_obs_abn) - samp_frac)
 # Show the first 6 samples
 round(log_obs_abn_adj[, 1:6], 2) %>% 
-  datatable(caption = "Bias-adjusted log observed abundances")
+  datatable(caption = "Bias-corrected log observed abundances")
 ```
 
-### 3.48 Visualizations for "age"
-
-*"Age" is a continuous variable.*
+### Visualization
 
 ```{r}
-df_fig1 = data.frame(res$beta * res$diff_abn, check.names = FALSE) %>% 
-  rownames_to_column("taxon_id")
-df_fig2 = data.frame(res$se * res$diff_abn, check.names = FALSE) %>% 
-  rownames_to_column("taxon_id")
-colnames(df_fig2)[-1] = paste0(colnames(df_fig2)[-1], "SD")
-df_fig = df_fig1 %>% left_join(df_fig2, by = "taxon_id") %>%
-  transmute(taxon_id, age, ageSD) %>%
-  filter(age != 0) %>% arrange(desc(age)) %>%
-  mutate(group = ifelse(age > 0, "g1", "g2"))
-df_fig$taxon_id = factor(df_fig$taxon_id, levels = df_fig$taxon_id)
-  
-p = ggplot(data = df_fig, 
-           aes(x = taxon_id, y = age, fill = group, color = group)) + 
-  geom_bar(stat = "identity", width = 0.7, 
-           position = position_dodge(width = 0.4)) +
-  geom_errorbar(aes(ymin = age - ageSD, ymax = age + ageSD), width = 0.2,
-                position = position_dodge(0.05), color = "black") + 
-  labs(x = NULL, y = "Log fold change", 
-       title = "Waterfall Plot for the Age Effect") + 
-  theme_bw() + 
-  theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5),
-        panel.grid.minor.y = element_blank(),
-        axis.text.x = element_text(angle = 60, hjust = 1))
-p
+sig_taxa = res_global %>%
+  tibble::rownames_to_column("taxon") %>%
+  dplyr::filter(diff_abn == TRUE) %>%
+  .$taxon
+
+df_sig = as.data.frame(t(log_obs_abn_adj[sig_taxa, ])) %>%
+  tibble::rownames_to_column("sample") %>%
+  dplyr::left_join(meta(family_data) %>%
+                     select(sample, region),
+                   by = "sample") %>%
+  dplyr::filter(!is.na(region)) %>%
+  tidyr::pivot_longer(cols = -one_of("sample", "region"), 
+                      names_to = "taxon", values_to = "value")
+
+df_heat = df_sig %>%
+  dplyr::group_by(region, taxon) %>%
+  dplyr::summarise_if(is.numeric, mean, na.rm = TRUE) %>%
+  dplyr::mutate(value = round(value, 2)) %>%
+  dplyr::arrange(region)
+df_heat$taxon = factor(df_heat$taxon, levels = sig_taxa)
+
+lo = floor(min(df_heat$value))
+up = ceiling(max(df_heat$value))
+mid = (lo + up)/2
+p_heat = df_heat %>%
+  ggplot(aes(x = region, y = taxon, fill = value)) + 
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       na.value = "white", midpoint = mid, limit = c(lo, up),
+                       name = NULL) +
+  geom_text(aes(region, taxon, label = value), color = "black", size = 4) +
+  labs(x = NULL, y = NULL, title = "Heat Map of Region") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+p_heat
 ```
 
-## 3.5 ANCOMBC global test result
+# 5. ANCOM Implementation
 
-Result from the ANCOM-BC global test to determine taxa that are 
-differentially abundant between three or more groups of multiple samples.
-It contains: 1) test statistics; 2) p-values; 3) adjusted p-values; 
-4) indicators whether the taxon is differentially abundant (TRUE) or not 
-(FALSE).
+## 5.1 Cross-sectional data {.tabset}
 
-### 3.51 Test statistics
+### Run ancom function
 
 ```{r}
-tab_w = res_global[, "W", drop = FALSE]
-colnames(tab_w) = "Nationality"
-tab_w %>% datatable(caption = "Test Statistics 
-                    from the Global Test Result") %>%
-      formatRound(c("Nationality"), digits = 2)
+set.seed(123)
+out1 = ancom(phyloseq = family_data,  p_adj_method = "holm",
+             prv_cut = 0.10, lib_cut = 1000, main_var = "bmi_group", 
+             adj_formula = "age + region", rand_formula = NULL,
+             lme_control = NULL, struc_zero = TRUE, neg_lb = TRUE,
+             alpha = 0.05, n_cl = 2)
+
+res1 = out1$res
+
+# Similarly, if the main variable of interest is continuous, such as age, the
+# ancom model can be specified as
+# out1 = ancom(phyloseq = family_data,  p_adj_method = "holm",
+#              prv_cut = 0.10, lib_cut = 0, main_var = "age",
+#              adj_formula = "region + bmi_group", rand_formula = NULL,
+#              lme_control = NULL, struc_zero = FALSE, neg_lb = FALSE,
+#              alpha = 0.05, n_cl = 2)
 ```
 
-### 3.52 P-values
+### Visualization for W statistics
 
 ```{r}
-tab_p = res_global[, "p_val", drop = FALSE]
-colnames(tab_p) = "Nationality"
-tab_p %>% datatable(caption = "P-values 
-                    from the Global Test Result") %>%
-      formatRound(c("Nationality"), digits = 2)
+q_val = out1$q_data
+beta_val = out1$beta_data
+# Only consider the effect sizes with the corresponding q-value less than alpha
+beta_val = beta_val * (q_val < 0.05) 
+# Choose the maximum of beta's as the effect size
+beta_pos = apply(abs(beta_val), 2, which.max) 
+beta_max = vapply(seq_along(beta_pos), function(i) beta_val[beta_pos[i], i],
+                  FUN.VALUE = double(1))
+# Number of taxa except structural zeros
+n_taxa = ifelse(is.null(out1$zero_ind), 
+                nrow(feature_table), 
+                sum(apply(out1$zero_ind, 1, sum) == 0))
+# Cutoff values for declaring differentially abundant taxa
+cut_off = 0.7 * (n_taxa - 1)
+
+df_fig_w = res1 %>%
+  dplyr::mutate(beta = beta_max,
+                direct = case_when(
+                  detected_0.7 == TRUE & beta > 0 ~ "Positive",
+                  detected_0.7 == TRUE & beta <= 0 ~ "Negative",
+                  TRUE ~ "Not Significant"
+                  )) %>%
+  dplyr::arrange(W)
+df_fig_w$taxon_id = factor(df_fig_w$taxon_id, levels = df_fig_w$taxon_id)
+df_fig_w$W = replace(df_fig_w$W, is.infinite(df_fig_w$W), n_taxa - 1)
+df_fig_w$direct = factor(df_fig_w$direct, 
+                     levels = c("Negative", "Positive", "Not Significant"))
+
+p_w = df_fig_w %>%
+  ggplot(aes(x = taxon_id, y = W, color = direct)) +
+  geom_point(size = 2, alpha = 0.6) +
+  labs(x = "Taxon", y = "W") +
+  scale_color_discrete(name = NULL) + 
+  geom_hline(yintercept = cut_off, linetype = "dotted", 
+             color = "blue", size = 1.5) +
+  geom_text(aes(x = 2, y = cut_off + 0.5, label = "W[0.7]"), 
+            size = 5, vjust = -0.5, hjust = 0, color = "orange", parse = TRUE) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major = element_blank())
+p_w
 ```
 
-### 3.53 Adjusted p-values
+### Compare ANCOM-BC and ANCOM results
 
 ```{r}
-tab_q = res_global[, "q_val", drop = FALSE]
-colnames(tab_q) = "Nationality"
-tab_q %>% datatable(caption = "Adjusted p-values 
-                    from the Global Test Result") %>%
-      formatRound(c("Nationality"), digits = 2)
+df_compare = res$diff_abn %>%
+  tibble::rownames_to_column("taxon_id") %>%
+  dplyr::left_join(res1, by = "taxon_id") %>%
+  dplyr::transmute(ancombc = bmi_groupobese,
+                   ancom = detected_0.7)
+vdc = vennCounts(df_compare)
+class(vdc) = "matrix"
+df_vdc = as.data.frame(vdc)[-1, ] %>%
+  dplyr::mutate(x = c(1, -1, 0),
+                y = c(0, 0, 0)) %>%
+  dplyr::transmute(x, y, label = Counts)
+
+df_fig_venn = data.frame(x = c(-0.866, 0.866),
+                     y = c(0, 0),
+                     labels = c("ANCOM-BC", "ANCOM"))
+df_fig_venn$labels = factor(df_fig_venn$labels, 
+                            levels = c("ANCOM-BC", "ANCOM"))
+p_venn = df_fig_venn %>%
+  ggplot(aes(x0 = x, y0 = y, r = 1.5, fill = labels)) +
+  geom_circle(alpha = .3, size = 1, color = "grey") +
+  geom_text(data = df_vdc, aes(x, y, label = label),
+            inherit.aes = FALSE, size = 8)+
+  labs(fill = NULL) +
+  coord_fixed() +
+  theme_void()
+p_venn
 ```
 
-### 3.54 Differentially abundant taxa
+## 5.2 Longitudinal data {.tabset}
+
+### Run ancom function
 
 ```{r}
-tab_diff = res_global[, "diff_abn", drop = FALSE]
-colnames(tab_diff) = "Nationality"
-tab_diff %>% datatable(caption = "Differentially Abundant Taxa 
-                       from the Global Test Result")
+set.seed(123)
+out2 = ancom(phyloseq = family_data2,  p_adj_method = "holm",
+             prv_cut = 0.10, lib_cut = 1000, main_var = "group", 
+             adj_formula = "nationality + timepoint + bmi_group", 
+             rand_formula = "~ timepoint | subject",
+             lme_control = list(maxIter = 100, msMaxIter = 100, opt = "optim"), 
+             struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+
+res2 = out2$res
+```
+
+### Visualization for W statistics
+
+```{r}
+q_val = out2$q_data
+beta_val = out2$beta_data
+# Only consider the effect sizes with the corresponding q-value less than alpha
+beta_val = beta_val * (q_val < 0.05) 
+# Choose the maximum of beta's as the effect size
+beta_pos = apply(abs(beta_val), 2, which.max) 
+beta_max = vapply(seq_along(beta_pos), function(i) beta_val[beta_pos[i], i],
+                  FUN.VALUE = double(1))
+# Number of taxa except structural zeros
+n_taxa = ifelse(is.null(out2$zero_ind), 
+                nrow(feature_table), 
+                sum(apply(out2$zero_ind, 1, sum) == 0))
+# Cutoff values for declaring differentially abundant taxa
+cut_off = 0.7 * (n_taxa - 1)
+
+df_fig_w = res2 %>%
+  dplyr::mutate(beta = beta_max,
+                direct = case_when(
+                  detected_0.7 == TRUE & beta > 0 ~ "Positive",
+                  detected_0.7 == TRUE & beta <= 0 ~ "Negative",
+                  TRUE ~ "Not Significant"
+                  )) %>%
+  dplyr::arrange(W)
+df_fig_w$taxon_id = factor(df_fig_w$taxon_id, levels = df_fig_w$taxon_id)
+df_fig_w$W = replace(df_fig_w$W, is.infinite(df_fig_w$W), n_taxa - 1)
+df_fig_w$direct = factor(df_fig_w$direct, 
+                     levels = c("Negative", "Positive", "Not Significant"))
+
+p_w = df_fig_w %>%
+  ggplot(aes(x = taxon_id, y = W, color = direct)) +
+  geom_point(size = 2, alpha = 0.6) +
+  labs(x = "Taxon", y = "W") +
+  scale_color_discrete(name = NULL) + 
+  geom_hline(yintercept = cut_off, linetype = "dotted", 
+             color = "blue", size = 1.5) +
+  geom_text(aes(x = 2, y = cut_off + 0.5, label = "W[0.7]"), 
+            size = 5, vjust = -0.5, hjust = 0, color = "orange", parse = TRUE) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major = element_blank())
+p_w
+```
+
+# 6. SECOM Implementation
+
+## 6.1 Run secom functions
+
+```{r secom}
+set.seed(123)
+# Linear relationships
+res_linear = secom_linear(pseqs = list(c(genus_data, phylum_data)), pseudo = 0, 
+                          prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
+                          wins_quant = c(0.05, 0.95), method = "pearson", 
+                          soft = FALSE, thresh_len = 20, n_cv = 10, 
+                          thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
+
+# Nonlinear relationships
+res_dist = secom_dist(pseqs = list(c(genus_data, phylum_data)), pseudo = 0, 
+                      prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
+                      wins_quant = c(0.05, 0.95), R = 1000, 
+                      thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
+```
+
+## 6.2 Visualizations {.tabset}
+
+### Pearson correlation with thresholding
+
+```{r}
+corrplot(res_linear$corr_th, method = "color", addgrid.col = "grey",
+         order = "alphabet", type = "lower", col.lim = c(-1, 1), 
+         diag = FALSE, addCoef.col = "black", number.cex = 0.8,
+         col = COL2("BrBG"), title = "Pearson (Thresholding)", 
+         mar = c(1, 0, 1, 0))
+```
+
+### Pearson correlation with p-value filtering
+
+```{r}
+corrplot(res_linear$corr_fl, method = "color", addgrid.col = "grey",
+         order = "alphabet", type = "lower", col.lim = c(-1, 1), 
+         diag = FALSE, addCoef.col = "black", number.cex = 0.8,
+         col = COL2("BrBG"), title = "Pearson (Thresholding)", 
+         mar = c(1, 0, 1, 0))
+```
+
+### Distance correlation with p-value filtering
+
+```{r}
+corrplot(res_dist$dcorr_fl, method = "color", addgrid.col = "grey",
+         order = "alphabet", type = "lower", col.lim = c(-1, 1), 
+         diag = FALSE, addCoef.col = "black", number.cex = 0.8,
+         col = COL2("BrBG"), title = "Pearson (Thresholding)", 
+         mar = c(1, 0, 1, 0))
 ```
 
 # Session information

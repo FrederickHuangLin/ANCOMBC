@@ -1,5 +1,6 @@
 # Global test
 global_test = function(y, x, group, beta_hat, var_cov_hat, p_adj_method, alpha){
+
     x = x[, setdiff(colnames(x), "(Intercept)"), drop = FALSE]
     taxa_id = rownames(y)
     n_taxa = nrow(y)

@@ -1,9 +1,5 @@
 # ANCOMBC
-R package source code for implementing Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC).
-
-ANCOM-BC is a methodology of differential abundance (DA) analysis that is designed to determine taxa that are differentially abundant with respect to the covariate of interest. For more details, please refer to: https://www.nature.com/articles/s41467-020-17041-7
-
-Currently, the ANCOMBC package has been accepted on Bioconductor and added to its nightly builds. This version of ANCOMBC is able to perform covariates adjustment and global tests as mentioned in this paper.
+ANCOMBC is a package for differential abundance ([ANCOM-BC](https://www.nature.com/articles/s41467-020-17041-7) and [ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663)) and correlation (SECOM (in review)) analyses for microbiome data. Microbiome data are typically subject to two sources of biases: unequal sampling fractions (sample-specific biases) and differential sequencing efficiencies (taxon-specific biases). ANCOMBC package includes methodologies that aim to correct these biases and construct statistically consistent estimators.
 
 ## To install the latest release version of ANCOMBC
 
@@ -18,6 +14,9 @@ BiocManager::install("ANCOMBC")
 ```r
 library(ANCOMBC)
 ?ancombc 
+?ancom
+?secom_linear
+?secom_dist
 ```
 Author: Huang Lin, Shyamal Das Peddada
 

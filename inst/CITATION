@@ -1,12 +1,36 @@
-bibentry(bibtype="Article",
-         title = "Analysis of compositions of microbiomes with bias correction",
-         author = personList( as.person("Huang Lin"),
-                              as.person("Shyamal Das Peddada")),
-         year = 2020,
-         journal = "Nature communications",
-         volume = "11",
-         number = "1",
-         pages = "1--11",
-         doi = "https://doi.org/10.1038/s41467-020-17041-7",
-         url = "https://www.nature.com/articles/s41467-020-17041-7")
+citHeader("To cite ANCOMBC in publications use:")
 
+citEntry(
+  entry    = "Article",
+  title    = "Analysis of compositions of microbiomes with bias correction",
+  author   = personList( as.person("Huang Lin"),
+                         as.person("Shyamal Das Peddada")),
+  journal  = "Nature communications",
+  year     = 2020,
+  volume   = "11",
+  number   = "1",
+  pages    = "1-11",
+  url      = "https://www.nature.com/articles/s41467-020-17041-7",
+  textVersion = paste(
+    "Lin, H., & Peddada, S. D. (2020). Analysis of compositions of microbiomes with bias correction.
+    Nature communications, 11(1), 1-11, https://doi.org/10.1038/s41467-020-17041-7"
+  )
+)
+
+citEntry(
+  entry    = "Article",
+  title    = "Analysis of composition of microbiomes: a novel method for studying microbial composition",
+  author   = personList( as.person("Huang Lin"),
+                         as.person("Shyamal Das Peddada")),
+  journal  = "Microbial ecology in health and disease",
+  year     = 2015,
+  volume   = "26",
+  number   = "1",
+  pages    = "27663",
+  url      = "https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663",
+  textVersion = paste(
+    "Mandal, S., Van Treuren, W., White, R. A., Eggesbo, M., Knight, R., & Peddada, S. D. (2015). Analysis of composition of
+    microbiomes: a novel method for studying microbial composition. Microbial ecology in health and disease, 26(1), 27663,
+    https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663."
+  )
+)

@@ -1,14 +1,32 @@
-para_est = function(y, meta_data, formula, tol, max_iter) {
-    x = get_x(formula, meta_data)
+para_est = function(x, y, meta_data, formula, tol, max_iter) {
     taxa_id = rownames(y)
     n_taxa = nrow(y)
     samp_id = colnames(y)
     n_samp = ncol(y)
     covariates = colnames(x)
+    n_covariates = length(covariates)
+    tformula = formula(paste0("y ~ ", formula))
+
+    # Test for over-parameterization
+    lm_smoke = lm(tformula, data = data.frame(y = unlist(y[1, ]), meta_data))
+
+    if (any(is.na(lm_smoke$coefficients))) {
+        stop_txt = sprintf(paste("Estimation failed for the following covariates:",
+                                 paste(names(which(is.na(lm_smoke$coefficients))), collapse = ", "),
+                                 "Consider removing these covariates",
+                                 sep = "\n"))
+        stop(stop_txt, call. = FALSE)
+    }
+
+    if (lm_smoke$df.residual == 0) {
+        stop_txt = sprintf(paste("No residual degrees of freedom! The model is over-parameterized",
+                                 "A more parsimonious model is needed",
+                                 sep = "\n"))
+        stop(stop_txt, call. = FALSE)
+    }
 
     # Sampling fractions
     d = rep(0, n_samp)
-    tformula = formula(paste0("y ~ ", formula))
     fits = lapply(seq_len(n_taxa), function(i) {
         df = data.frame(y = unlist(y[i, ]) - d, meta_data)
         return(lm(tformula, data = df))
@@ -70,9 +88,21 @@ para_est = function(y, meta_data, formula, tol, max_iter) {
     e = t(t(y - y_hat) - d)
 
     # Variance-covariance matrices of coefficients
-    fiuo_var_cov = var_cov_est(x, e, n_taxa)
-    var_cov_hat = fiuo_var_cov$var_cov_hat
-    var_hat = fiuo_var_cov$var_hat
+    XTX_inv = MASS::ginv(t(x[complete.cases(x), ]) %*% x[complete.cases(x), ])
+    var_cov_hat = vector(mode = "list", length = n_taxa) # Covariances
+    var_hat = matrix(NA, nrow = n_taxa, ncol = n_covariates) # Variances
+    for (i in seq_len(n_taxa)) {
+        sigma2_xxT = matrix(0, ncol = n_covariates, nrow = n_covariates)
+        for (j in seq_len(n_samp)) {
+            sigma2_xxT_j = e[i, j]^2 * x[j, ] %*% t(x[j, ])
+            sigma2_xxT_j[is.na(sigma2_xxT_j)] = 0
+            sigma2_xxT = sigma2_xxT + sigma2_xxT_j
+        }
+        var_cov_hat[[i]] = XTX_inv %*% sigma2_xxT %*% XTX_inv
+        rownames(var_cov_hat[[i]]) = covariates
+        colnames(var_cov_hat[[i]]) = covariates
+        var_hat[i, ] = diag(var_cov_hat[[i]])
+    }
 
     colnames(beta) = covariates
     rownames(beta) = taxa_id
