@@ -2,15 +2,14 @@
 % Please edit documentation in R/ancombc.R
 \name{ancombc}
 \alias{ancombc}
-\alias{ancom}
-\title{Differential abundance (DA) analysis for
-microbial absolute abundance data.}
+\title{Analysis of Compositions of Microbiomes with Bias Correction
+(ANCOM-BC)}
 \usage{
 ancombc(
   phyloseq,
   formula,
   p_adj_method = "holm",
-  zero_cut = 0.9,
+  prv_cut = 0.1,
   lib_cut = 0,
   group = NULL,
   struc_zero = FALSE,
@@ -28,80 +27,81 @@ ancombc(
 (optional), and a phylogenetic tree (optional). The row names of the
 metadata must match the sample names of the feature table, and the row names
 of the taxonomy table must match the taxon (feature) names of the feature
-table. See \code{\link[phyloseq]{phyloseq}} for more details.}
+table. See \code{?phyloseq::phyloseq} for more details.}
 
 \item{formula}{the character string expresses how the microbial absolute
 abundances for each taxon depend on the variables in metadata.}
 
-\item{p_adj_method}{method to adjust p-values by. Default is "holm".
+\item{p_adj_method}{character. method to adjust p-values. Default is "holm".
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
-"fdr", "none". See \code{\link[stats]{p.adjust}} for more details.}
+"fdr", "none". See \code{?stats::p.adjust} for more details.}
 
-\item{zero_cut}{a numerical fraction between 0 and 1. Taxa with proportion of
-zeroes greater than \code{zero_cut} will be excluded in the analysis. Default
-is 0.90.}
+\item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
+less than \code{prv_cut} will be excluded in the analysis. Default
+is 0.10.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
-excluded in the analysis. Default is 0, i.e. do not filter any sample.}
+excluded in the analysis. Default is 0, i.e. do not discard any sample.}
 
-\item{group}{the name of the group variable in metadata. Specifying
-\code{group} is required for detecting structural zeros and
-performing global test.}
+\item{group}{character. the name of the group variable in metadata.
+\code{group} should be discrete. Specifying \code{group} is required for
+detecting structural zeros and performing global test.}
 
-\item{struc_zero}{whether to detect structural zeros. Default is FALSE.}
+\item{struc_zero}{logical. whether to detect structural zeros based on
+\code{group}. Default is FALSE.}
 
-\item{neg_lb}{whether to classify a taxon as a structural zero in the
-corresponding study group using its asymptotic lower bound.
-Default is FALSE.}
+\item{neg_lb}{logical. whether to classify a taxon as a structural zero using
+its asymptotic lower bound. Default is FALSE.}
 
-\item{tol}{the iteration convergence tolerance for the E-M algorithm.
-Default is 1e-05.}
+\item{tol}{numeric. the iteration convergence tolerance for the E-M
+algorithm. Default is 1e-05.}
 
-\item{max_iter}{the maximum number of iterations for the E-M algorithm.
-Default is 100.}
+\item{max_iter}{numeric. the maximum number of iterations for the E-M
+algorithm. Default is 100.}
 
-\item{conserve}{whether to use a conservative variance estimate of
+\item{conserve}{logical. whether to use a conservative variance estimator for
 the test statistic. It is recommended if the sample size is small and/or
 the number of differentially abundant taxa is believed to be large.
 Default is FALSE.}
 
-\item{alpha}{level of significance. Default is 0.05.}
+\item{alpha}{numeric. level of significance. Default is 0.05.}
 
-\item{global}{whether to perform global test. Default is FALSE.}
+\item{global}{logical. whether to perform global test. Default is FALSE.}
 }
 \value{
 a \code{list} with components:
         \itemize{
         \item{ \code{feature_table}, a \code{data.frame} of pre-processed
-        (based on \code{zero_cut} and \code{lib_cut}) microbial observed
-        abundance table. }
+        (based on \code{prv_cut} and \code{lib_cut}) microbial observed
+        abundance table.}
         \item{ \code{zero_ind}, a logical \code{matrix} with TRUE indicating
         the taxon is identified as a structural zero for the specified
         \code{group} variable.}
         \item{ \code{samp_frac}, a numeric vector of estimated sampling
         fractions in log scale (natural log). Note that for each sample,
         if it contains missing values for any variable specified in the
-        \code{formula}}, the corresponding sampling fraction estimate
-        for this sample will return \code{NA} since the sampling fraction
-        is not estimable with the presence of missing values.
+        \code{formula}, the corresponding sampling fraction estimate
+        for this sample will be \code{NA} since the sampling fraction
+        is not estimable with the presence of missing values.}
         \item{ \code{resid}, a \code{matrix} of residuals from the ANCOM-BC
         log-linear (natural log) model.
         Rows are taxa and columns are samples.}
-        \item{ \code{delta_em}, estimated bias terms through E-M algorithm. }
-        \item{ \code{delta_wls}, estimated bias terms through weighted
-        least squares (WLS) algorithm.}
+        \item{ \code{delta_em}, estimated sample-specific biases
+        through E-M algorithm.}
+        \item{ \code{delta_wls}, estimated sample-specific biases through
+        weighted least squares (WLS) algorithm.}
         \item{ \code{res},  a \code{list} containing ANCOM-BC primary result,
         which consists of:}
         \itemize{
-        \item{ \code{beta}, a \code{data.frame} of coefficients obtained
-        from the ANCOM-BC log-linear (natural log) model. }
+        \item{ \code{lfc}, a \code{data.frame} of log fold changes
+        obtained from the ANCOM-BC log-linear (natural log) model.}
         \item{ \code{se}, a \code{data.frame} of standard errors (SEs) of
-        \code{beta}. }
+        \code{lfc}.}
         \item{ \code{W}, a \code{data.frame} of test statistics.
-        \code{W = beta/se}. }
+        \code{W = lfc/se}.}
         \item{ \code{p_val}, a \code{data.frame} of p-values. P-values are
-        obtained from two-sided Z-test using the test statistic \code{W}. }
+        obtained from two-sided Z-test using the test statistic \code{W}.}
         \item{ \code{q_val}, a \code{data.frame} of adjusted p-values.
         Adjusted p-values are obtained by applying \code{p_adj_method}
         to \code{p_val}.}
@@ -125,10 +125,10 @@ a \code{list} with components:
 \description{
 Determine taxa whose absolute abundances, per unit volume, of
 the ecosystem (e.g. gut) are significantly different with changes in the
-covariate of interest (e.g. the group effect). The current version of
+covariate of interest (e.g. group). The current version of
 \code{ancombc} function implements Analysis of Compositions of Microbiomes
 with Bias Correction (ANCOM-BC) in cross-sectional data while allowing
-the adjustment of covariates.
+for covariate adjustment.
 }
 \details{
 The definition of structural zero can be found at
@@ -167,20 +167,19 @@ physeq = phyloseq(OTU, META, TAX)
 
 #========================Run ANCOMBC Using a Real Data=======================
 
-library(phyloseq)
 library(microbiome)
 library(tidyverse)
-data(GlobalPatterns)
+data(dietswap)
 
-# Aggregate to phylum level
-phylum_data = aggregate_taxa(GlobalPatterns, "Phylum")
-# The taxonomy table
-tax_mat = as(tax_table(phylum_data), "matrix")
+# Subset to baseline
+pseq = subset_samples(dietswap, timepoint == 1)
+# Aggregate to family level
+family_data = aggregate_taxa(pseq, "Family")
 
 # Run ancombc function
-out = ancombc(phyloseq = phylum_data, formula = "SampleType",
-              p_adj_method = "holm", zero_cut = 0.90, lib_cut = 1000,
-              group = "SampleType", struc_zero = TRUE, neg_lb = FALSE,
+out = ancombc(phyloseq = family_data, formula = "bmi_group + nationality",
+              p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+              group = "bmi_group", struc_zero = TRUE, neg_lb = FALSE,
               tol = 1e-5, max_iter = 100, conserve = TRUE,
               alpha = 0.05, global = TRUE)
 
@@ -192,6 +191,9 @@ res_global = out$res_global
 \insertRef{kaul2017analysis}{ANCOMBC}
 
 \insertRef{lin2020analysis}{ANCOMBC}
+}
+\seealso{
+\code{\link{ancom}}
 }
 \author{
 Huang Lin

@@ -1,13 +1,18 @@
 Package: ANCOMBC
 Type: Package
 Title: Analysis of compositions of microbiomes with bias correction
-Version: 1.6.0
-Description: ANCOMBC is a package for normalizing the microbial observed
-    abundance data due to unequal sampling fractions across samples, and 
-    identifying taxa (e.g. phyla, families, genera, species, etc.) that are 
-    differentially abundant with respect to the covariate of interest (e.g.
-    study groups) between two or more groups of multiple samples.
-Date: 2021-08-13
+Version: 1.6.1
+Description: ANCOMBC is a package containing differential abundance (DA) and 
+    correlation analyses for microbiome data. Specifically, the package includes 
+    Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC) and 
+    Analysis of Composition of Microbiomes (ANCOM) for DA analysis, and Sparse 
+    Estimation of Correlations among Microbiomes (SECOM) for correlation 
+    analysis. Microbiome data are typically subject to two sources of biases: 
+    unequal sampling fractions (sample-specific biases) and differential 
+    sequencing efficiencies (taxon-specific biases). Methodologies included in 
+    the ANCOMBC package were designed to correct these biases and construct 
+    statistically consistent estimators.
+Date: 2022-06-07
 Authors@R: c(
     person(given = "Huang", 
            family = "Lin", 
@@ -20,8 +25,13 @@ Authors@R: c(
            role = "aut",
            comment = c(ORCID = "0000-0002-5014-6513")))
 License: Artistic-2.0
-Imports: stats, MASS, nloptr, Rdpack, phyloseq, microbiome
-Suggests: knitr, tidyverse, testthat, DT, magrittr, qwraps2 (>= 0.5.0), rmarkdown
+Imports: magrittr, Rdpack, rlang, 
+    microbiome, phyloseq, stats, 
+    DescTools, Hmisc, MASS, doParallel, doRNG, 
+    dplyr, energy, foreach, nlme, nloptr, parallel, tibble, tidyr 
+Suggests: knitr, rmarkdown, testthat, 
+    DT, corrplot, ggforce, limma,
+    qwraps2 (>= 0.5.0), tidyverse
 biocViews: 
     DifferentialExpression, 
     Microbiome, 
@@ -33,4 +43,4 @@ URL: https://github.com/FrederickHuangLin/ANCOMBC
 VignetteBuilder: knitr
 RdMacros: Rdpack
 Encoding: UTF-8
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2

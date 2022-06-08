@@ -1,4 +1,4 @@
-context("Testing ancombc function")
+context("Testing data QC function")
 library(ANCOMBC)
 library(testthat)
 library(tidyverse)
@@ -31,24 +31,26 @@ pseq = subset_samples(pseq, region != "EE")
 # Aggregate to family level
 family_data = aggregate_taxa(pseq, "Family")
 
-# Test
-test_that("`ancombc` function provides expected results", {
-   phyloseq = family_data; formula = "age + region + bmi_group"
-   p_adj_method = "holm"; prv_cut = 0.10; lib_cut = 1000
-   group = "region"; struc_zero = TRUE; neg_lb = TRUE; tol = 1e-5
-   max_iter = 100; conserve = TRUE; alpha = 0.05; global = TRUE
+# Test 1
+test_that("`data_qc` function returns error when the group variable is
+          missing for the global test", {
+    meta_data = meta(family_data); group = NULL; global = TRUE
 
-   out = ancombc(phyloseq, formula, p_adj_method,
-                 prv_cut, lib_cut, group, struc_zero, neg_lb,
-                 tol, max_iter, conserve, alpha, global)
+    expect_error(data_qc(meta_data, group, global),
+                 "Please specify the group variable for the global test")
+})
 
-   res = out$res
-   res_global = out$res_global
+# Test 2
+test_that("`data_qc` function returns error when the number of categories for
+          the group variable is less than 2", {
+    # Subset data
+    family_data2 = subset_samples(family_data, region == "NE")
 
-   # Testing
-   test_output = round(c(res$W[1, 1], res_global$W[2]), 2)
+    # Testing
+    meta_data = meta(family_data2); group = "region"; global = TRUE
 
-   expect_equal(test_output, c(-8.76, 29.58))
+    expect_error(data_qc(meta_data, group, global),
+                 "The group variable should have >= 2 categories")
 })
 
 
