@@ -104,8 +104,8 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-secom_dist = function(pseqs, pseudo = 0, prv_cut = 0.5, corr_cut = 0.5,
-                      lib_cut = 1000, wins_quant = c(0.05, 0.95), R = 1000,
+secom_dist = function(pseqs, pseudo = 0, prv_cut = 0.5, lib_cut = 1000,
+                      corr_cut = 0.5, wins_quant = c(0.05, 0.95), R = 1000,
                       thresh_hard = 0, max_p = 0.005, n_cl = 1) {
     # ===========Sampling fraction and absolute abundance estimation==============
     if (length(pseqs) == 1) {

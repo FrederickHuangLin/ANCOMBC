@@ -605,7 +605,7 @@ corrplot(res_linear$corr_th, method = "color", addgrid.col = "grey",
 corrplot(res_linear$corr_fl, method = "color", addgrid.col = "grey",
          order = "alphabet", type = "lower", col.lim = c(-1, 1), 
          diag = FALSE, addCoef.col = "black", number.cex = 0.8,
-         col = COL2("BrBG"), title = "Pearson (Thresholding)", 
+         col = COL2("BrBG"), title = "Pearson (Filtering)", 
          mar = c(1, 0, 1, 0))
 ```
 
@@ -615,7 +615,7 @@ corrplot(res_linear$corr_fl, method = "color", addgrid.col = "grey",
 corrplot(res_dist$dcorr_fl, method = "color", addgrid.col = "grey",
          order = "alphabet", type = "lower", col.lim = c(-1, 1), 
          diag = FALSE, addCoef.col = "black", number.cex = 0.8,
-         col = COL2("BrBG"), title = "Pearson (Thresholding)", 
+         col = COL2("BrBG"), title = "Distance (Filtering)", 
          mar = c(1, 0, 1, 0))
 ```
 

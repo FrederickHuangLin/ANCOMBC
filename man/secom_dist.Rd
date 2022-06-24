@@ -8,8 +8,8 @@ secom_dist(
   pseqs,
   pseudo = 0,
   prv_cut = 0.5,
-  corr_cut = 0.5,
   lib_cut = 1000,
+  corr_cut = 0.5,
   wins_quant = c(0.05, 0.95),
   R = 1000,
   thresh_hard = 0,
@@ -34,15 +34,15 @@ Default is 0 (no pseudo-counts).}
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
 less than \code{prv_cut} will be excluded in the analysis. Default is 0.5.}
 
+\item{lib_cut}{a numerical threshold for filtering samples based on library
+sizes. Samples with library sizes less than \code{lib_cut} will be
+excluded in the analysis. Default is 1000.}
+
 \item{corr_cut}{numeric. To prevent false positives due to taxa with
 small variances, taxa with Pearson correlation coefficients greater than
 \code{corr_cut} with the estimated sample-specific bias will be flagged.
 The pairwise correlation coefficient between flagged taxa will be set to 0s.
 Default is 0.5.}
-
-\item{lib_cut}{a numerical threshold for filtering samples based on library
-sizes. Samples with library sizes less than \code{lib_cut} will be
-excluded in the analysis. Default is 1000.}
 
 \item{wins_quant}{a numeric vector of probabilities with values between
 0 and 1. Replace extreme values in the abundance data with less

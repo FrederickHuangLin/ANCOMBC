@@ -18,6 +18,6 @@ library(ANCOMBC)
 ?secom_linear
 ?secom_dist
 ```
-Author: Huang Lin, Shyamal Das Peddada
+Author: Huang Lin
 
-Maintainer: Huang Lin: <HUL40@pitt.edu>
+Maintainer: Huang Lin: <huanglinfrederick@gmail.com>
