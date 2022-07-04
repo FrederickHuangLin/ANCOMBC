@@ -1,8 +1,15 @@
 # Data pre-processing
-data_core = function(pseq, prv_cut, lib_cut,
-                     tax_keep = NULL, samp_keep = NULL) {
-    feature_table = abundances(pseq)
-    meta_data = meta(pseq)
+data_core = function(data, prv_cut, lib_cut,
+                     tax_keep = NULL, samp_keep = NULL, assay_name) {
+                       
+   if (is(data, "phyloseq")) {
+     feature_table = abundances(data)
+     meta_data = meta(data)
+   } else if (is(data, "SummarizedExperiment")) {
+     feature_table = assay(data, assay_name)
+     meta_data = as.data.frame(colData(data))
+   }    
+
 
     # Discard taxa with prevalences < prv_cut
     if (is.null(tax_keep)) {

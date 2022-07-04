@@ -52,6 +52,8 @@
 #' Default is FALSE.
 #' @param alpha numeric. level of significance. Default is 0.05.
 #' @param global logical. whether to perform global test. Default is FALSE.
+#' @param assay_name character. Name of the abundance table in the data object
+#' (only applicable if data object is a (Tree)SummarizedExperiment).
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -167,13 +169,14 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancombc = function(phyloseq, formula, p_adj_method = "holm", prv_cut = 0.10,
+ancombc = function(data, formula, p_adj_method = "holm", prv_cut = 0.10,
                    lib_cut = 0, group = NULL, struc_zero = FALSE,
                    neg_lb = FALSE, tol = 1e-05, max_iter = 100,
-                   conserve = FALSE, alpha = 0.05, global = FALSE){
+                   conserve = FALSE, alpha = 0.05, global = FALSE, 
+                   assay_name = "counts"){
   # 1. Data pre-processing
-  fiuo_core = data_core(phyloseq, prv_cut, lib_cut,
-                        tax_keep = NULL, samp_keep = NULL)
+  fiuo_core = data_core(data, prv_cut, lib_cut,
+                        tax_keep = NULL, samp_keep = NULL, assay_name)
   feature_table = fiuo_core$feature_table
   meta_data = fiuo_core$meta_data
   n_taxa = nrow(feature_table)
