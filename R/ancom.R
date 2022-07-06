@@ -126,7 +126,7 @@ ancom = function(x = phyloseq,  p_adj_method = "holm", prv_cut = 0.10,
                  lme_control = NULL, struc_zero = FALSE, neg_lb = FALSE,
                  alpha = 0.05, n_cl = 1, assay_name = "counts", phyloseq){
   # 1. Data pre-processing
-  fiuo_core = data_core(data, prv_cut, lib_cut,
+  fiuo_core = data_core(x, prv_cut, lib_cut,
                         tax_keep = NULL, samp_keep = NULL, assay_name)
   feature_table = fiuo_core$feature_table
   meta_data = fiuo_core$meta_data
