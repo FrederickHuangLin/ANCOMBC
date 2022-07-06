@@ -1,13 +1,13 @@
 # Data pre-processing
-data_core = function(data, prv_cut, lib_cut,
+data_core = function(x, prv_cut, lib_cut,
                      tax_keep = NULL, samp_keep = NULL, assay_name) {
                        
-   if (is(data, "phyloseq")) {
-     feature_table = abundances(data)
-     meta_data = meta(data)
-   } else if (is(data, "SummarizedExperiment")) {
-     feature_table = assay(data, assay_name)
-     meta_data = as.data.frame(colData(data))
+   if (is(x, "phyloseq")) {
+     feature_table = abundances(x)
+     meta_data = meta(x)
+   } else if (is(x, "SummarizedExperiment")) {
+     feature_table = assay(x, assay_name)
+     meta_data = as.data.frame(colData(x))
    }    
 
 
