@@ -18,12 +18,13 @@
 #' recommended to set \code{neg_lb = TRUE} when the sample size per group is
 #' relatively large (e.g. > 30).
 #'
-#' @param phyloseq a phyloseq-class object, which consists of a feature table
-#' (microbial observed abundance table), a sample metadata, a taxonomy table
-#' (optional), and a phylogenetic tree (optional). The row names of the
-#' metadata must match the sample names of the feature table, and the row names
-#' of the taxonomy table must match the taxon (feature) names of the feature
-#' table. See \code{?phyloseq::phyloseq} for more details.
+#' @param x a phyloseq or (Tree)SummarizedExperiment object, which consists of
+#' a feature table (microbial observed abundance table), a sample metadata, a
+#' taxonomy table (optional), and a phylogenetic tree (optional). The row names
+#' of the metadata must match the sample names of the feature table, and the
+#' row names of the taxonomy table must match the taxon (feature) names of the
+#' feature table. See \code{?phyloseq::phyloseq} or
+#' \code{?SummarizedExperiment::SummarizedExperiment} for more details.
 #' @param formula the character string expresses how the microbial absolute
 #' abundances for each taxon depend on the variables in metadata.
 #' @param p_adj_method character. method to adjust p-values. Default is "holm".
@@ -52,6 +53,9 @@
 #' Default is FALSE.
 #' @param alpha numeric. level of significance. Default is 0.05.
 #' @param global logical. whether to perform global test. Default is FALSE.
+#' @param assay_name character. Name of the abundance table in the data object
+#' (only applicable if data object is a (Tree)SummarizedExperiment).
+#' @param phyloseq a phyloseq-class object. Will be deprecated.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -167,13 +171,14 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancombc = function(phyloseq, formula, p_adj_method = "holm", prv_cut = 0.10,
+ancombc = function(x = phyloseq, formula, p_adj_method = "holm", prv_cut = 0.10,
                    lib_cut = 0, group = NULL, struc_zero = FALSE,
                    neg_lb = FALSE, tol = 1e-05, max_iter = 100,
-                   conserve = FALSE, alpha = 0.05, global = FALSE){
+                   conserve = FALSE, alpha = 0.05, global = FALSE, 
+                   assay_name = "counts", phyloseq){
   # 1. Data pre-processing
-  fiuo_core = data_core(phyloseq, prv_cut, lib_cut,
-                        tax_keep = NULL, samp_keep = NULL)
+  fiuo_core = data_core(x, prv_cut, lib_cut,
+                        tax_keep = NULL, samp_keep = NULL, assay_name)
   feature_table = fiuo_core$feature_table
   meta_data = fiuo_core$meta_data
   n_taxa = nrow(feature_table)

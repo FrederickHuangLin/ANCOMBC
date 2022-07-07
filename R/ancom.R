@@ -16,12 +16,13 @@
 #' recommended to set \code{neg_lb = TRUE} when the sample size per group is
 #' relatively large (e.g. > 30).
 #'
-#' @param phyloseq a phyloseq-class object, which consists of a feature table
-#' (microbial observed abundance table), a sample metadata, a taxonomy table
-#' (optional), and a phylogenetic tree (optional). The row names of the
-#' metadata must match the sample names of the feature table, and the row names
-#' of the taxonomy table must match the taxon (feature) names of the feature
-#' table. See \code{?phyloseq::phyloseq} for more details.
+#' @param x a phyloseq or (Tree)SummarizedExperiment object, which consists of
+#' a feature table (microbial observed abundance table), a sample metadata, a
+#' taxonomy table (optional), and a phylogenetic tree (optional). The row names
+#' of the metadata must match the sample names of the feature table, and the
+#' row names of the taxonomy table must match the taxon (feature) names of the
+#' feature table. See \code{?phyloseq::phyloseq} or
+#' \code{?SummarizedExperiment::SummarizedExperiment} for more details.
 #' @param p_adj_method character. method to adjust p-values. Default is "holm".
 #' Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 #' "fdr", "none". See \code{?stats::p.adjust} for more details.
@@ -45,6 +46,9 @@
 #' @param alpha numeric. level of significance. Default is 0.05.
 #' @param n_cl numeric. The number of nodes to be forked. For details, see
 #' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
+#' @param assay_name character. Name of the abundance table in the data object
+#' (only applicable if data object is a (Tree)SummarizedExperiment).
+#' @param phyloseq a phyloseq-class object. Will be deprecated.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -117,13 +121,13 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancom = function(phyloseq,  p_adj_method = "holm", prv_cut = 0.10, lib_cut = 0,
-                 main_var, adj_formula = NULL, rand_formula = NULL,
+ancom = function(x = phyloseq,  p_adj_method = "holm", prv_cut = 0.10, 
+                 lib_cut = 0, main_var, adj_formula = NULL, rand_formula = NULL,
                  lme_control = NULL, struc_zero = FALSE, neg_lb = FALSE,
-                 alpha = 0.05, n_cl = 1){
+                 alpha = 0.05, n_cl = 1, assay_name = "counts", phyloseq){
   # 1. Data pre-processing
-  fiuo_core = data_core(phyloseq, prv_cut, lib_cut,
-                        tax_keep = NULL, samp_keep = NULL)
+  fiuo_core = data_core(x, prv_cut, lib_cut,
+                        tax_keep = NULL, samp_keep = NULL, assay_name)
   feature_table = fiuo_core$feature_table
   meta_data = fiuo_core$meta_data
   meta_data[] = lapply(meta_data, function(x)
