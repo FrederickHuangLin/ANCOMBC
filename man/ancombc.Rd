@@ -6,7 +6,10 @@
 (ANCOM-BC)}
 \usage{
 ancombc(
-  phyloseq,
+  data = NULL,
+  assay_name = "counts",
+  tax_level = NULL,
+  phyloseq = NULL,
   formula,
   p_adj_method = "holm",
   prv_cut = 0.1,
@@ -18,18 +21,37 @@ ancombc(
   max_iter = 100,
   conserve = FALSE,
   alpha = 0.05,
-  global = FALSE
+  global = FALSE,
+  n_cl = 1,
+  verbose = FALSE
 )
 }
 \arguments{
-\item{phyloseq}{a phyloseq-class object, which consists of a feature table
-(microbial observed abundance table), a sample metadata, a taxonomy table
-(optional), and a phylogenetic tree (optional). The row names of the
-metadata must match the sample names of the feature table, and the row names
-of the taxonomy table must match the taxon (feature) names of the feature
-table. See \code{?phyloseq::phyloseq} for more details.}
+\item{data}{the input data. A
+\code{phyloseq}, \code{SummarizedExperiment}, or
+\code{TreeSummarizedExperiment} object, which consists of
+a feature table (microbial count table), a sample metadata, a
+taxonomy table (optional), and a phylogenetic tree (optional). The row names
+of the metadata must match the sample names of the feature table, and the
+row names of the taxonomy table must match the taxon (feature) names of the
+feature table. See \code{?phyloseq::phyloseq},
+\code{?SummarizedExperiment::SummarizedExperiment}, or
+\code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.}
 
-\item{formula}{the character string expresses how the microbial absolute
+\item{assay_name}{character. Name of the count table in the data object
+(only applicable if data object is a \code{(Tree)SummarizedExperiment}).
+Default is "counts".
+See \code{?SummarizedExperiment::assay} for more details.}
+
+\item{tax_level}{character. The taxonomic level of interest. The input data
+can be agglomerated at different taxonomic levels based on your research
+interest. Default is NULL, i.e., do not perform agglomeration, and the
+ANCOM-BC anlysis will be performed at the lowest taxonomic level of the
+input \code{data}.}
+
+\item{phyloseq}{a \code{phyloseq} object. Will be deprecated.}
+
+\item{formula}{the character string expresses how microbial absolute
 abundances for each taxon depend on the variables in metadata.}
 
 \item{p_adj_method}{character. method to adjust p-values. Default is "holm".
@@ -37,8 +59,9 @@ Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
-less than \code{prv_cut} will be excluded in the analysis. Default
-is 0.10.}
+less than \code{prv_cut} will be excluded in the analysis. For instance,
+suppose there are 100 samples, if a taxon has nonzero counts presented in
+less than 10 samples, it will not be further analyzed. Default is 0.10.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
@@ -67,26 +90,24 @@ Default is FALSE.}
 
 \item{alpha}{numeric. level of significance. Default is 0.05.}
 
-\item{global}{logical. whether to perform global test. Default is FALSE.}
+\item{global}{logical. whether to perform the global test. Default is FALSE.}
+
+\item{n_cl}{numeric. The number of nodes to be forked. For details, see
+\code{?parallel::makeCluster}. Default is 1 (no parallel computing).}
+
+\item{verbose}{logical. Whether to generate verbose output during the
+ANCOM-BC fitting process. Default is FALSE.}
 }
 \value{
 a \code{list} with components:
         \itemize{
         \item{ \code{feature_table}, a \code{data.frame} of pre-processed
-        (based on \code{prv_cut} and \code{lib_cut}) microbial observed
-        abundance table.}
-        \item{ \code{zero_ind}, a logical \code{matrix} with TRUE indicating
-        the taxon is identified as a structural zero for the specified
-        \code{group} variable.}
+        (based on \code{prv_cut} and \code{lib_cut}) microbial count table.}
+        \item{ \code{zero_ind}, a logical \code{data.frame} with TRUE
+        indicating the taxon is detected to contain structural zeros in
+        some specific groups.}
         \item{ \code{samp_frac}, a numeric vector of estimated sampling
-        fractions in log scale (natural log). Note that for each sample,
-        if it contains missing values for any variable specified in the
-        \code{formula}, the corresponding sampling fraction estimate
-        for this sample will be \code{NA} since the sampling fraction
-        is not estimable with the presence of missing values.}
-        \item{ \code{resid}, a \code{matrix} of residuals from the ANCOM-BC
-        log-linear (natural log) model.
-        Rows are taxa and columns are samples.}
+        fractions in log scale (natural log).}
         \item{ \code{delta_em}, estimated sample-specific biases
         through E-M algorithm.}
         \item{ \code{delta_wls}, estimated sample-specific biases through
@@ -124,15 +145,25 @@ a \code{list} with components:
 }
 \description{
 Determine taxa whose absolute abundances, per unit volume, of
-the ecosystem (e.g. gut) are significantly different with changes in the
-covariate of interest (e.g. group). The current version of
+the ecosystem (e.g., gut) are significantly different with changes in the
+covariate of interest (e.g., group). The current version of
 \code{ancombc} function implements Analysis of Compositions of Microbiomes
 with Bias Correction (ANCOM-BC) in cross-sectional data while allowing
 for covariate adjustment.
 }
 \details{
-The definition of structural zero can be found at
-\href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II}.
+A taxon is considered to have structural zeros in some (>=1)
+groups if it is completely (or nearly completely) missing in these groups.
+For instance, suppose there are three groups: g1, g2, and g3.
+If the counts of taxon A in g1 are 0 but nonzero in g2 and g3,
+then taxon A will be considered to contain structural zeros in g1.
+In this example, taxon A is declared to be differentially abundant between
+g1 and g2, g1 and g3, and consequently, it is globally differentially
+abundant with respect to this group variable.
+Such taxa are not further analyzed using ANCOM-BC, but the results are
+summarized in the overall summary. For more details about the structural
+zeros, please go to the
+\href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II} paper.
 Setting \code{neg_lb = TRUE} indicates that you are using both criteria
 stated in section 3.2 of
 \href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II}
@@ -142,49 +173,68 @@ recommended to set \code{neg_lb = TRUE} when the sample size per group is
 relatively large (e.g. > 30).
 }
 \examples{
-#================Build a Phyloseq-Class Object from Scratch==================
-library(phyloseq)
+#===========Build a TreeSummarizedExperiment Object from Scratch=============
+library(mia)
 
+# microbial count table
 otu_mat = matrix(sample(1:100, 100, replace = TRUE), nrow = 10, ncol = 10)
 rownames(otu_mat) = paste0("taxon", 1:nrow(otu_mat))
 colnames(otu_mat) = paste0("sample", 1:ncol(otu_mat))
+assays = SimpleList(counts = otu_mat)
 
+# sample metadata
+smd = data.frame(group = sample(LETTERS[1:4], size = 10, replace = TRUE),
+                 row.names = paste0("sample", 1:ncol(otu_mat)),
+                 stringsAsFactors = FALSE)
+smd = DataFrame(smd)
 
-meta = data.frame(group = sample(LETTERS[1:4], size = 10, replace = TRUE),
-                  row.names = paste0("sample", 1:ncol(otu_mat)),
-                  stringsAsFactors = FALSE)
-
-tax_mat = matrix(sample(letters, 70, replace = TRUE),
+# taxonomy table
+tax_tab = matrix(sample(letters, 70, replace = TRUE),
                  nrow = nrow(otu_mat), ncol = 7)
-rownames(tax_mat) = rownames(otu_mat)
-colnames(tax_mat) = c("Kingdom", "Phylum", "Class", "Order",
+rownames(tax_tab) = rownames(otu_mat)
+colnames(tax_tab) = c("Kingdom", "Phylum", "Class", "Order",
                       "Family", "Genus", "Species")
+tax_tab = DataFrame(tax_tab)
 
-OTU = otu_table(otu_mat, taxa_are_rows = TRUE)
-META = sample_data(meta)
-TAX = tax_table(tax_mat)
-physeq = phyloseq(OTU, META, TAX)
+# create TSE
+tse = TreeSummarizedExperiment(assays = assays,
+                               colData = smd,
+                               rowData = tax_tab)
+
+# convert TSE to phyloseq
+pseq = makePhyloseqFromTreeSummarizedExperiment(tse)
 
 #========================Run ANCOMBC Using a Real Data=======================
+library(ANCOMBC)
+data(atlas1006)
 
-library(microbiome)
-library(tidyverse)
-data(dietswap)
+# subset to baseline
+tse = atlas1006[, atlas1006$time == 0]
 
-# Subset to baseline
-pseq = subset_samples(dietswap, timepoint == 1)
-# Aggregate to family level
-family_data = aggregate_taxa(pseq, "Family")
-
-# Run ancombc function
-out = ancombc(phyloseq = family_data, formula = "bmi_group + nationality",
+# run ancombc function
+set.seed(123)
+out = ancombc(data = tse, assay_name = "counts",
+              tax_level = "Family", phyloseq = NULL,
+              formula = "age + nationality + bmi_group",
               p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
               group = "bmi_group", struc_zero = TRUE, neg_lb = FALSE,
               tol = 1e-5, max_iter = 100, conserve = TRUE,
-              alpha = 0.05, global = TRUE)
+              alpha = 0.05, global = TRUE, n_cl = 1, verbose = TRUE)
 
-res = out$res
+res_prim = out$res
 res_global = out$res_global
+
+# to run ancombc using the phyloseq object
+tse_alt = agglomerateByRank(tse, "Family")
+pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
+set.seed(123)
+out = ancombc(data = NULL, assay_name = NULL,
+              tax_level = "Family", phyloseq = pseq,
+              formula = "age + nationality + bmi_group",
+              p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+              group = "bmi_group", struc_zero = TRUE, neg_lb = FALSE,
+              tol = 1e-5, max_iter = 100, conserve = TRUE,
+              alpha = 0.05, global = TRUE, n_cl = 1, verbose = TRUE)
 
 }
 \references{
@@ -193,7 +243,7 @@ res_global = out$res_global
 \insertRef{lin2020analysis}{ANCOMBC}
 }
 \seealso{
-\code{\link{ancom}}
+\code{\link{ancom}} \code{\link{ancombc2}}
 }
 \author{
 Huang Lin

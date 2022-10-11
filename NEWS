@@ -1,9 +1,10 @@
-version 2.0.xx (last update 2022-06-07)
-        + Updated ancombc warning messages, added ancom and secom functions
+version 2.0.xx (last update 2022-10-10)
+        + add ancombc2 function
 
 version 1.6.xx (last update 2021-08-13)
         + Fixed bugs
         + Updated warning messages
+        + Add secom functions
 
 version 1.0.0: (2020-10-31)
         + Release!

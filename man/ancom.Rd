@@ -5,7 +5,10 @@
 \title{Analysis of Composition of Microbiomes (ANCOM)}
 \usage{
 ancom(
-  phyloseq,
+  data = NULL,
+  assay_name = "counts",
+  tax_level = NULL,
+  phyloseq = NULL,
   p_adj_method = "holm",
   prv_cut = 0.1,
   lib_cut = 0,
@@ -20,20 +23,38 @@ ancom(
 )
 }
 \arguments{
-\item{phyloseq}{a phyloseq-class object, which consists of a feature table
-(microbial observed abundance table), a sample metadata, a taxonomy table
-(optional), and a phylogenetic tree (optional). The row names of the
-metadata must match the sample names of the feature table, and the row names
-of the taxonomy table must match the taxon (feature) names of the feature
-table. See \code{?phyloseq::phyloseq} for more details.}
+\item{data}{the input data. A
+\code{phyloseq}, \code{SummarizedExperiment}, or
+\code{TreeSummarizedExperiment} object, which consists of
+a feature table (microbial count table), a sample metadata, a
+taxonomy table (optional), and a phylogenetic tree (optional). The row names
+of the metadata must match the sample names of the feature table, and the
+row names of the taxonomy table must match the taxon (feature) names of the
+feature table. See \code{?phyloseq::phyloseq},
+\code{?SummarizedExperiment::SummarizedExperiment}, or
+\code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.}
+
+\item{assay_name}{character. Name of the count table in the data object
+(only applicable if data object is a \code{(Tree)SummarizedExperiment}).
+Default is "counts".
+See \code{?SummarizedExperiment::assay} for more details.}
+
+\item{tax_level}{character. The taxonomic level of interest. The input data
+can be agglomerated at different taxonomic levels based on your research
+interest. Default is NULL, i.e., do not perform agglomeration, and the
+ANCOM anlysis will be performed at the lowest taxonomic level of the
+input \code{data}.}
+
+\item{phyloseq}{a \code{phyloseq} object. Will be deprecated.}
 
 \item{p_adj_method}{character. method to adjust p-values. Default is "holm".
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
-less than \code{prv_cut} will be excluded in the analysis. Default
-is 0.10.}
+less than \code{prv_cut} will be excluded in the analysis. For instance,
+suppose there are 100 samples, if a taxon has nonzero counts presented in
+less than 10 samples, it will not be further analyzed. Default is 0.10.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
@@ -74,14 +95,14 @@ a \code{list} with components:
         abundant under a series of cutoffs. For example, TRUE in
         \code{detected_0.7} means the number of ALR transformed models where
         the taxon is differentially abundant with regard to the main variable
-        outnumbers \code{0.7 * (n_taxa - 1)}. \code{detected_0.7} is commonly
+        outnumbers \code{0.7 * (n_tax - 1)}. \code{detected_0.7} is commonly
         used. Choose \code{detected_0.8} or \code{detected_0.9} for more
         conservative results, or choose \code{detected_0.6} for more liberal
         results.}
         }
-        \item{ \code{zero_ind}, a logical \code{matrix} with TRUE indicating
-        the taxon is identified as a structural zero for the specified
-        main variable.}
+        \item{ \code{zero_ind}, a logical \code{data.frame} with TRUE
+        indicating the taxon is detected to contain structural zeros in
+        some specific groups.}
         \item{ \code{beta_data}, a numeric \code{matrix} containing pairwise
         coefficients for the main variable of interest in ALR transformed
         regression models.}
@@ -97,12 +118,22 @@ a \code{list} with components:
 Determine taxa whose absolute abundances, per unit volume, of
 the ecosystem (e.g. gut) are significantly different with changes in the
 covariate of interest (e.g. group). The current version of
-\code{ancom} function implements ANCOM in cross-sectional and longitudinal
-datasets while allowing for covariate adjustment.
+\code{ancom} function implements ANCOM in cross-sectional and repeated
+measurements data while allowing for covariate adjustment.
 }
 \details{
-The definition of structural zero can be found at
-\href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II}.
+A taxon is considered to have structural zeros in some (>=1)
+groups if it is completely (or nearly completely) missing in these groups.
+For instance, suppose there are three groups: g1, g2, and g3.
+If the counts of taxon A in g1 are 0 but nonzero in g2 and g3,
+then taxon A will be considered to contain structural zeros in g1.
+In this example, taxon A is declared to be differentially abundant between
+g1 and g2, g1 and g3, and consequently, it is globally differentially
+abundant with respect to this group variable.
+Such taxa are not further analyzed using ANCOM-BC, but the results are
+summarized in the overall summary. For more details about the structural
+zeros, please go to the
+\href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II} paper.
 Setting \code{neg_lb = TRUE} indicates that you are using both criteria
 stated in section 3.2 of
 \href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II}
@@ -112,31 +143,43 @@ recommended to set \code{neg_lb = TRUE} when the sample size per group is
 relatively large (e.g. > 30).
 }
 \examples{
-library(microbiome)
-library(tidyverse)
-data(dietswap)
+library(ANCOMBC)
+library(mia)
+data(atlas1006)
 
-# Subset to baseline
-pseq = subset_samples(dietswap, timepoint == 1)
-# Aggregate to family level
-family_data = aggregate_taxa(pseq, "Family")
+# subset to baseline
+tse = atlas1006[, atlas1006$time == 0]
 
-# Run ancombc function
+# run ancom function
 set.seed(123)
-out = ancom(phyloseq = family_data,  p_adj_method = "holm",
-            prv_cut = 0.10, lib_cut = 0, main_var = "nationality",
-            adj_formula = "bmi_group",
+out = ancom(data = tse, assay_name = "counts",
+            tax_level = "Family", phyloseq = NULL,
+            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+            main_var = "bmi_group", adj_formula = "age + nationality",
             rand_formula = NULL, lme_control = NULL,
-            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
 
 res = out$res
+
+# to run ancom using the phyloseq object
+tse_alt = agglomerateByRank(tse, "Family")
+pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
+set.seed(123)
+out = ancom(data = NULL, assay_name = NULL,
+            tax_level = "Family", phyloseq = pseq,
+            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+            main_var = "bmi_group", adj_formula = "nationality",
+            rand_formula = NULL, lme_control = NULL,
+            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
 
 }
 \references{
 \insertRef{mandal2015analysis}{ANCOMBC}
+
+\insertRef{kaul2017analysis}{ANCOMBC}
 }
 \seealso{
-\code{\link{ancombc}}
+\code{\link{ancombc}} \code{\link{ancombc2}}
 }
 \author{
 Huang Lin

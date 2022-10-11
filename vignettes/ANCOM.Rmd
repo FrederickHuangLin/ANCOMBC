@@ -1,0 +1,296 @@
+---
+title: "ANCOM Tutorial"
+author: 
+  - Huang Lin$^1$
+  - $^1$NICHD, 6710B Rockledge Dr, Bethesda, MD 20892
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: rmarkdown::html_vignette
+bibliography: bibliography.bib
+vignette: >
+  %\VignetteIndexEntry{ANCOM}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA,
+                      fig.width = 6.25, fig.height = 5)
+library(ANCOMBC)
+library(tidyverse)
+library(mia)
+```
+
+# 1. Introduction
+
+Analysis of Composition of Microbiomes (ANCOM) [@mandal2015analysis] is a 
+differential abundance (DA) analysis for microbial absolute abundances. 
+It accounts for the compositionality of microbiome data by performing 
+the additive log ratio (ALR) transformation. ANCOM employs a heuristic strategy 
+to declare taxa that are significantly differentially abundant. 
+For a given taxon, the output W statistic represents the number ALR transformed 
+models where the taxon is differentially abundant with regard to the variable 
+of interest. The larger the value of W, the more likely the taxon is 
+differentially abundant. For more details, please refer to the 
+[ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663) paper.
+
+# 2. Installation
+
+Download package. 
+
+```{r getPackage, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("ANCOMBC")
+```
+
+Load the package. 
+
+```{r load, eval=FALSE}
+library(ANCOMBC)
+```
+
+# 3. Run ANCOM on a real cross-sectional dataset {.tabset}
+
+## 3.1 Import example data
+
+The HITChip Atlas dataset contains genus-level microbiota profiling with 
+HITChip for 1006 western adults with no reported health complications, 
+reported in [@lahti2014tipping]. The dataset is also available via the 
+microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+format. In this tutorial, we consider the following covariates:
+
+* Continuous covariates: "age"
+
+* Categorical covariates: "region", "bmi"
+
+* The group variable of interest: "bmi"
+
+    + Three groups: "lean", "overweight", "obese"
+    
+    + The reference group: "obese"
+
+```{r}
+data(atlas1006)
+
+# Subset to baseline
+tse = atlas1006[, atlas1006$time == 0]
+
+# Re-code the bmi group
+tse$bmi = recode(tse$bmi_group,
+                 obese = "obese",
+                 severeobese = "obese",
+                 morbidobese = "obese")
+# Subset to lean, overweight, and obese subjects
+tse = tse[, tse$bmi %in% c("lean", "overweight", "obese")]
+
+# Note that by default, levels of a categorical variable in R are sorted 
+# alphabetically. In this case, the reference level for `bmi` will be 
+# `lean`. To manually change the reference level, for instance, setting `obese`
+# as the reference level, use:
+tse$bmi = factor(tse$bmi, levels = c("obese", "overweight", "lean"))
+# You can verify the change by checking:
+# levels(sample_data(tse)$bmi)
+
+# Create the region variable
+tse$region = recode(as.character(tse$nationality),
+                    Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
+                    CentralEurope = "CE", EasternEurope = "EE",
+                    .missing = "unknown")
+
+# Discard "EE" as it contains only 1 subject
+# Discard subjects with missing values of region
+tse = tse[, ! tse$region %in% c("EE", "unknown")]
+
+print(tse)
+```
+
+## 3.2 Run ancom function
+
+```{r}
+set.seed(123)
+out = ancom(data = tse, assay_name = "counts", 
+            tax_level = "Family", phyloseq = NULL, 
+            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
+            main_var = "bmi", adj_formula = "age + region", 
+            rand_formula = NULL, lme_control = NULL, struc_zero = TRUE,
+            neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+
+res = out$res
+
+# Similarly, if the main variable of interest is continuous, such as age, the
+# ancom model can be specified as
+# out = ancom(data = tse, assay_name = "counts",
+#             tax_level = "Family", phyloseq = NULL,
+#             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+#             main_var = "age", adj_formula = "bmi + region",
+#             rand_formula = NULL, lme_control = NULL, struc_zero = FALSE,
+#             neg_lb = FALSE, alpha = 0.05, n_cl = 2)
+
+# ancom also supports importing data in phyloseq format
+# tse_alt = agglomerateByRank(tse, "Family")
+# pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
+# out = ancom(data = NULL, assay_name = NULL,
+#             tax_level = "Family", phyloseq = pseq,
+#             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+#             main_var = "bmi", adj_formula = "age + region",
+#             rand_formula = NULL, lme_control = NULL, struc_zero = TRUE,
+#             neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+```
+
+## 3.3 Visualization for W statistics
+
+```{r}
+q_val = out$q_data
+beta_val = out$beta_data
+# Only consider the effect sizes with the corresponding q-value less than alpha
+beta_val = beta_val * (q_val < 0.05) 
+# Choose the maximum of beta's as the effect size
+beta_pos = apply(abs(beta_val), 2, which.max) 
+beta_max = vapply(seq_along(beta_pos), function(i) 
+    beta_val[beta_pos[i], i], FUN.VALUE = double(1))
+# Number of taxa except structural zeros
+n_taxa = ifelse(is.null(out$zero_ind), 
+                nrow(feature_table), 
+                sum(apply(out$zero_ind, 1, sum) == 0))
+# Cutoff values for declaring differentially abundant taxa
+cut_off = 0.7 * (n_taxa - 1)
+
+df_fig_w = res %>%
+  dplyr::mutate(beta = beta_max,
+                direct = case_when(
+                  detected_0.7 == TRUE & beta > 0 ~ "Positive",
+                  detected_0.7 == TRUE & beta <= 0 ~ "Negative",
+                  TRUE ~ "Not Significant"
+                  )) %>%
+  dplyr::arrange(W)
+df_fig_w$taxon_id = factor(df_fig_w$taxon_id, levels = df_fig_w$taxon_id)
+df_fig_w$W = replace(df_fig_w$W, is.infinite(df_fig_w$W), n_taxa - 1)
+df_fig_w$direct = factor(df_fig_w$direct, 
+                         levels = c("Negative", "Positive", "Not Significant"))
+
+p_w = df_fig_w %>%
+  ggplot(aes(x = taxon_id, y = W, color = direct)) +
+  geom_point(size = 2, alpha = 0.6) +
+  labs(x = "Taxon", y = "W") +
+  scale_color_discrete(name = NULL) + 
+  geom_hline(yintercept = cut_off, linetype = "dotted", 
+             color = "blue", size = 1.5) +
+  geom_text(aes(x = 2, y = cut_off + 0.5, label = "W[0.7]"), 
+            size = 5, vjust = -0.5, hjust = 0, color = "orange", parse = TRUE) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major = element_blank())
+p_w
+```
+
+# 4. Run ANCOM on a real longitudinal dataset {.tabset}
+
+## 4.1 Import example data
+
+A two-week diet swap study between western (USA) and traditional (rural Africa) 
+diets [@lahti2014tipping]. The dataset is also available via the 
+microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+format. In this tutorial, we consider the following fixed effects:
+
+* Continuous covariates: "timepoint"
+
+* Categorical covariates: "nationality"
+
+* The group variable of interest: "group"
+
+    + Three groups: "DI", "ED", "HE"
+    
+    + The reference group: "DI"
+    
+and the following random effects:
+
+* A random intercept
+
+* A random slope: "timepoint"
+
+```{r}
+data(dietswap)
+tse = dietswap
+print(tse)
+```
+
+## 4.2 Run ancom function
+
+```{r}
+set.seed(123)
+out = ancom(data = tse, assay_name = "counts", 
+            tax_level = "Family", phyloseq = NULL, 
+            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
+            main_var = "group",
+            adj_formula = "nationality + timepoint", 
+            rand_formula = "~ timepoint | subject", 
+            lme_control = list(maxIter = 100, msMaxIter = 100, opt = "optim"), 
+            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+
+res = out$res
+```
+
+## 4.3 Visualization for W statistics
+
+```{r}
+q_val = out$q_data
+beta_val = out$beta_data
+# Only consider the effect sizes with the corresponding q-value less than alpha
+beta_val = beta_val * (q_val < 0.05) 
+# Choose the maximum of beta's as the effect size
+beta_pos = apply(abs(beta_val), 2, which.max) 
+beta_max = vapply(seq_along(beta_pos), function(i) beta_val[beta_pos[i], i],
+                  FUN.VALUE = double(1))
+# Number of taxa except structural zeros
+n_taxa = ifelse(is.null(out$zero_ind), 
+                nrow(feature_table), 
+                sum(apply(out$zero_ind, 1, sum) == 0))
+# Cutoff values for declaring differentially abundant taxa
+cut_off = 0.7 * (n_taxa - 1)
+
+df_fig_w = res %>%
+  dplyr::mutate(beta = beta_max,
+                direct = case_when(
+                  detected_0.7 == TRUE & beta > 0 ~ "Positive",
+                  detected_0.7 == TRUE & beta <= 0 ~ "Negative",
+                  TRUE ~ "Not Significant"
+                  )) %>%
+  dplyr::arrange(W)
+df_fig_w$taxon_id = factor(df_fig_w$taxon_id, levels = df_fig_w$taxon_id)
+df_fig_w$W = replace(df_fig_w$W, is.infinite(df_fig_w$W), n_taxa - 1)
+df_fig_w$direct = factor(df_fig_w$direct, 
+                     levels = c("Negative", "Positive", "Not Significant"))
+
+p_w = df_fig_w %>%
+  ggplot(aes(x = taxon_id, y = W, color = direct)) +
+  geom_point(size = 2, alpha = 0.6) +
+  labs(x = "Taxon", y = "W") +
+  scale_color_discrete(name = NULL) + 
+  geom_hline(yintercept = cut_off, linetype = "dotted", 
+             color = "blue", size = 1.5) +
+  geom_text(aes(x = 2, y = cut_off + 0.5, label = "W[0.7]"), 
+            size = 5, vjust = -0.5, hjust = 0, color = "orange", parse = TRUE) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major = element_blank())
+p_w
+```
+
+# Session information
+
+```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
+sessionInfo()
+```
+
+# References
+
+
+
+
+
+
+
+
+
