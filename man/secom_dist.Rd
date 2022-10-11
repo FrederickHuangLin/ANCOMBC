@@ -5,7 +5,9 @@
 \title{Sparse estimation of distance correlations among microbiomes}
 \usage{
 secom_dist(
-  pseqs,
+  data,
+  assay_name = "counts",
+  tax_level = NULL,
   pseudo = 0,
   prv_cut = 0.5,
   lib_cut = 1000,
@@ -18,21 +20,41 @@ secom_dist(
 )
 }
 \arguments{
-\item{pseqs}{a list of phyloseq-class objects. For one single ecosystem,
-specify it as \code{pseqs = list(c(phyloseq1, phyloseq2))}, where
-\code{phyloseq1} (typically in low taxonomic levels, such as OTU or species
-level) is used to estimate biases, while \code{phyloseq2} (can be in any
-taxonomic level) is used to compute the correlation matrix.
-For multiple ecosystems, simply stack the phyloseq objects. For example,
-for two ecosystems (such as gut and tongue), specify it as
-\code{pseqs = list(gut = c(phyloseq1, phyloseq2),
-tongue = c(phyloseq3, phyloseq4))}.}
+\item{data}{a list of the input data. Each element of the list can be a
+\code{phyloseq}, \code{SummarizedExperiment}, or
+\code{TreeSummarizedExperiment} object, which consists of
+a feature table (microbial count table), a sample metadata, a
+taxonomy table (optional), and a phylogenetic tree (optional). The row names
+of the metadata must match the sample names of the feature table, and the
+row names of the taxonomy table must match the taxon (feature) names of the
+feature table. See \code{?phyloseq::phyloseq},
+\code{?SummarizedExperiment::SummarizedExperiment}, or
+\code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.
+It is highly recommended that the input data
+are in low taxonomic levels, such as OTU or species level, as the estimation
+of sampling fractions requires a large number of taxa.
+For multiple ecosystems, simply stack the data. For example, for two
+ecosystems, such as gut and tongue, specify the list of input data as
+\code{data = list(gut = tse1, tongue = tse2)}.}
+
+\item{assay_name}{character. Name of the count table in the data object
+(only applicable if data object is a \code{(Tree)SummarizedExperiment}).
+Default is "counts".
+See \code{?SummarizedExperiment::assay} for more details.}
+
+\item{tax_level}{character. The taxonomic level of interest. The input data
+can be agglomerated at different taxonomic levels based on your research
+interest. Default is NULL, i.e., do not perform agglomeration, and the
+SECOM anlysis will be performed at the lowest taxonomic level of the
+input \code{data}.}
 
 \item{pseudo}{numeric. Add pseudo-counts to the data.
 Default is 0 (no pseudo-counts).}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
-less than \code{prv_cut} will be excluded in the analysis. Default is 0.5.}
+less than \code{prv_cut} will be excluded in the analysis. For instance,
+suppose there are 100 samples, if a taxon has nonzero counts presented in
+less than 10 samples, it will not be further analyzed. Default is 0.50.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
@@ -86,31 +108,24 @@ Obtain the sparse correlation matrix for distance correlations
 between taxa.
 }
 \details{
-The \href{https://projecteuclid.org/journals/annals-of-statistics/volume-35/issue-6/Measuring-and-testing-dependence-by-correlation-of-distances/10.1214/009053607000000505.full}{distance correlation},
+The \href{https://doi.org/10.1214/009053607000000505}{distance correlation},
 which is a measure of dependence between two random variables, can be used to
 quantify any dependence, whether linear, monotonic, non-monotonic or
 nonlinear relationships.
 }
 \examples{
-library(microbiome)
-library(tidyverse)
+library(ANCOMBC)
 data(dietswap)
 
-# Subset to baseline
-pseq = subset_samples(dietswap, timepoint == 1)
-# Genus level data
-phyloseq1 = pseq
-# Phylum level data
-phyloseq2 = aggregate_taxa(pseq, level = "Phylum")
-
-# print(phyloseq1)
-# print(phyloseq2)
+# subset to baseline
+tse = dietswap[, dietswap$timepoint == 1]
 
 set.seed(123)
-res_dist = secom_dist(pseqs = list(c(phyloseq1, phyloseq2)), pseudo = 0,
+res_dist = secom_dist(data = list(tse), assay_name = "counts",
+                      tax_level = "Phylum", pseudo = 0,
                       prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5,
                       wins_quant = c(0.05, 0.95), R = 1000,
-                      thresh_hard = 0.3, max_p = 0.005, n_cl = 1)
+                      thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 
 dcorr_fl = res_dist$dcorr_fl
 

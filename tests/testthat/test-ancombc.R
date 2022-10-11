@@ -1,54 +1,26 @@
 context("Testing ancombc function")
 library(ANCOMBC)
 library(testthat)
-library(tidyverse)
-library(microbiome)
+library(mia)
 
 data(atlas1006)
-# Subset to baseline
-pseq = subset_samples(atlas1006, time == 0)
 
-# Re-code the bmi group
-sample_data(pseq)$bmi_group = recode(sample_data(pseq)$bmi_group,
-                                     lean = "lean",
-                                     overweight = "overweight",
-                                     obese = "obese",
-                                     severeobese = "obese",
-                                     morbidobese = "obese")
-# Subset to lean and obese subjects
-pseq = subset_samples(pseq, bmi_group %in% c("lean", "obese"))
+# subset to baseline
+tse = atlas1006[, atlas1006$time == 0]
 
-# Create the region variable
-sample_data(pseq)$region = recode(sample_data(pseq)$nationality,
-                                  Scandinavia = "NE",
-                                  UKIE = "NE",
-                                  SouthEurope = "SE",
-                                  CentralEurope = "CE",
-                                  EasternEurope = "EE")
-# Discard "EE" as it contains only 1 subject
-pseq = subset_samples(pseq, region != "EE")
-
-# Aggregate to family level
-family_data = aggregate_taxa(pseq, "Family")
-
-# Test
+# test
 test_that("`ancombc` function provides expected results", {
-   phyloseq = family_data; formula = "age + region + bmi_group"
-   p_adj_method = "holm"; prv_cut = 0.10; lib_cut = 1000
-   group = "region"; struc_zero = TRUE; neg_lb = TRUE; tol = 1e-5
-   max_iter = 100; conserve = TRUE; alpha = 0.05; global = TRUE
-
-   out = ancombc(phyloseq, formula, p_adj_method,
-                 prv_cut, lib_cut, group, struc_zero, neg_lb,
-                 tol, max_iter, conserve, alpha, global)
-
-   res = out$res
-   res_global = out$res_global
-
-   # Testing
-   test_output = round(c(res$W[1, 1], res_global$W[2]), 2)
-
-   expect_equal(test_output, c(-8.76, 29.58))
+    set.seed(123)
+    out = ancombc(data = tse, assay_name = "counts",
+                  tax_level = "Family", phyloseq = NULL,
+                  formula = "age + nationality + bmi_group",
+                  p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+                  group = "bmi_group", struc_zero = TRUE, neg_lb = FALSE,
+                  tol = 1e-5, max_iter = 100, conserve = TRUE,
+                  alpha = 0.05, global = TRUE, n_cl = 1, verbose = FALSE)
+    res_prim = out$res
+    test_output = round(res_prim$W[1, 2], 2)
+    expect_equal(test_output, -4.9)
 })
 
 

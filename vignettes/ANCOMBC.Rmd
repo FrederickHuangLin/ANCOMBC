@@ -1,13 +1,10 @@
 ---
-title: "ANCOM-BC"
+title: "ANCOM-BC Tutorial"
 author: 
   - Huang Lin$^1$
   - $^1$NICHD, 6710B Rockledge Dr, Bethesda, MD 20892
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output:
-  html_document: 
-    toc: true
-    theme: united
+output: rmarkdown::html_vignette
 bibliography: bibliography.bib
 vignette: >
   %\VignetteIndexEntry{ANCOMBC}
@@ -20,12 +17,7 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA,
                       fig.width = 6.25, fig.height = 5)
 library(ANCOMBC)
 library(tidyverse)
-library(microbiome)
-library(magrittr)
-library(qwraps2)
-library(corrplot)
-library(limma)
-library(ggforce)
+library(mia)
 library(DT)
 options(DT.options = list(
   initComplete = JS("function(settings, json) {",
@@ -44,24 +36,6 @@ taxa that are differentially abundant according to the variable of interest.
 For more details, please refer to the 
 [ANCOM-BC](https://doi.org/10.1038/s41467-020-17041-7) paper.
 
-Analysis of Composition of Microbiomes (ANCOM) [@mandal2015analysis] is also a 
-DA analysis for microbial absolute abundances. It accounts for the 
-compositionality of microbiome data by performing the additive log ratio (ALR) 
-transformation. ANCOM employs a heuristic strategy to declare taxa that are 
-significantly differentially abundant. For a given taxon, the output W statistic 
-represents the number ALR transformed models where the taxon is differentially 
-abundant with regard to the variable of interest. Larger the value of W, the 
-more likely the taxon is differentially abundant. For more details, 
-please refer to the 
-[ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663) paper.
-
-Sparse Estimation of Correlations among Microbiomes (SECOM) is a methodology
-which aims to detect both linear and nonlinear relationships between a pair of 
-taxa within an ecosystem (e.g. gut) or across ecosystems (e.g. gut and tongue).
-SECOM corrects both sample-specific and taxon-specific biases, obtains a
-consistent estimator for the correlation matrix of microbial absolute 
-abundances, while maintaining the underlying true sparsity.
-
 # 2. Installation
 
 Download package. 
@@ -78,79 +52,85 @@ Load the package.
 library(ANCOMBC)
 ```
 
-# 3. Example Data {.tabset}
+# 3. Example Data
 
-## Cross-sectional data
-
-The HITChip Atlas data set [@lahti2014tipping] is available via the 
+The HITChip Atlas dataset contains genus-level microbiota profiling with 
+HITChip for 1006 western adults with no reported health complications, 
+reported in [@lahti2014tipping]. The dataset is also available via the 
 microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
-format. 
+format. In this tutorial, we consider the following covariates:
 
-```{r data1}
-data(atlas1006) 
+* Continuous covariates: "age"
+
+* Categorical covariates: "region", "bmi"
+
+* The group variable of interest: "bmi"
+
+    + Three groups: "lean", "overweight", "obese"
+    
+    + The reference group: "obese"
+
+```{r}
+data(atlas1006)
+
 # Subset to baseline
-pseq = subset_samples(atlas1006, time == 0)
+tse = atlas1006[, atlas1006$time == 0]
 
 # Re-code the bmi group
-sample_data(pseq)$bmi_group = recode(sample_data(pseq)$bmi_group,
-                                     lean = "lean",
-                                     overweight = "overweight",
-                                     obese = "obese",
-                                     severeobese = "obese",
-                                     morbidobese = "obese")
-# Subset to lean and obese subjects
-pseq = subset_samples(pseq, bmi_group %in% c("lean", "obese"))
+tse$bmi = recode(tse$bmi_group,
+                 obese = "obese",
+                 severeobese = "obese",
+                 morbidobese = "obese")
+# Subset to lean, overweight, and obese subjects
+tse = tse[, tse$bmi %in% c("lean", "overweight", "obese")]
+
+# Note that by default, levels of a categorical variable in R are sorted 
+# alphabetically. In this case, the reference level for `bmi` will be 
+# `lean`. To manually change the reference level, for instance, setting `obese`
+# as the reference level, use:
+tse$bmi = factor(tse$bmi, levels = c("obese", "overweight", "lean"))
+# You can verify the change by checking:
+# levels(sample_data(tse)$bmi)
 
 # Create the region variable
-sample_data(pseq)$region = recode(sample_data(pseq)$nationality,
-                                  Scandinavia = "NE",
-                                  UKIE = "NE",
-                                  SouthEurope = "SE",
-                                  CentralEurope = "CE",
-                                  EasternEurope = "EE")
+tse$region = recode(as.character(tse$nationality),
+                    Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
+                    CentralEurope = "CE", EasternEurope = "EE",
+                    .missing = "unknown")
 
 # Discard "EE" as it contains only 1 subject
-pseq = subset_samples(pseq, region != "EE")
-# Genus level data
-genus_data = aggregate_taxa(pseq, "Genus")
-# Family level data
-family_data = aggregate_taxa(pseq, "Family")
-# Phylum level data
-phylum_data = aggregate_taxa(pseq, "Phylum")
+# Discard subjects with missing values of region
+tse = tse[, ! tse$region %in% c("EE", "unknown")]
 
-print(genus_data)
-print(family_data)
-print(phylum_data)
+print(tse)
 ```
 
-## Longitudinal data
-
-A two-week diet swap study between western (USA) and traditional (rural Africa) 
-diets [@lahti2014tipping]. The data set is available via the 
-microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
-format.
-
-```{r data2}
-data(dietswap)
-
-# Aggregate to family level
-family_data2 = aggregate_taxa(dietswap, "Family")
-
-print(family_data2)
-```
-
-# 4. ANCOMBC Implementation
+# 4 ANCOM-BC Implementation
 
 ## 4.1 Run ancombc function
 
-```{r ancombc}
-out = ancombc(phyloseq = family_data, formula = "age + region + bmi_group", 
+```{r}
+out = ancombc(data = tse, assay_name = "counts", 
+              tax_level = "Family", phyloseq = NULL, 
+              formula = "age + region + bmi", 
               p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
-              group = "region", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
-              max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE)
+              group = "bmi", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
+              max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE,
+              n_cl = 1, verbose = TRUE)
 
 res = out$res
 res_global = out$res_global
+
+# ancombc also supports importing data in phyloseq format
+# tse_alt = agglomerateByRank(tse, "Family")
+# pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
+# out = ancombc(data = NULL, assay_name = NULL,
+#               tax_level = "Family", phyloseq = pseq,
+#               formula = "age + region + bmi",
+#               p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+#               group = "region", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5,
+#               max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE,
+#               n_cl = 1, verbose = TRUE)
 ```
 
 ## 4.2 ANCOMBC primary result {.tabset}
@@ -165,7 +145,8 @@ abundant (TRUE) or not (FALSE).
 
 ```{r}
 tab_lfc = res$lfc
-col_name = c("Age", "NE - CE", "SE - CE", "US - CE", "Obese - Lean")
+col_name = c("Intercept", "Age", "NE - CE", "SE - CE", 
+             "US - CE", "Overweight - Obese", "Lean - Obese")
 colnames(tab_lfc) = col_name
 tab_lfc %>% 
   datatable(caption = "Log Fold Changes from the Primary Result") %>%
@@ -247,7 +228,7 @@ p_age = ggplot(data = df_fig_age,
   geom_errorbar(aes(ymin = age - ageSE, ymax = age + ageSE), width = 0.2,
                 position = position_dodge(0.05), color = "black") + 
   labs(x = NULL, y = "Log fold change", 
-       title = "Waterfall Plot of Age") + 
+       title = "Log fold changes as one unit increase of age") + 
   scale_fill_discrete(name = NULL) +
   scale_color_discrete(name = NULL) +
   theme_bw() + 
@@ -261,29 +242,26 @@ p_age
 
 ```{r}
 df_fig_bmi = df_lfc %>% 
-  dplyr::left_join(df_se, by = "taxon_id") %>%
-  dplyr::transmute(taxon_id, bmi = bmi_groupobese, bmiSE = bmi_groupobeseSE) %>%
-  dplyr::filter(bmi != 0) %>% 
-  dplyr::arrange(desc(bmi)) %>%
-  dplyr::mutate(direct = ifelse(bmi > 0, "Positive LFC", "Negative LFC"))
-df_fig_bmi$taxon_id = factor(df_fig_bmi$taxon_id, levels = df_fig_bmi$taxon_id)
-df_fig_bmi$direct = factor(df_fig_bmi$direct, 
-                        levels = c("Positive LFC", "Negative LFC"))
-  
-p_bmi = ggplot(data = df_fig_bmi, 
-           aes(x = taxon_id, y = bmi, fill = direct, color = direct)) + 
-  geom_bar(stat = "identity", width = 0.7, 
-           position = position_dodge(width = 0.4)) +
-  geom_errorbar(aes(ymin = bmi - bmiSE, ymax = bmi + bmiSE), width = 0.2,
-                position = position_dodge(0.05), color = "black") + 
-  labs(x = NULL, y = "Log fold change", 
-       title = "Waterfall Plot of BMI (Obese - Lean)") + 
-  scale_fill_discrete(name = NULL) +
-  scale_color_discrete(name = NULL) +
-  theme_bw() + 
-  theme(plot.title = element_text(hjust = 0.5),
-        panel.grid.minor.y = element_blank(),
-        axis.text.x = element_text(angle = 60, hjust = 1))
+  filter(bmioverweight != 0 | bmilean != 0) %>%
+  transmute(taxon_id, 
+            `Overweight vs. Obese` = round(bmioverweight, 2),
+            `Lean vs. Obese` = round(bmilean, 2)) %>%
+  pivot_longer(cols = `Overweight vs. Obese`:`Lean vs. Obese`, 
+               names_to = "group", values_to = "value") %>%
+  arrange(taxon_id)
+lo = floor(min(df_fig_bmi$value))
+up = ceiling(max(df_fig_bmi$value))
+mid = (lo + up)/2
+p_bmi = df_fig_bmi %>%
+  ggplot(aes(x = group, y = taxon_id, fill = value)) + 
+  geom_tile(color = "black") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       na.value = "white", midpoint = mid, limit = c(lo, up),
+                       name = NULL) +
+  geom_text(aes(group, taxon_id, label = value), color = "black", size = 4) +
+  labs(x = NULL, y = NULL, title = "Log fold changes as compared to obese subjects") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 p_bmi
 ```
 
@@ -301,64 +279,39 @@ The result contains: 1) test statistics; 2) p-values; 3) adjusted p-values;
 
 ```{r}
 tab_w = res_global[, "W", drop = FALSE]
-colnames(tab_w) = "Region"
+colnames(tab_w) = "BMI"
 tab_w %>% datatable(caption = "Test Statistics 
                     from the Global Test Result") %>%
-      formatRound(c("Region"), digits = 2)
+      formatRound(c("BMI"), digits = 2)
 ```
 
 ### P-values
 
 ```{r}
 tab_p = res_global[, "p_val", drop = FALSE]
-colnames(tab_p) = "Region"
+colnames(tab_p) = "BMI"
 tab_p %>% datatable(caption = "P-values 
                     from the Global Test Result") %>%
-      formatRound(c("Region"), digits = 2)
+      formatRound(c("BMI"), digits = 2)
 ```
 
 ### Adjusted p-values
 
 ```{r}
 tab_q = res_global[, "q_val", drop = FALSE]
-colnames(tab_q) = "Region"
+colnames(tab_q) = "BMI"
 tab_q %>% datatable(caption = "Adjusted p-values 
                     from the Global Test Result") %>%
-      formatRound(c("Region"), digits = 2)
+      formatRound(c("BMI"), digits = 2)
 ```
 
 ### Differentially abundant taxa
 
 ```{r}
 tab_diff = res_global[, "diff_abn", drop = FALSE]
-colnames(tab_diff) = "Region"
+colnames(tab_diff) = "BMI"
 tab_diff %>% datatable(caption = "Differentially Abundant Taxa 
                        from the Global Test Result")
-```
-
-### Bias-corrected abundances
-
-Step 1: estimate sample-specific sampling fractions (in log scale). Note that
-for each sample, if it contains missing values for any variable specified in the 
-formula, the corresponding sampling fraction estimate for this sample will 
-be NA since the sampling fraction is not estimable with the presence of 
-missing values.
-
-Step 2: correct the log observed abundances by subtracting the estimated 
-sampling fraction from log observed abundances of each sample.
-
-```{r}
-samp_frac = out$samp_frac
-# Replace NA with 0
-samp_frac[is.na(samp_frac)] = 0 
-
-# Add pesudo-count (1) to avoid taking the log of 0
-log_obs_abn = log(abundances(family_data) + 1) 
-# Adjust the log observed abundances
-log_obs_abn_adj = t(t(log_obs_abn) - samp_frac)
-# Show the first 6 samples
-round(log_obs_abn_adj[, 1:6], 2) %>% 
-  datatable(caption = "Bias-corrected log observed abundances")
 ```
 
 ### Visualization
@@ -369,254 +322,32 @@ sig_taxa = res_global %>%
   dplyr::filter(diff_abn == TRUE) %>%
   .$taxon
 
-df_sig = as.data.frame(t(log_obs_abn_adj[sig_taxa, ])) %>%
-  tibble::rownames_to_column("sample") %>%
-  dplyr::left_join(meta(family_data) %>%
-                     select(sample, region),
-                   by = "sample") %>%
-  dplyr::filter(!is.na(region)) %>%
-  tidyr::pivot_longer(cols = -one_of("sample", "region"), 
-                      names_to = "taxon", values_to = "value")
+df_bmi = tab_lfc %>%
+    rownames_to_column("tax_id") %>%
+    dplyr::select(tax_id, `Overweight - Obese`, `Lean - Obese`) %>%
+    filter(tax_id %in% sig_taxa)
 
-df_heat = df_sig %>%
-  dplyr::group_by(region, taxon) %>%
-  dplyr::summarise_if(is.numeric, mean, na.rm = TRUE) %>%
-  dplyr::mutate(value = round(value, 2)) %>%
-  dplyr::arrange(region)
-df_heat$taxon = factor(df_heat$taxon, levels = sig_taxa)
+df_heat = df_bmi %>%
+    pivot_longer(cols = -one_of("tax_id"),
+                 names_to = "region", values_to = "value") %>%
+    mutate(value = round(value, 2))
+df_heat$tax_id = factor(df_heat$tax_id, levels = sort(sig_taxa))
 
 lo = floor(min(df_heat$value))
 up = ceiling(max(df_heat$value))
 mid = (lo + up)/2
 p_heat = df_heat %>%
-  ggplot(aes(x = region, y = taxon, fill = value)) + 
-  geom_tile(color = "white") +
+  ggplot(aes(x = region, y = tax_id, fill = value)) + 
+  geom_tile(color = "black") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(region, taxon, label = value), color = "black", size = 4) +
-  labs(x = NULL, y = NULL, title = "Heat Map of Region") +
+  geom_text(aes(region, tax_id, label = value), color = "black", size = 4) +
+  labs(x = NULL, y = NULL, 
+       title = "Log fold changes for globally significant taxa") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 p_heat
-```
-
-# 5. ANCOM Implementation
-
-## 5.1 Cross-sectional data {.tabset}
-
-### Run ancom function
-
-```{r}
-set.seed(123)
-out1 = ancom(phyloseq = family_data,  p_adj_method = "holm",
-             prv_cut = 0.10, lib_cut = 1000, main_var = "bmi_group", 
-             adj_formula = "age + region", rand_formula = NULL,
-             lme_control = NULL, struc_zero = TRUE, neg_lb = TRUE,
-             alpha = 0.05, n_cl = 2)
-
-res1 = out1$res
-
-# Similarly, if the main variable of interest is continuous, such as age, the
-# ancom model can be specified as
-# out1 = ancom(phyloseq = family_data,  p_adj_method = "holm",
-#              prv_cut = 0.10, lib_cut = 0, main_var = "age",
-#              adj_formula = "region + bmi_group", rand_formula = NULL,
-#              lme_control = NULL, struc_zero = FALSE, neg_lb = FALSE,
-#              alpha = 0.05, n_cl = 2)
-```
-
-### Visualization for W statistics
-
-```{r}
-q_val = out1$q_data
-beta_val = out1$beta_data
-# Only consider the effect sizes with the corresponding q-value less than alpha
-beta_val = beta_val * (q_val < 0.05) 
-# Choose the maximum of beta's as the effect size
-beta_pos = apply(abs(beta_val), 2, which.max) 
-beta_max = vapply(seq_along(beta_pos), function(i) beta_val[beta_pos[i], i],
-                  FUN.VALUE = double(1))
-# Number of taxa except structural zeros
-n_taxa = ifelse(is.null(out1$zero_ind), 
-                nrow(feature_table), 
-                sum(apply(out1$zero_ind, 1, sum) == 0))
-# Cutoff values for declaring differentially abundant taxa
-cut_off = 0.7 * (n_taxa - 1)
-
-df_fig_w = res1 %>%
-  dplyr::mutate(beta = beta_max,
-                direct = case_when(
-                  detected_0.7 == TRUE & beta > 0 ~ "Positive",
-                  detected_0.7 == TRUE & beta <= 0 ~ "Negative",
-                  TRUE ~ "Not Significant"
-                  )) %>%
-  dplyr::arrange(W)
-df_fig_w$taxon_id = factor(df_fig_w$taxon_id, levels = df_fig_w$taxon_id)
-df_fig_w$W = replace(df_fig_w$W, is.infinite(df_fig_w$W), n_taxa - 1)
-df_fig_w$direct = factor(df_fig_w$direct, 
-                     levels = c("Negative", "Positive", "Not Significant"))
-
-p_w = df_fig_w %>%
-  ggplot(aes(x = taxon_id, y = W, color = direct)) +
-  geom_point(size = 2, alpha = 0.6) +
-  labs(x = "Taxon", y = "W") +
-  scale_color_discrete(name = NULL) + 
-  geom_hline(yintercept = cut_off, linetype = "dotted", 
-             color = "blue", size = 1.5) +
-  geom_text(aes(x = 2, y = cut_off + 0.5, label = "W[0.7]"), 
-            size = 5, vjust = -0.5, hjust = 0, color = "orange", parse = TRUE) +
-  theme_bw() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        panel.grid.major = element_blank())
-p_w
-```
-
-### Compare ANCOM-BC and ANCOM results
-
-```{r}
-df_compare = res$diff_abn %>%
-  tibble::rownames_to_column("taxon_id") %>%
-  dplyr::left_join(res1, by = "taxon_id") %>%
-  dplyr::transmute(ancombc = bmi_groupobese,
-                   ancom = detected_0.7)
-vdc = vennCounts(df_compare)
-class(vdc) = "matrix"
-df_vdc = as.data.frame(vdc)[-1, ] %>%
-  dplyr::mutate(x = c(1, -1, 0),
-                y = c(0, 0, 0)) %>%
-  dplyr::transmute(x, y, label = Counts)
-
-df_fig_venn = data.frame(x = c(-0.866, 0.866),
-                     y = c(0, 0),
-                     labels = c("ANCOM-BC", "ANCOM"))
-df_fig_venn$labels = factor(df_fig_venn$labels, 
-                            levels = c("ANCOM-BC", "ANCOM"))
-p_venn = df_fig_venn %>%
-  ggplot(aes(x0 = x, y0 = y, r = 1.5, fill = labels)) +
-  geom_circle(alpha = .3, size = 1, color = "grey") +
-  geom_text(data = df_vdc, aes(x, y, label = label),
-            inherit.aes = FALSE, size = 8)+
-  labs(fill = NULL) +
-  coord_fixed() +
-  theme_void()
-p_venn
-```
-
-## 5.2 Longitudinal data {.tabset}
-
-### Run ancom function
-
-```{r}
-set.seed(123)
-out2 = ancom(phyloseq = family_data2,  p_adj_method = "holm",
-             prv_cut = 0.10, lib_cut = 1000, main_var = "group", 
-             adj_formula = "nationality + timepoint + bmi_group", 
-             rand_formula = "~ timepoint | subject",
-             lme_control = list(maxIter = 100, msMaxIter = 100, opt = "optim"), 
-             struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
-
-res2 = out2$res
-```
-
-### Visualization for W statistics
-
-```{r}
-q_val = out2$q_data
-beta_val = out2$beta_data
-# Only consider the effect sizes with the corresponding q-value less than alpha
-beta_val = beta_val * (q_val < 0.05) 
-# Choose the maximum of beta's as the effect size
-beta_pos = apply(abs(beta_val), 2, which.max) 
-beta_max = vapply(seq_along(beta_pos), function(i) beta_val[beta_pos[i], i],
-                  FUN.VALUE = double(1))
-# Number of taxa except structural zeros
-n_taxa = ifelse(is.null(out2$zero_ind), 
-                nrow(feature_table), 
-                sum(apply(out2$zero_ind, 1, sum) == 0))
-# Cutoff values for declaring differentially abundant taxa
-cut_off = 0.7 * (n_taxa - 1)
-
-df_fig_w = res2 %>%
-  dplyr::mutate(beta = beta_max,
-                direct = case_when(
-                  detected_0.7 == TRUE & beta > 0 ~ "Positive",
-                  detected_0.7 == TRUE & beta <= 0 ~ "Negative",
-                  TRUE ~ "Not Significant"
-                  )) %>%
-  dplyr::arrange(W)
-df_fig_w$taxon_id = factor(df_fig_w$taxon_id, levels = df_fig_w$taxon_id)
-df_fig_w$W = replace(df_fig_w$W, is.infinite(df_fig_w$W), n_taxa - 1)
-df_fig_w$direct = factor(df_fig_w$direct, 
-                     levels = c("Negative", "Positive", "Not Significant"))
-
-p_w = df_fig_w %>%
-  ggplot(aes(x = taxon_id, y = W, color = direct)) +
-  geom_point(size = 2, alpha = 0.6) +
-  labs(x = "Taxon", y = "W") +
-  scale_color_discrete(name = NULL) + 
-  geom_hline(yintercept = cut_off, linetype = "dotted", 
-             color = "blue", size = 1.5) +
-  geom_text(aes(x = 2, y = cut_off + 0.5, label = "W[0.7]"), 
-            size = 5, vjust = -0.5, hjust = 0, color = "orange", parse = TRUE) +
-  theme_bw() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        panel.grid.major = element_blank())
-p_w
-```
-
-# 6. SECOM Implementation
-
-## 6.1 Run secom functions
-
-```{r secom}
-set.seed(123)
-# Linear relationships
-res_linear = secom_linear(pseqs = list(c(genus_data, phylum_data)), pseudo = 0, 
-                          prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                          wins_quant = c(0.05, 0.95), method = "pearson", 
-                          soft = FALSE, thresh_len = 20, n_cv = 10, 
-                          thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
-
-# Nonlinear relationships
-res_dist = secom_dist(pseqs = list(c(genus_data, phylum_data)), pseudo = 0, 
-                      prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                      wins_quant = c(0.05, 0.95), R = 1000, 
-                      thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
-```
-
-## 6.2 Visualizations {.tabset}
-
-### Pearson correlation with thresholding
-
-```{r}
-corrplot(res_linear$corr_th, method = "color", addgrid.col = "grey",
-         order = "alphabet", type = "lower", col.lim = c(-1, 1), 
-         diag = FALSE, addCoef.col = "black", number.cex = 0.8,
-         col = COL2("BrBG"), title = "Pearson (Thresholding)", 
-         mar = c(1, 0, 1, 0))
-```
-
-### Pearson correlation with p-value filtering
-
-```{r}
-corrplot(res_linear$corr_fl, method = "color", addgrid.col = "grey",
-         order = "alphabet", type = "lower", col.lim = c(-1, 1), 
-         diag = FALSE, addCoef.col = "black", number.cex = 0.8,
-         col = COL2("BrBG"), title = "Pearson (Filtering)", 
-         mar = c(1, 0, 1, 0))
-```
-
-### Distance correlation with p-value filtering
-
-```{r}
-corrplot(res_dist$dcorr_fl, method = "color", addgrid.col = "grey",
-         order = "alphabet", type = "lower", col.lim = c(-1, 1), 
-         diag = FALSE, addCoef.col = "black", number.cex = 0.8,
-         col = COL2("BrBG"), title = "Distance (Filtering)", 
-         mar = c(1, 0, 1, 0))
 ```
 
 # Session information

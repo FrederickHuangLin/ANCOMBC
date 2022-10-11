@@ -1,18 +1,20 @@
 Package: ANCOMBC
 Type: Package
-Title: Analysis of compositions of microbiomes with bias correction
-Version: 1.6.2
+Title: Microbiome differential abudance and correlation analyses with bias 
+    correction
+Version: 1.98.1
 Description: ANCOMBC is a package containing differential abundance (DA) and 
     correlation analyses for microbiome data. Specifically, the package includes 
-    Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC) and 
+    Analysis of Compositions of Microbiomes with Bias Correction 2 (ANCOM-BC2),
+    Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC), and 
     Analysis of Composition of Microbiomes (ANCOM) for DA analysis, and Sparse 
     Estimation of Correlations among Microbiomes (SECOM) for correlation 
     analysis. Microbiome data are typically subject to two sources of biases: 
     unequal sampling fractions (sample-specific biases) and differential 
     sequencing efficiencies (taxon-specific biases). Methodologies included in 
-    the ANCOMBC package were designed to correct these biases and construct 
+    the ANCOMBC package are designed to correct these biases and construct 
     statistically consistent estimators.
-Date: 2022-06-24
+Date: 2022-10-10
 Authors@R: c(
     person(given = "Huang", 
            family = "Lin", 
@@ -20,13 +22,13 @@ Authors@R: c(
            role = c("cre", "aut"),
            comment = c(ORCID = "0000-0002-4892-7871")))
 License: Artistic-2.0
-Imports: magrittr, Rdpack, rlang, 
-    microbiome, phyloseq, stats, 
-    DescTools, Hmisc, MASS, doParallel, doRNG, 
-    dplyr, energy, foreach, nlme, nloptr, parallel, tibble, tidyr 
+Imports: mia, stats, 
+    CVXR, DescTools, Hmisc, MASS, Rdpack, S4Vectors, SingleCellExperiment,
+    SummarizedExperiment, doParallel, doRNG, dplyr, emmeans, energy,
+    foreach, lmerTest, magrittr, nlme, nloptr, parallel, rlang, rngtools,
+    tibble, tidyr, utils
 Suggests: knitr, rmarkdown, testthat, 
-    DT, corrplot, ggforce, limma,
-    qwraps2 (>= 0.5.0), tidyverse
+    DT, caret, microbiome, tidyverse
 biocViews: 
     DifferentialExpression, 
     Microbiome, 
@@ -39,3 +41,6 @@ VignetteBuilder: knitr
 RdMacros: Rdpack
 Encoding: UTF-8
 RoxygenNote: 7.2.0
+Depends: 
+    R (>= 4.2.0)
+LazyData: false
