@@ -63,6 +63,8 @@
 #' @param group character. the name of the group variable in metadata.
 #' \code{group} should be discrete. Specifying \code{group} is required for
 #' detecting structural zeros and performing global test.
+#' Default is NULL. If the \code{group} of interest contains only two
+#' categories, leave it as NULL.
 #' @param struc_zero logical. whether to detect structural zeros based on
 #' \code{group}. Default is FALSE.
 #' @param neg_lb logical. whether to classify a taxon as a structural zero using
@@ -217,8 +219,7 @@ ancombc = function(data = NULL, assay_name = "counts",
                    neg_lb = FALSE, tol = 1e-05, max_iter = 100,
                    conserve = FALSE, alpha = 0.05, global = FALSE,
                    n_cl = 1, verbose = FALSE){
-    .Deprecated("ancombc2")
-    message("")
+    message("'ancombc' is deprecated \n", "Use 'ancombc2' instead")
 
     cl = parallel::makeCluster(n_cl)
     doParallel::registerDoParallel(cl)

@@ -15,7 +15,7 @@ ancom(
   main_var,
   adj_formula = NULL,
   rand_formula = NULL,
-  lme_control = NULL,
+  lme_control = lme4::lmerControl(),
   struc_zero = FALSE,
   neg_lb = FALSE,
   alpha = 0.05,
@@ -65,11 +65,13 @@ excluded in the analysis. Default is 0, i.e. do not discard any sample.}
 \item{adj_formula}{character string representing the formula for
 covariate adjustment. Default is \code{NULL}.}
 
-\item{rand_formula}{character string representing the formula for random
-effects. For details, see \code{?nlme::lme}. Default is \code{NULL}.}
+\item{rand_formula}{the character string expresses how the microbial absolute
+abundances for each taxon depend on the random effects in metadata. ANCOM
+follows the \code{lmerTest} package in formulating the random effects. See
+\code{?lmerTest::lmer} for more details. Default is \code{NULL}.}
 
-\item{lme_control}{a list specifying control values for \code{lme} fit.
-For details, see ?\code{nlme::lmeControl}. Default is \code{NULL}.}
+\item{lme_control}{a list of control parameters for mixed model fitting.
+See \code{?lme4::lmerControl} for details.}
 
 \item{struc_zero}{logical. whether to detect structural zeros based on
 \code{main_var}. \code{main_var} should be discrete. Default is FALSE.}

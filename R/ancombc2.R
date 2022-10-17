@@ -114,6 +114,8 @@
 #' \code{group} should be discrete. Specifying \code{group} is required for
 #' detecting structural zeros and performing multi-group comparisons (global
 #' test, pairwise directional test, Dunnett's type of test, and trend test).
+#' Default is NULL. If the \code{group} of interest contains only two
+#' categories, leave it as NULL.
 #' @param struc_zero logical. Whether to detect structural zeros based on
 #' \code{group}. Default is FALSE. See \code{Details} for
 #' a more comprehensive discussion on structural zeros.
@@ -139,6 +141,8 @@
 #' including 1) \code{tol}: the iteration convergence tolerance
 #' (default is 1e-05) and 2) \code{max_iter}: the maximum number of iterations
 #' (default is 100).
+#' @param lme_control a list of control parameters for mixed model fitting.
+#' See \code{?lme4::lmerControl} for details.
 #' @param mdfdr_control a named list of control parameters for mixed directional
 #' false discover rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
 #' wise error (FWER) controlling procedure, such as "holm", "hochberg",
@@ -294,6 +298,7 @@
 #'                global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
 #'                iter_control = list(tol = 1e-2, max_iter = 1, verbose = TRUE),
 #'                em_control = list(tol = 1e-5, max_iter = 1),
+#'                lme_control = lme4::lmerControl(),
 #'                mdfdr_control = list(fwer_ctrl_method = "holm", B = 1),
 #'                trend_control = list(contrast =
 #'                                           list(matrix(c(1, 0, -1, 1),
@@ -332,6 +337,7 @@
 #' @importFrom SummarizedExperiment assay colData rowData
 #' @importFrom S4Vectors DataFrame
 #' @importFrom lmerTest lmer
+#' @importFrom lme4 lmerControl
 #' @importFrom emmeans emmeans contrast
 #' @importFrom CVXR Variable Minimize Problem solve matrix_frac
 #' @importFrom parallel makeCluster stopCluster
@@ -356,6 +362,7 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                                         max_iter = 20,
                                         verbose = FALSE),
                     em_control = list(tol = 1e-5, max_iter = 100),
+                    lme_control = lme4::lmerControl(),
                     mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
                     trend_control = list(contrast = NULL,
                                          node = NULL,
@@ -449,6 +456,7 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         para1 = iter_remle(x = x, y = y1, meta_data = meta_data,
                            fix_formula = fix_formula,
                            rand_formula = rand_formula,
+                           lme_control = lme_control,
                            theta = NULL, tol = iter_control$tol,
                            max_iter = iter_control$max_iter,
                            verbose = iter_control$verbose)

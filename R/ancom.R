@@ -59,10 +59,12 @@
 #' @param main_var character. The name of the main variable of interest.
 #' @param adj_formula  character string representing the formula for
 #' covariate adjustment. Default is \code{NULL}.
-#' @param rand_formula character string representing the formula for random
-#' effects. For details, see \code{?nlme::lme}. Default is \code{NULL}.
-#' @param lme_control a list specifying control values for \code{lme} fit.
-#' For details, see ?\code{nlme::lmeControl}. Default is \code{NULL}.
+#' @param rand_formula the character string expresses how the microbial absolute
+#' abundances for each taxon depend on the random effects in metadata. ANCOM
+#' follows the \code{lmerTest} package in formulating the random effects. See
+#' \code{?lmerTest::lmer} for more details. Default is \code{NULL}.
+#' @param lme_control a list of control parameters for mixed model fitting.
+#' See \code{?lme4::lmerControl} for details.
 #' @param struc_zero logical. whether to detect structural zeros based on
 #' \code{main_var}. \code{main_var} should be discrete. Default is FALSE.
 #' @param neg_lb logical. whether to classify a taxon as a structural zero using
@@ -143,7 +145,8 @@
 #'
 #' @rawNamespace import(stats, except = filter)
 #' @import mia
-#' @importFrom nlme lme
+#' @importFrom lmerTest lmer
+#' @importFrom lme4 lmerControl
 #' @importFrom dplyr mutate
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom foreach foreach %dopar%
@@ -156,8 +159,8 @@
 ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                  phyloseq = NULL, p_adj_method = "holm", prv_cut = 0.10,
                  lib_cut = 0, main_var, adj_formula = NULL, rand_formula = NULL,
-                 lme_control = NULL, struc_zero = FALSE, neg_lb = FALSE,
-                 alpha = 0.05, n_cl = 1){
+                 lme_control = lme4::lmerControl(), struc_zero = FALSE,
+                 neg_lb = FALSE, alpha = 0.05, n_cl = 1){
     # 1. Data pre-processing
     # TSE data construction
     tse_obj = tse_construct(data = data, assay_name = assay_name,
@@ -262,14 +265,15 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
         }
     }else if (!is.null(rand_formula)) {
         # Model: linear mixed-effects model
-        tfun = nlme::lme
+        tfun = lmerTest::lmer
         # Formula
         if (is.null(adj_formula)) {
             # Random intercept model
-            tformula = formula(paste("x ~", main_var), sep = " ")
+            tformula = formula(paste0("x ~ ", main_var, "+ ", rand_formula))
         }else {
             # Random coefficients/slope model
-            tformula = formula(paste("x ~", main_var, "+", adj_formula))
+            tformula = formula(paste0("x ~ ", main_var, "+ ",
+                                      adj_formula, "+ ", rand_formula))
         }
     }
 
@@ -305,9 +309,8 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                     test_data = data.frame(x = alr_data[, idx2],
                                            meta_data,
                                            check.names = FALSE)
-                    lme_fit = try(tfun(fixed = tformula,
+                    lme_fit = try(tfun(formula = tformula,
                                        data = test_data,
-                                       random = formula(rand_formula),
                                        na.action = na.omit,
                                        control = lme_control),
                                   silent = TRUE)
@@ -315,8 +318,9 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                         p_vec[idx2] = NA
                         beta_vec[idx2] = NA
                     } else {
-                        p_vec[idx2] = anova(lme_fit)[main_var, "p-value"]
-                        beta_vec[idx2] = lme_fit$coefficients$fixed[2]
+                        summary_fit = summary(lme_fit)
+                        p_vec[idx2] = summary_fit$coefficients[main_var, "Pr(>|t|)"]
+                        beta_vec[idx2] = summary_fit$coefficients[main_var, "Estimate"]
                     }
                 }
             }
@@ -350,9 +354,8 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                     test_data = data.frame(x = alr_data[, idx2],
                                            meta_data,
                                            check.names = FALSE)
-                    lme_fit = try(tfun(fixed = tformula,
+                    lme_fit = try(tfun(formula = tformula,
                                        data = test_data,
-                                       random = formula(rand_formula),
                                        na.action = na.omit,
                                        control = lme_control),
                                   silent = TRUE)
@@ -360,8 +363,8 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                         p_vec[idx2] = NA
                         beta_vec[idx2] = NA
                     } else {
-                        p_vec[idx2] = anova(lme_fit)[main_var, "p-value"]
-                        beta_vec[idx2] = anova(lme_fit)[main_var, "F-value"]
+                        p_vec[idx2] = anova(lme_fit)[main_var, "Pr(>F)"]
+                        beta_vec[idx2] = anova(lme_fit)[main_var, "F value"]
                     }
                 }
             }

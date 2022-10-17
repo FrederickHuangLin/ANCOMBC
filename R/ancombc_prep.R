@@ -28,8 +28,15 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
 
         if (is.null(tax_level)) {
             if (length(SingleCellExperiment::altExpNames(tse)) == 0) {
-                tax_levels = names(SummarizedExperiment::rowData(tse))
+                tax_levels = mia::taxonomyRanks(tse)
                 tax_level = tax_levels[length(tax_levels)]
+                txt = sprintf(paste0("`tax_level` is not speficified \n",
+                                     "The lowest taxonomic level will be used: ",
+                                     tax_level, "\n",
+                                     "Otherwise, please speficy `tax_level` ",
+                                     "by one of the following: \n",
+                                     paste(tax_levels, collapse = ", ")))
+                message(txt)
             } else {
                 tax_level = SingleCellExperiment::altExpNames(tse)
             }

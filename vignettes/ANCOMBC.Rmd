@@ -202,6 +202,30 @@ tab_diff %>%
   datatable(caption = "Differentially Abundant Taxa from the Primary Result")
 ```
 
+### Bias-corrected abundances
+
+Step 1: obtain estimated sample-specific sampling fractions (in log scale). 
+
+Step 2: correct the log observed abundances by subtracting the estimated 
+sampling fraction from log observed abundances of each sample.
+
+Note that we are only able to estimate sampling fractions up to an
+additive constant. Thus, only the difference between bias-corrected abundances
+are meaningful. 
+
+```{r}
+samp_frac = out$samp_frac
+# Replace NA with 0
+samp_frac[is.na(samp_frac)] = 0 
+# Add pesudo-count (1) to avoid taking the log of 0
+log_obs_abn = log(out$feature_table + 1)
+# Adjust the log observed abundances
+log_corr_abn = t(t(log_obs_abn) - samp_frac)
+# Show the first 6 samples
+round(log_corr_abn[, 1:6], 2) %>% 
+  datatable(caption = "Bias-corrected log observed abundances")
+```
+
 ### Visualization for age
 
 ```{r}

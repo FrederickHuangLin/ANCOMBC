@@ -137,7 +137,7 @@ res = out$res
 #             neg_lb = TRUE, alpha = 0.05, n_cl = 2)
 ```
 
-## 3.3 Visualization for W statistics
+## 3.3 Scatter plot for W statistics
 
 ```{r}
 q_val = out$q_data
