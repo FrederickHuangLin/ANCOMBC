@@ -192,7 +192,8 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
 
 # Iterative REML
 iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
-                      theta = NULL, tol, max_iter, verbose = FALSE) {
+                      lme_control = lme_control, theta = NULL,
+                      tol, max_iter, verbose = FALSE) {
     tax_id = rownames(y)
     n_tax = nrow(y)
     samp_id = colnames(y)
@@ -252,7 +253,8 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
             fits = lapply(seq_len(n_tax), function(i) {
                 df = data.frame(y = unlist(y[i, ]) - theta, meta_data)
                 output = try(suppressMessages(lmerTest::lmer(tformula,
-                                                             data = df)),
+                                                             data = df,
+                                                             control = lme_control)),
                              silent = TRUE)
                 if (inherits(output, "try-error")) output = NULL
                 return(output)
@@ -326,7 +328,8 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
         # REML fits
         fits = lapply(seq_len(n_tax), function(i) {
             df = data.frame(y = unlist(y[i, ]) - theta, meta_data)
-            output = try(suppressMessages(lmerTest::lmer(tformula, data = df)),
+            output = try(suppressMessages(lmerTest::lmer(tformula, data = df,
+                                                         control = lme_control)),
                          silent = TRUE)
             if (inherits(output, "try-error")) output = NULL
             return(output)

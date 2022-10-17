@@ -69,7 +69,9 @@ excluded in the analysis. Default is 0, i.e. do not discard any sample.}
 
 \item{group}{character. the name of the group variable in metadata.
 \code{group} should be discrete. Specifying \code{group} is required for
-detecting structural zeros and performing global test.}
+detecting structural zeros and performing global test.
+Default is NULL. If the \code{group} of interest contains only two
+categories, leave it as NULL.}
 
 \item{struc_zero}{logical. whether to detect structural zeros based on
 \code{group}. Default is FALSE.}

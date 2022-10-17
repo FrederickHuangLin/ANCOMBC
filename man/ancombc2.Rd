@@ -29,6 +29,7 @@ ancombc2(
   trend = FALSE,
   iter_control = list(tol = 0.01, max_iter = 20, verbose = FALSE),
   em_control = list(tol = 1e-05, max_iter = 100),
+  lme_control = lme4::lmerControl(),
   mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
   trend_control = list(contrast = NULL, node = NULL, solver = "ECOS", B = 100)
 )
@@ -99,7 +100,9 @@ Default is 0.05 (5th percentile).}
 \item{group}{character. The name of the group variable in metadata.
 \code{group} should be discrete. Specifying \code{group} is required for
 detecting structural zeros and performing multi-group comparisons (global
-test, pairwise directional test, Dunnett's type of test, and trend test).}
+test, pairwise directional test, Dunnett's type of test, and trend test).
+Default is NULL. If the \code{group} of interest contains only two
+categories, leave it as NULL.}
 
 \item{struc_zero}{logical. Whether to detect structural zeros based on
 \code{group}. Default is FALSE. See \code{Details} for
@@ -136,6 +139,9 @@ output (default is FALSE).}
 including 1) \code{tol}: the iteration convergence tolerance
 (default is 1e-05) and 2) \code{max_iter}: the maximum number of iterations
 (default is 100).}
+
+\item{lme_control}{a list of control parameters for mixed model fitting.
+See \code{?lme4::lmerControl} for details.}
 
 \item{mdfdr_control}{a named list of control parameters for mixed directional
 false discover rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
@@ -352,6 +358,7 @@ out = ancombc2(data = dietswap, assay_name = "counts", tax_level = "Phylum",
                global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
                iter_control = list(tol = 1e-2, max_iter = 1, verbose = TRUE),
                em_control = list(tol = 1e-5, max_iter = 1),
+               lme_control = lme4::lmerControl(),
                mdfdr_control = list(fwer_ctrl_method = "holm", B = 1),
                trend_control = list(contrast =
                                           list(matrix(c(1, 0, -1, 1),
