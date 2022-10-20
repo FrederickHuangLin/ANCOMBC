@@ -1,7 +1,6 @@
 context("Testing ancombc function")
 library(ANCOMBC)
 library(testthat)
-library(mia)
 
 data(atlas1006)
 
@@ -19,7 +18,7 @@ test_that("`ancombc` function provides expected results", {
                   tol = 1e-5, max_iter = 100, conserve = TRUE,
                   alpha = 0.05, global = TRUE, n_cl = 1, verbose = FALSE)
     res_prim = out$res
-    test_output = round(res_prim$W[1, 2], 2)
+    test_output = round(res_prim$W[1, 3], 2)
     expect_equal(test_output, -4.9)
 })
 

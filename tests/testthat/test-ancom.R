@@ -1,7 +1,6 @@
 context("Testing ancom function")
 library(ANCOMBC)
 library(testthat)
-library(mia)
 
 data(atlas1006)
 

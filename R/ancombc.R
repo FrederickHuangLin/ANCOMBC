@@ -202,7 +202,10 @@
 #' \insertRef{lin2020analysis}{ANCOMBC}
 #'
 #' @rawNamespace import(stats, except = filter)
-#' @import mia
+#' @importFrom mia makeTreeSummarizedExperimentFromPhyloseq taxonomyRanks agglomerateByRank
+#' @importFrom SingleCellExperiment altExp
+#' @importFrom SummarizedExperiment assay colData rowData
+#' @importFrom S4Vectors DataFrame
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom foreach foreach %dopar%
 #' @importFrom doParallel registerDoParallel
@@ -237,6 +240,7 @@ ancombc = function(data = NULL, assay_name = "counts",
                      tax_keep = NULL, samp_keep = NULL)
     feature_table = core$feature_table
     meta_data = core$meta_data
+    tax_keep = core$tax_keep
     n_tax = nrow(feature_table)
     tax_name = rownames(feature_table)
     if (n_tax < 10) {
@@ -271,7 +275,8 @@ ancombc = function(data = NULL, assay_name = "counts",
         }
         zero_ind = get_struc_zero(tse = tse, assay_name = assay_name,
                                   alt = TRUE, group = group, neg_lb = neg_lb)
-        zero_ind = zero_ind[tax_name, ]
+        zero_ind = zero_ind[tax_keep, ]
+        rownames(zero_ind) = NULL
     }else{ zero_ind = NULL }
 
     # 3. Estimation of parameters
@@ -332,12 +337,32 @@ ancombc = function(data = NULL, assay_name = "counts",
     p = 2 * pnorm(abs(W), mean = 0, sd = 1, lower.tail = FALSE)
     q = apply(p, 2, function(x) p.adjust(x, method = p_adj_method))
     diff_abn = q < alpha & !is.na(q)
-    res = list(lfc = data.frame(beta_hat, check.names = FALSE),
-               se = data.frame(se_hat, check.names = FALSE),
-               W = data.frame(W, check.names = FALSE),
-               p_val = data.frame(p, check.names = FALSE),
-               q_val = data.frame(q, check.names = FALSE),
-               diff_abn = data.frame(diff_abn, check.names = FALSE))
+
+    beta_prim = cbind(taxon = data.frame(taxon = tax_name),
+                      data.frame(beta_hat, check.names = FALSE,
+                                 row.names = NULL))
+    se_prim = cbind(taxon = data.frame(taxon = tax_name),
+                    data.frame(se_hat, check.names = FALSE,
+                               row.names = NULL))
+    W_prim = cbind(taxon = data.frame(taxon = tax_name),
+                   data.frame(W, check.names = FALSE,
+                              row.names = NULL))
+    p_prim = cbind(taxon = data.frame(taxon = tax_name),
+                   data.frame(p, check.names = FALSE,
+                              row.names = NULL))
+    q_prim = cbind(taxon = data.frame(taxon = tax_name),
+                   data.frame(q, check.names = FALSE,
+                              row.names = NULL))
+    diff_prim = cbind(taxon = data.frame(taxon = tax_name),
+                      data.frame(diff_abn, check.names = FALSE,
+                                 row.names = NULL))
+
+    res = list(lfc = beta_prim,
+               se = se_prim,
+               W = W_prim,
+               p_val = p_prim,
+               q_val = q_prim,
+               diff_abn = diff_prim)
 
     # 7. Global test results
     if (global) {
@@ -360,20 +385,21 @@ ancombc = function(data = NULL, assay_name = "counts",
                          "0 p/q-values and SEs")
             message(txt)
         }
-
-        group_ind = grepl(group, covariates)
-        zero_mask = 1 - abs((zero_ind - zero_ind[, 1]))
+        zero_idx = as.matrix(zero_ind[, -1])
+        group_ind = grepl(group, c("taxon", covariates))
+        zero_mask = 1 - abs((zero_idx - zero_idx[, 1]))
         zero_mask = zero_mask[, -1, drop = FALSE]
         res$se[, group_ind] = res$se[, group_ind] * zero_mask
         res$p_val[, group_ind] = res$p_val[, group_ind] * zero_mask
         res$q_val[, group_ind] = res$q_val[, group_ind] * zero_mask
-        res$diff_abn = data.frame(res$q_val < alpha & !is.na(res$q_val),
+        res$diff_abn[, group_ind] = data.frame(res$q_val[, group_ind] < alpha &
+                                                   !is.na(res$q_val[, group_ind]),
                                   check.names = FALSE)
 
         # Global test
         if (global) {
-            zero_mask = 1 - apply(zero_ind, 1, function(x)
-                sum(x) > 0 & sum(x) < ncol(zero_ind))
+            zero_mask = 1 - apply(zero_idx, 1, function(x)
+                sum(x) > 0 & sum(x) < ncol(zero_idx))
             res_global[, "p_val"] = res_global[, "p_val"] * zero_mask
             res_global[, "q_val"] = res_global[, "q_val"] * zero_mask
             res_global[, "diff_abn"] = res_global[, "q_val"] < alpha &

@@ -282,12 +282,12 @@ lfc = res_prim %>%
 diff = res_prim %>%
     dplyr::select(starts_with("diff"))
 res_merge = (lfc * diff) %>%
-    rownames_to_column("tax_id") %>%
+    mutate(taxon = res_prim$taxon) %>%
     left_join(fmd %>%
-                  rownames_to_column("tax_id"), 
-              by = "tax_id") %>%
+                  rownames_to_column("taxon"), 
+              by = "taxon") %>%
     transmute(
-        tax_id = tax_id,
+        taxon = taxon,
         est_cov2 = case_when(
             lfc_cat_cov2 > 0 ~ 1,
             lfc_cat_cov2 < 0 ~ -1,
@@ -326,9 +326,7 @@ fdr2_nosens = fp/(tp + fp)
 
 # Considering the effect of pseudo-count addition
 res_merge2 = res_merge %>%
-    left_join(tab_sens %>%
-                  rownames_to_column("tax_id"),
-              by = "tax_id")
+    left_join(tab_sens, by = "taxon")
 
 # Cat 2 vs Cat 1
 lfc_est = res_merge2$est_cov2 * (res_merge2$cat_cov2 < sens_cut1)
@@ -442,7 +440,7 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                                               byrow = TRUE)),
                                        node = list(2, 2),
                                        solver = "ECOS",
-                                       B = 100))
+                                       B = 1))
 ```
 
 ## 4.3 Structural zeros
@@ -459,7 +457,7 @@ tab_zero %>%
 tab_sens = output$pseudo_sens_tab
 tab_sens %>%
     datatable(caption = "Sensitivity Scores") %>%
-    formatRound(colnames(tab_sens), digits = 2)
+    formatRound(colnames(tab_sens)[-1], digits = 2)
 ```
 
 ## 4.5 ANCOM-BC2 primary analysis
@@ -480,18 +478,17 @@ res_prim = output$res
 
 ```{r}
 df_age = res_prim %>%
-    rownames_to_column("tax_id") %>%
-    dplyr::select(tax_id, ends_with("age")) 
+    dplyr::select(taxon, ends_with("age")) 
 df_fig_age = df_age %>%
     filter(diff_age == 1) %>% 
     arrange(desc(lfc_age)) %>%
     mutate(direct = ifelse(lfc_age > 0, "Positive LFC", "Negative LFC"))
-df_fig_age$tax_id = factor(df_fig_age$tax_id, levels = df_fig_age$tax_id)
+df_fig_age$taxon = factor(df_fig_age$taxon, levels = df_fig_age$taxon)
 df_fig_age$direct = factor(df_fig_age$direct, 
                            levels = c("Positive LFC", "Negative LFC"))
   
 fig_age = df_fig_age %>%
-    ggplot(aes(x = tax_id, y = lfc_age, fill = direct)) + 
+    ggplot(aes(x = taxon, y = lfc_age, fill = direct)) + 
     geom_bar(stat = "identity", width = 0.7, color = "black", 
              position = position_dodge(width = 0.4)) +
     geom_errorbar(aes(ymin = lfc_age - se_age, ymax = lfc_age + se_age), 
@@ -514,15 +511,14 @@ All significant taxa have low sensitivity scores.
 
 ```{r}
 sens_age = tab_sens %>%
-    transmute(sens_age = age) %>%
-    rownames_to_column("tax_id") %>%
-    left_join(df_age, by = "tax_id")
+    transmute(taxon, sens_age = age) %>%
+    left_join(df_age, by = "taxon")
 sens_age$diff_age = recode(sens_age$diff_age * 1, 
                            `1` = "Significant",
                            `0` = "Nonsignificant")
 
 fig_sens_age = sens_age %>%
-    ggplot(aes(x = tax_id, y = sens_age, color = diff_age)) +
+    ggplot(aes(x = taxon, y = sens_age, color = diff_age)) +
     geom_point() +
     scale_color_brewer(palette = "Dark2", name = NULL) +
     labs(x = NULL, y = "Sensitivity Score") +
@@ -537,31 +533,30 @@ fig_sens_age
 
 ```{r}
 df_bmi = res_prim %>%
-    rownames_to_column("tax_id") %>%
-    dplyr::select(tax_id, contains("bmi")) 
+    dplyr::select(taxon, contains("bmi")) 
 df_fig_bmi = df_bmi %>%
     filter(diff_bmilean == 1 | diff_bmioverweight == 1) %>%
     mutate(lfc_overweight = ifelse(diff_bmioverweight == 1, 
                                    lfc_bmioverweight, 0),
            lfc_lean = ifelse(diff_bmilean == 1, 
                              lfc_bmilean, 0)) %>%
-    transmute(tax_id, 
+    transmute(taxon, 
               `Overweight vs. Obese` = round(lfc_overweight, 2),
               `Lean vs. Obese` = round(lfc_lean, 2)) %>%
     pivot_longer(cols = `Overweight vs. Obese`:`Lean vs. Obese`, 
                  names_to = "group", values_to = "value") %>%
-    arrange(tax_id)
+    arrange(taxon)
   
 lo = floor(min(df_fig_bmi$value))
 up = ceiling(max(df_fig_bmi$value))
 mid = (lo + up)/2
 fig_bmi = df_fig_bmi %>%
-  ggplot(aes(x = group, y = tax_id, fill = value)) + 
+  ggplot(aes(x = group, y = taxon, fill = value)) + 
   geom_tile(color = "black") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(group, tax_id, label = value), color = "black", size = 4) +
+  geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
   labs(x = NULL, y = NULL, title = "Log fold changes as compared to obese subjects") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
@@ -575,19 +570,17 @@ All significant taxa have low sensitivity scores.
 
 ```{r}
 sens_bmi = tab_sens %>%
-    transmute(sens_bmi = bmilean) %>%
-    rownames_to_column("tax_id") %>%
+    transmute(taxon, sens_bmi = bmilean) %>%
     left_join(df_bmi %>%
-                  transmute(tax_id, diff_bmi = diff_bmilean), 
-              by = "tax_id") %>%
+                  transmute(taxon, diff_bmi = diff_bmilean), 
+              by = "taxon") %>%
     mutate(group = "Lean vs. Obese") %>%
     bind_rows(
         tab_sens %>%
-            transmute(sens_bmi = bmioverweight) %>%
-            rownames_to_column("tax_id") %>%
+            transmute(taxon, sens_bmi = bmioverweight) %>%
             left_join(df_bmi %>%
-                          transmute(tax_id, diff_bmi = diff_bmioverweight), 
-                      by = "tax_id") %>%
+                          transmute(taxon, diff_bmi = diff_bmioverweight), 
+                      by = "taxon") %>%
             mutate(group = "Overweight vs. Obese")
     )
 sens_bmi$diff_bmi = recode(sens_bmi$diff_bmi * 1, 
@@ -595,7 +588,7 @@ sens_bmi$diff_bmi = recode(sens_bmi$diff_bmi * 1,
                            `0` = "Nonsignificant")
 
 fig_sens_bmi = sens_bmi %>%
-    ggplot(aes(x = tax_id, y = sens_bmi, color = diff_bmi)) +
+    ggplot(aes(x = taxon, y = sens_bmi, color = diff_bmi)) +
     geom_point() +
     scale_color_brewer(palette = "Dark2", name = NULL) +
     facet_grid(rows = vars(group), scales = "free") +
@@ -624,34 +617,32 @@ res_global = output$res_global
 
 ```{r}
 df_bmi = res_prim %>%
-    rownames_to_column("tax_id") %>%
-    dplyr::select(tax_id, contains("bmi")) 
+    dplyr::select(taxon, contains("bmi")) 
 df_fig_global = df_bmi %>%
     left_join(res_global %>%
-                  rownames_to_column("tax_id") %>%
-                  transmute(tax_id, diff_bmi = diff_abn)) %>%
+                  transmute(taxon, diff_bmi = diff_abn)) %>%
     dplyr::filter(diff_bmi == 1) %>%
     mutate(lfc_lean = ifelse(diff_bmilean == 1, 
                              lfc_bmilean, 0),
            lfc_overweight = ifelse(diff_bmioverweight == 1, 
                                    lfc_bmioverweight, 0)) %>%
-    transmute(tax_id, 
+    transmute(taxon, 
               `Lean vs. Obese` = round(lfc_lean, 2), 
               `Overweight vs. Obese` = round(lfc_overweight, 2)) %>%
     pivot_longer(cols = `Lean vs. Obese`:`Overweight vs. Obese`, 
                  names_to = "group", values_to = "value") %>%
-    arrange(tax_id)
+    arrange(taxon)
   
 lo = floor(min(df_fig_global$value))
 up = ceiling(max(df_fig_global$value))
 mid = (lo + up)/2
 fig_global = df_fig_global %>%
-  ggplot(aes(x = group, y = tax_id, fill = value)) + 
+  ggplot(aes(x = group, y = taxon, fill = value)) + 
   geom_tile(color = "black") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(group, tax_id, label = value), color = "black", size = 4) +
+  geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
   labs(x = NULL, y = NULL, title = "Log fold changes for globally significant taxa") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
@@ -665,18 +656,16 @@ All significant taxa have low sensitivity scores.
 
 ```{r}
 sens_global = tab_sens %>%
-    transmute(sens_global = global) %>%
-    rownames_to_column("tax_id") %>%
+    transmute(taxon, sens_global = global) %>%
     left_join(res_global %>%
-                  rownames_to_column("tax_id") %>%
-                  transmute(tax_id, diff_global = diff_abn * 1), 
-              by = "tax_id") 
+                  transmute(taxon, diff_global = diff_abn * 1), 
+              by = "taxon") 
 sens_global$diff_global = recode(sens_global$diff_global, 
                                  `1` = "Significant",
                                  `0` = "Nonsignificant")
 
 fig_sens_global = sens_global %>%
-    ggplot(aes(x = tax_id, y = sens_global, color = diff_global)) +
+    ggplot(aes(x = taxon, y = sens_global, color = diff_global)) +
     geom_point() +
     scale_color_brewer(palette = "Dark2", name = NULL) +
     labs(x = NULL, y = "Sensitivity Score") +
@@ -704,9 +693,7 @@ res_pair = output$res_pair
 ### Results for BMI
 
 ```{r}
-df_pair = res_pair %>%
-    rownames_to_column("tax_id") 
-df_fig_pair = df_pair %>%
+df_fig_pair = res_pair %>%
     filter(diff_bmilean == 1 | diff_bmioverweight == 1 |
                diff_bmilean_bmioverweight == 1) %>%
     mutate(lfc_lean = ifelse(diff_bmilean == 1, 
@@ -715,14 +702,14 @@ df_fig_pair = df_pair %>%
                                    lfc_bmioverweight, 0),
            lfc_lean_overweight = ifelse(diff_bmilean_bmioverweight == 1, 
                                         lfc_bmilean_bmioverweight, 0)) %>%
-    transmute(tax_id, 
+    transmute(taxon, 
               `Lean vs. Obese` = round(lfc_lean, 2), 
               `Overweight vs. Obese` = round(lfc_overweight, 2),
               `Lean vs. Overweight` = round(lfc_lean_overweight, 2)
               ) %>%
     pivot_longer(cols = `Lean vs. Obese`:`Lean vs. Overweight`, 
                  names_to = "group", values_to = "value") %>%
-    arrange(tax_id)
+    arrange(taxon)
 df_fig_pair$group = factor(df_fig_pair$group, 
                            levels = c("Lean vs. Obese",
                                       "Overweight vs. Obese",
@@ -732,12 +719,12 @@ lo = floor(min(df_fig_pair$value))
 up = ceiling(max(df_fig_pair$value))
 mid = (lo + up)/2
 fig_pair = df_fig_pair %>%
-  ggplot(aes(x = group, y = tax_id, fill = value)) + 
+  ggplot(aes(x = group, y = taxon, fill = value)) + 
   geom_tile(color = "black") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(group, tax_id, label = value), color = "black", size = 4) +
+  geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
   labs(x = NULL, y = NULL, title = "Log fold change of pairwise comparisons") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
@@ -751,31 +738,28 @@ All significant taxa have low sensitivity scores.
 
 ```{r, fig.height=8}
 sens_pair = tab_sens %>%
-    transmute(sens_pair = `obese - lean`) %>%
-    rownames_to_column("tax_id") %>%
-    left_join(df_pair %>%
-                  transmute(tax_id, 
+    transmute(taxon, sens_pair = `obese - lean`) %>%
+    left_join(res_pair %>%
+                  transmute(taxon, 
                             diff_pair = diff_bmilean), 
-              by = "tax_id") %>%
+              by = "taxon") %>%
     mutate(group = "Lean vs. Obese") %>%
     bind_rows(
         tab_sens %>%
-            transmute(sens_pair = `obese - overweight`) %>%
-            rownames_to_column("tax_id") %>%
-            left_join(df_pair %>%
-                          transmute(tax_id, 
+            transmute(taxon, sens_pair = `obese - overweight`) %>%
+            left_join(res_pair %>%
+                          transmute(taxon, 
                                     diff_pair = diff_bmioverweight), 
-                      by = "tax_id") %>%
+                      by = "taxon") %>%
             mutate(group = "Overweight vs. Obese")
     ) %>%
     bind_rows(
         tab_sens %>%
-            transmute(sens_pair = `overweight - lean`) %>%
-            rownames_to_column("tax_id") %>%
-            left_join(df_pair %>%
-                          transmute(tax_id, 
+            transmute(taxon, sens_pair = `overweight - lean`) %>%
+            left_join(res_pair %>%
+                          transmute(taxon, 
                                     diff_pair = diff_bmilean_bmioverweight), 
-                      by = "tax_id") %>%
+                      by = "taxon") %>%
             mutate(group = "Lean vs. Overweight")
     )
 sens_pair$diff_pair = recode(sens_pair$diff_pair * 1, 
@@ -787,7 +771,7 @@ sens_pair$group = factor(sens_pair$group,
                                     "Lean vs. Overweight"))
 
 fig_sens_pair = sens_pair %>%
-    ggplot(aes(x = tax_id, y = sens_pair, color = diff_pair)) +
+    ggplot(aes(x = taxon, y = sens_pair, color = diff_pair)) +
     geom_point() +
     scale_color_brewer(palette = "Dark2", name = NULL) +
     facet_grid(rows = vars(group), scales = "free") +
@@ -819,31 +803,29 @@ res_dunn = output$res_dunn
 ### Results for BMI
 
 ```{r}
-df_dunn = res_dunn %>%
-    rownames_to_column("tax_id") 
-df_fig_dunn = df_dunn %>%
+df_fig_dunn = res_dunn %>%
     dplyr::filter(diff_bmilean == 1 | diff_bmioverweight == 1) %>%
     mutate(lfc_lean = ifelse(diff_bmilean == 1, 
                              lfc_bmilean, 0),
            lfc_overweight = ifelse(diff_bmioverweight == 1, 
                                    lfc_bmioverweight, 0)) %>%
-    transmute(tax_id, 
+    transmute(taxon, 
               `Lean vs. Obese` = round(lfc_lean, 2), 
               `Overweight vs. Obese` = round(lfc_overweight, 2)) %>%
     pivot_longer(cols = `Lean vs. Obese`:`Overweight vs. Obese`, 
                  names_to = "group", values_to = "value") %>%
-    arrange(tax_id)
+    arrange(taxon)
   
 lo = floor(min(df_fig_dunn$value))
 up = ceiling(max(df_fig_dunn$value))
 mid = (lo + up)/2
 fig_dunn = df_fig_dunn %>%
-  ggplot(aes(x = group, y = tax_id, fill = value)) + 
+  ggplot(aes(x = group, y = taxon, fill = value)) + 
   geom_tile(color = "black") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(group, tax_id, label = value), color = "black", size = 4) +
+  geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
   labs(x = NULL, y = NULL, title = "Log fold changes as compared to obese subjects") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
@@ -857,19 +839,17 @@ All significant taxa have low sensitivity scores.
 
 ```{r}
 sens_dunn = tab_sens %>%
-    transmute(sens_bmi = bmilean) %>%
-    rownames_to_column("tax_id") %>%
-    left_join(df_dunn %>%
-                  transmute(tax_id, diff_bmi = diff_bmilean), 
-              by = "tax_id") %>%
+    transmute(taxon, sens_bmi = bmilean) %>%
+    left_join(res_dunn %>%
+                  transmute(taxon, diff_bmi = diff_bmilean), 
+              by = "taxon") %>%
     mutate(group = "Lean vs. Obese") %>%
     bind_rows(
         tab_sens %>%
-            transmute(sens_bmi = bmioverweight) %>%
-            rownames_to_column("tax_id") %>%
-            left_join(df_dunn %>%
-                          transmute(tax_id, diff_bmi = diff_bmioverweight), 
-                      by = "tax_id") %>%
+            transmute(taxon, sens_bmi = bmioverweight) %>%
+            left_join(res_dunn %>%
+                          transmute(taxon, diff_bmi = diff_bmioverweight), 
+                      by = "taxon") %>%
             mutate(group = "Overweight vs. Obese")
     )
 sens_dunn$diff_bmi = recode(sens_dunn$diff_bmi * 1, 
@@ -877,7 +857,7 @@ sens_dunn$diff_bmi = recode(sens_dunn$diff_bmi * 1,
                             `0` = "Nonsignificant")
 
 fig_sens_dunn = sens_dunn %>%
-    ggplot(aes(x = tax_id, y = sens_bmi, color = diff_bmi)) +
+    ggplot(aes(x = taxon, y = sens_bmi, color = diff_bmi)) +
     geom_point() +
     scale_color_brewer(palette = "Dark2", name = NULL) +
     facet_grid(rows = vars(group), scales = "free") +
@@ -938,19 +918,17 @@ Note that the LFC and SE for the reference group ("obese" in this example) will
 set to be 0s.
 
 ```{r, fig.width=10}
-df_trend = res_trend %>%
-    rownames_to_column("tax_id") 
-df_fig_trend = df_trend %>%
+df_fig_trend = res_trend %>%
     dplyr::filter(diff_abn) %>%
-    transmute(tax_id,
+    transmute(taxon,
               lfc = lfc_bmioverweight,
               se = se_bmioverweight,
               q_val,
               group = "Overweight - Obese") %>%
     bind_rows(
-        df_trend %>%
+        res_trend %>%
             dplyr::filter(diff_abn) %>%
-            transmute(tax_id,
+            transmute(taxon,
                       lfc = lfc_bmilean,
                       se = se_bmilean,
                       q_val,
@@ -965,7 +943,7 @@ fig_trend = df_fig_trend %>%
   geom_bar(stat = "identity", position = position_dodge(), color = "black") +
   geom_errorbar(aes(ymin = lfc - se, ymax = lfc + se), width = .2,
                 position = position_dodge(.9)) +
-  facet_wrap(vars(tax_id), nrow = 2, scales = "free") +
+  facet_wrap(vars(taxon), nrow = 2, scales = "free") +
   labs(x = NULL, y = NULL, title = "Log fold change as compared to obese subjects") +
   scale_fill_brewer(palette = "Set2", name = NULL) +
   theme_bw() +
@@ -983,19 +961,17 @@ All significant taxa have low sensitivity scores.
 
 ```{r}
 sens_trend = tab_sens %>%
-    transmute(sens_bmi = bmilean) %>%
-    rownames_to_column("tax_id") %>%
-    left_join(df_trend %>%
-                  transmute(tax_id, diff_bmi = diff_abn), 
-              by = "tax_id") %>%
+    transmute(taxon, sens_bmi = bmilean) %>%
+    left_join(res_trend %>%
+                  transmute(taxon, diff_bmi = diff_abn), 
+              by = "taxon") %>%
     mutate(group = "Lean vs. Obese") %>%
     bind_rows(
         tab_sens %>%
-            transmute(sens_bmi = bmioverweight) %>%
-            rownames_to_column("tax_id") %>%
-            left_join(df_trend %>%
-                          transmute(tax_id, diff_bmi = diff_abn), 
-                      by = "tax_id") %>%
+            transmute(taxon, sens_bmi = bmioverweight) %>%
+            left_join(res_trend %>%
+                          transmute(taxon, diff_bmi = diff_abn), 
+                      by = "taxon") %>%
             mutate(group = "Overweight vs. Obese")
     )
 sens_trend$diff_bmi = recode(sens_trend$diff_bmi * 1, 
@@ -1003,7 +979,7 @@ sens_trend$diff_bmi = recode(sens_trend$diff_bmi * 1,
                             `0` = "Nonsignificant")
 
 fig_sens_trend = sens_trend %>%
-    ggplot(aes(x = tax_id, y = sens_bmi, color = diff_bmi)) +
+    ggplot(aes(x = taxon, y = sens_bmi, color = diff_bmi)) +
     geom_point() +
     scale_color_brewer(palette = "Dark2", name = NULL) +
     facet_grid(rows = vars(group), scales = "free") +
@@ -1072,7 +1048,7 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                                               byrow = TRUE)),
                                        node = list(2),
                                        solver = "ECOS",
-                                       B = 100))
+                                       B = 1))
 ```
 
 # Session information

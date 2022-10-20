@@ -151,7 +151,7 @@ beta_max = vapply(seq_along(beta_pos), function(i)
 # Number of taxa except structural zeros
 n_taxa = ifelse(is.null(out$zero_ind), 
                 nrow(feature_table), 
-                sum(apply(out$zero_ind, 1, sum) == 0))
+                sum(apply(out$zero_ind[, -1], 1, sum) == 0))
 # Cutoff values for declaring differentially abundant taxa
 cut_off = 0.7 * (n_taxa - 1)
 
@@ -163,13 +163,13 @@ df_fig_w = res %>%
                   TRUE ~ "Not Significant"
                   )) %>%
   dplyr::arrange(W)
-df_fig_w$taxon_id = factor(df_fig_w$taxon_id, levels = df_fig_w$taxon_id)
+df_fig_w$taxon = factor(df_fig_w$taxon, levels = df_fig_w$taxon)
 df_fig_w$W = replace(df_fig_w$W, is.infinite(df_fig_w$W), n_taxa - 1)
 df_fig_w$direct = factor(df_fig_w$direct, 
                          levels = c("Negative", "Positive", "Not Significant"))
 
 p_w = df_fig_w %>%
-  ggplot(aes(x = taxon_id, y = W, color = direct)) +
+  ggplot(aes(x = taxon, y = W, color = direct)) +
   geom_point(size = 2, alpha = 0.6) +
   labs(x = "Taxon", y = "W") +
   scale_color_discrete(name = NULL) + 
@@ -245,7 +245,7 @@ beta_max = vapply(seq_along(beta_pos), function(i) beta_val[beta_pos[i], i],
 # Number of taxa except structural zeros
 n_taxa = ifelse(is.null(out$zero_ind), 
                 nrow(feature_table), 
-                sum(apply(out$zero_ind, 1, sum) == 0))
+                sum(apply(out$zero_ind[, -1], 1, sum) == 0))
 # Cutoff values for declaring differentially abundant taxa
 cut_off = 0.7 * (n_taxa - 1)
 
@@ -257,13 +257,13 @@ df_fig_w = res %>%
                   TRUE ~ "Not Significant"
                   )) %>%
   dplyr::arrange(W)
-df_fig_w$taxon_id = factor(df_fig_w$taxon_id, levels = df_fig_w$taxon_id)
+df_fig_w$taxon = factor(df_fig_w$taxon, levels = df_fig_w$taxon)
 df_fig_w$W = replace(df_fig_w$W, is.infinite(df_fig_w$W), n_taxa - 1)
 df_fig_w$direct = factor(df_fig_w$direct, 
                      levels = c("Negative", "Positive", "Not Significant"))
 
 p_w = df_fig_w %>%
-  ggplot(aes(x = taxon_id, y = W, color = direct)) +
+  ggplot(aes(x = taxon, y = W, color = direct)) +
   geom_point(size = 2, alpha = 0.6) +
   labs(x = "Taxon", y = "W") +
   scale_color_discrete(name = NULL) + 

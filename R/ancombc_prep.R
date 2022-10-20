@@ -57,8 +57,15 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
 
         if (is.null(tax_level)) {
             if (length(SingleCellExperiment::altExpNames(tse)) == 0) {
-                tax_levels = names(SummarizedExperiment::rowData(tse))
+                tax_levels = mia::taxonomyRanks(tse)
                 tax_level = tax_levels[length(tax_levels)]
+                txt = sprintf(paste0("`tax_level` is not speficified \n",
+                                     "The lowest taxonomic level will be used: ",
+                                     tax_level, "\n",
+                                     "Otherwise, please speficy `tax_level` ",
+                                     "by one of the following: \n",
+                                     paste(tax_levels, collapse = ", ")))
+                message(txt)
             } else {
                 tax_level = SingleCellExperiment::altExpNames(tse)
             }
@@ -124,7 +131,9 @@ data_core = function(tse = tse, assay_name = assay_name,
     }
 
     output = list(feature_table = feature_table,
-                  meta_data = meta_data)
+                  meta_data = meta_data,
+                  tax_keep = tax_keep,
+                  samp_keep = samp_keep)
     return(output)
 }
 
@@ -239,9 +248,11 @@ get_struc_zero = function(tse, assay_name, alt = FALSE, group, neg_lb) {
         tse_alt = SingleCellExperiment::altExp(tse)
         feature_table = SummarizedExperiment::assay(tse_alt, assay_name)
         meta_data = SummarizedExperiment::colData(tse_alt)
+        tax_name = rownames(tse_alt)
     } else {
         feature_table = SummarizedExperiment::assay(tse, assay_name)
         meta_data = SummarizedExperiment::colData(tse)
+        tax_name = rownames(tse)
     }
     group_data = factor(meta_data[, group])
     present_table = as.matrix(feature_table)
@@ -272,8 +283,11 @@ get_struc_zero = function(tse, assay_name, alt = FALSE, group, neg_lb) {
     # Shall we classify a taxon as a structural zero by its negative lower bound?
     if (neg_lb) output[p_hat_lo <= 0] = TRUE
 
-    output = as.data.frame(output)
-    colnames(output) = paste0("structural_zero (", group,
-                              " = ", colnames(output), ")")
+    output = cbind(tax_name, output)
+    colnames(output) = c("taxon",
+                         paste0("structural_zero (", group,
+                                " = ", colnames(output)[-1], ")"))
+    output = data.frame(output, check.names = FALSE, row.names = NULL)
+    output[, -1] = apply(output[, -1], 2, as.logical)
     return(output)
 }

@@ -1,7 +1,6 @@
 context("Testing secom functions")
 library(ANCOMBC)
 library(testthat)
-library(mia)
 
 data(atlas1006)
 

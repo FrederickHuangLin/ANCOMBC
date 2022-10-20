@@ -3,9 +3,9 @@ ancombc_global = function(x, group, beta_hat, vcov_hat, p_adj_method, alpha){
     tax_id = rownames(beta_hat)
     n_tax = nrow(beta_hat)
     covariates = colnames(x)
-    output = data.frame(matrix(NA, nrow = n_tax, ncol = 4))
-    rownames(output) = tax_id
-    colnames(output) = c("W", "p_val", "q_val", "diff_abn")
+    output = data.frame(matrix(NA, nrow = n_tax, ncol = 5))
+    colnames(output) = c("taxon", "W", "p_val", "q_val", "diff_abn")
+    output$taxon = tax_id
 
     # Loop over the parameters of interest
     group_ind = grepl(group, covariates)
@@ -85,9 +85,9 @@ dunn_global = function(x, group, W, B, p_adj_method, alpha) {
     n_group = sum(group_ind)
     n_tax = nrow(W)
     tax_id = rownames(W)
-    output = data.frame(matrix(NA, nrow = n_tax, ncol = 4))
-    rownames(output) = tax_id
-    colnames(output) = c("W", "p_val", "q_val", "diff_abn")
+    output = data.frame(matrix(NA, nrow = n_tax, ncol = 5))
+    colnames(output) = c("taxon", "W", "p_val", "q_val", "diff_abn")
+    output$taxon = tax_id
 
     W_global = apply(W, 1, function(x) max(abs(x), na.rm = TRUE))
 
