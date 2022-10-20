@@ -145,12 +145,12 @@ abundant (TRUE) or not (FALSE).
 
 ```{r}
 tab_lfc = res$lfc
-col_name = c("Intercept", "Age", "NE - CE", "SE - CE", 
+col_name = c("Taxon", "Intercept", "Age", "NE - CE", "SE - CE", 
              "US - CE", "Overweight - Obese", "Lean - Obese")
 colnames(tab_lfc) = col_name
 tab_lfc %>% 
   datatable(caption = "Log Fold Changes from the Primary Result") %>%
-  formatRound(col_name, digits = 2)
+  formatRound(col_name[-1], digits = 2)
 ```
 
 ### SE
@@ -160,7 +160,7 @@ tab_se = res$se
 colnames(tab_se) = col_name
 tab_se %>% 
   datatable(caption = "SEs from the Primary Result") %>%
-  formatRound(col_name, digits = 2)
+  formatRound(col_name[-1], digits = 2)
 ```
 
 ### Test statistic
@@ -170,7 +170,7 @@ tab_w = res$W
 colnames(tab_w) = col_name
 tab_w %>% 
   datatable(caption = "Test Statistics from the Primary Result") %>%
-  formatRound(col_name, digits = 2)
+  formatRound(col_name[-1], digits = 2)
 ```
 
 ### P-values
@@ -180,7 +180,7 @@ tab_p = res$p_val
 colnames(tab_p) = col_name
 tab_p %>% 
   datatable(caption = "P-values from the Primary Result") %>%
-  formatRound(col_name, digits = 2)
+  formatRound(col_name[-1], digits = 2)
 ```
 
 ### Adjusted p-values
@@ -190,7 +190,7 @@ tab_q = res$q
 colnames(tab_q) = col_name
 tab_q %>% 
   datatable(caption = "Adjusted p-values from the Primary Result") %>%
-  formatRound(col_name, digits = 2)
+  formatRound(col_name[-1], digits = 2)
 ```
 
 ### Differentially abundant taxa
@@ -229,10 +229,12 @@ round(log_corr_abn[, 1:6], 2) %>%
 ### Visualization for age
 
 ```{r}
-df_lfc = data.frame(res$lfc * res$diff_abn, check.names = FALSE) %>% 
-  rownames_to_column("taxon_id")
-df_se = data.frame(res$se * res$diff_abn, check.names = FALSE) %>% 
-  rownames_to_column("taxon_id")
+df_lfc = data.frame(res$lfc[, -1] * res$diff_abn[, -1], check.names = FALSE) %>%
+    mutate(taxon_id = res$diff_abn$taxon) %>%
+    dplyr::select(taxon_id, everything())
+df_se = data.frame(res$se[, -1] * res$diff_abn[, -1], check.names = FALSE) %>% 
+  mutate(taxon_id = res$diff_abn$taxon) %>%
+    dplyr::select(taxon_id, everything())
 colnames(df_se)[-1] = paste0(colnames(df_se)[-1], "SE")
 
 df_fig_age = df_lfc %>% 
@@ -302,38 +304,34 @@ The result contains: 1) test statistics; 2) p-values; 3) adjusted p-values;
 ### Test statistics
 
 ```{r}
-tab_w = res_global[, "W", drop = FALSE]
-colnames(tab_w) = "BMI"
+tab_w = res_global[, c("taxon", "W")]
 tab_w %>% datatable(caption = "Test Statistics 
                     from the Global Test Result") %>%
-      formatRound(c("BMI"), digits = 2)
+      formatRound(c("W"), digits = 2)
 ```
 
 ### P-values
 
 ```{r}
-tab_p = res_global[, "p_val", drop = FALSE]
-colnames(tab_p) = "BMI"
+tab_p = res_global[, c("taxon", "p_val")]
 tab_p %>% datatable(caption = "P-values 
                     from the Global Test Result") %>%
-      formatRound(c("BMI"), digits = 2)
+      formatRound(c("p_val"), digits = 2)
 ```
 
 ### Adjusted p-values
 
 ```{r}
-tab_q = res_global[, "q_val", drop = FALSE]
-colnames(tab_q) = "BMI"
+tab_q = res_global[, c("taxon", "q_val")]
 tab_q %>% datatable(caption = "Adjusted p-values 
                     from the Global Test Result") %>%
-      formatRound(c("BMI"), digits = 2)
+      formatRound(c("q_val"), digits = 2)
 ```
 
 ### Differentially abundant taxa
 
 ```{r}
-tab_diff = res_global[, "diff_abn", drop = FALSE]
-colnames(tab_diff) = "BMI"
+tab_diff = res_global[, c("taxon", "diff_abn")]
 tab_diff %>% datatable(caption = "Differentially Abundant Taxa 
                        from the Global Test Result")
 ```
@@ -342,31 +340,29 @@ tab_diff %>% datatable(caption = "Differentially Abundant Taxa
 
 ```{r}
 sig_taxa = res_global %>%
-  tibble::rownames_to_column("taxon") %>%
   dplyr::filter(diff_abn == TRUE) %>%
   .$taxon
 
 df_bmi = tab_lfc %>%
-    rownames_to_column("tax_id") %>%
-    dplyr::select(tax_id, `Overweight - Obese`, `Lean - Obese`) %>%
-    filter(tax_id %in% sig_taxa)
+    dplyr::select(Taxon, `Overweight - Obese`, `Lean - Obese`) %>%
+    filter(Taxon %in% sig_taxa)
 
 df_heat = df_bmi %>%
-    pivot_longer(cols = -one_of("tax_id"),
+    pivot_longer(cols = -one_of("Taxon"),
                  names_to = "region", values_to = "value") %>%
     mutate(value = round(value, 2))
-df_heat$tax_id = factor(df_heat$tax_id, levels = sort(sig_taxa))
+df_heat$Taxon = factor(df_heat$Taxon, levels = sort(sig_taxa))
 
 lo = floor(min(df_heat$value))
 up = ceiling(max(df_heat$value))
 mid = (lo + up)/2
 p_heat = df_heat %>%
-  ggplot(aes(x = region, y = tax_id, fill = value)) + 
+  ggplot(aes(x = region, y = Taxon, fill = value)) + 
   geom_tile(color = "black") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(region, tax_id, label = value), color = "black", size = 4) +
+  geom_text(aes(region, Taxon, label = value), color = "black", size = 4) +
   labs(x = NULL, y = NULL, 
        title = "Log fold changes for globally significant taxa") +
   theme_minimal() +

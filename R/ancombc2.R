@@ -331,8 +331,8 @@
 #' \insertRef{grandhi2016multiple}{ANCOMBC}
 #'
 #' @rawNamespace import(stats, except = filter)
-#' @import mia
 #' @importFrom utils combn
+#' @importFrom mia makeTreeSummarizedExperimentFromPhyloseq taxonomyRanks agglomerateByRank
 #' @importFrom SingleCellExperiment altExp
 #' @importFrom SummarizedExperiment assay colData rowData
 #' @importFrom S4Vectors DataFrame
@@ -383,13 +383,13 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     if (struc_zero) {
         zero_ind = get_struc_zero(tse = tse, assay_name = assay_name,
                                   alt = TRUE, group = group, neg_lb = neg_lb)
-        # Taxa with structural zeros will be removed from ANCOM-BC analyses
-        tax_idx = apply(zero_ind, 1, function(x) all(x == FALSE))
-        tax_keep = rownames(zero_ind)[tax_idx]
+        # Taxa with structural zeros will be removed from ANCOM-BC2 analyses
+        tax_idx = apply(zero_ind[, -1], 1, function(x) all(x == FALSE))
+        tax_keep = which(tax_idx)
     }else{
         zero_ind = NULL
-        # Taxa with structural zeros will be removed from ANCOM-BC analyses
-        tax_keep = rownames(SummarizedExperiment::rowData(tse_alt))}
+        # Taxa with structural zeros will be removed from ANCOM-BC2 analyses
+        tax_keep = seq(nrow(tse_alt))}
 
     # Filter data by prevalence and library size
     core1 = data_core(tse = tse, assay_name = assay_name, alt = FALSE,
@@ -546,8 +546,10 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     colnames(p_prim) = paste0("p_", colnames(p_hat))
     colnames(q_prim) = paste0("q_", colnames(q_hat))
     colnames(diff_prim) = paste0("diff_", colnames(diff_abn))
-    res = do.call("cbind", list(beta_prim, se_prim, W_prim,
+    res = do.call("cbind", list(data.frame(taxon = tax_name),
+                                beta_prim, se_prim, W_prim,
                                 p_prim, q_prim, diff_prim))
+    rownames(res) = NULL
 
     # Sensitivity analysis for the pseudo-count addition
     if (pseudo_sens) {
@@ -590,7 +592,9 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
             })
         }
         pseudo_sens_tab = as.data.frame(pseudo_sens_tab)
-        rownames(pseudo_sens_tab) = tax_name
+        pseudo_sens_tab = cbind(data.frame(taxon = tax_name),
+                                pseudo_sens_tab)
+        rownames(pseudo_sens_tab) = NULL
     } else {
         pseudo_sens_tab = NULL
     }
@@ -631,8 +635,10 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         colnames(p_pair) = paste0("p_", colnames(p_pair))
         colnames(q_pair) = paste0("q_", colnames(q_pair))
         colnames(diff_pair) = paste0("diff_", colnames(diff_pair))
-        res_pair = do.call("cbind", list(beta_pair, se_pair, W_pair,
+        res_pair = do.call("cbind", list(data.frame(taxon = tax_name),
+                                         beta_pair, se_pair, W_pair,
                                          p_pair, q_pair, diff_pair))
+        rownames(res_pair) = NULL
     } else {
         res_pair = NULL
     }
@@ -660,8 +666,10 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         colnames(p_dunn) = paste0("p_", colnames(p_dunn))
         colnames(q_dunn) = paste0("q_", colnames(q_dunn))
         colnames(diff_dunn) = paste0("diff_", colnames(diff_dunn))
-        res_dunn = do.call("cbind", list(beta_dunn, se_dunn, W_dunn,
+        res_dunn = do.call("cbind", list(data.frame(taxon = tax_name),
+                                         beta_dunn, se_dunn, W_dunn,
                                          p_dunn, q_dunn, diff_dunn))
+        rownames(res_dunn) = NULL
     } else {
         res_dunn = NULL
     }
@@ -686,9 +694,11 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         # Directional test summary
         colnames(beta_trend) = paste0("lfc_", colnames(beta_trend))
         colnames(se_trend) = paste0("se_", colnames(se_trend))
-        res_trend = cbind(beta_trend, se_trend,
+        res_trend = cbind(data.frame(taxon = tax_name),
+                          beta_trend, se_trend,
                           data.frame(W = W_trend, p_val = p_trend,
                                      q_val = q_trend, diff_abn = diff_trend))
+        rownames(res_trend) = NULL
     } else {
         res_trend = NULL
     }

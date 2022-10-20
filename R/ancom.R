@@ -132,7 +132,7 @@
 #' out = ancom(data = NULL, assay_name = NULL,
 #'             tax_level = "Family", phyloseq = pseq,
 #'             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#'             main_var = "bmi_group", adj_formula = "nationality",
+#'             main_var = "bmi_group", adj_formula = "age + nationality",
 #'             rand_formula = NULL, lme_control = NULL,
 #'             struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
 #'
@@ -144,7 +144,10 @@
 #' \insertRef{kaul2017analysis}{ANCOMBC}
 #'
 #' @rawNamespace import(stats, except = filter)
-#' @import mia
+#' @importFrom mia makeTreeSummarizedExperimentFromPhyloseq taxonomyRanks agglomerateByRank
+#' @importFrom SingleCellExperiment altExp
+#' @importFrom SummarizedExperiment assay colData rowData
+#' @importFrom S4Vectors DataFrame
 #' @importFrom lmerTest lmer
 #' @importFrom lme4 lmerControl
 #' @importFrom dplyr mutate
@@ -173,6 +176,7 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                      prv_cut = prv_cut, lib_cut = lib_cut,
                      tax_keep = NULL, samp_keep = NULL)
     feature_table = core$feature_table
+    tax_keep = core$tax_keep
     tax_name = rownames(feature_table)
     meta_data = core$meta_data
     meta_data[] = lapply(meta_data, function(x)
@@ -240,9 +244,11 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
         zero_ind = get_struc_zero(tse = tse, assay_name = assay_name,
                                   alt = TRUE, group = main_var,
                                   neg_lb = neg_lb)
-        zero_ind = zero_ind[tax_name, ]
-        num_struc_zero = apply(zero_ind, 1, sum)
-        comp_table = feature_table[num_struc_zero == 0, ]
+        zero_ind = zero_ind[tax_keep, ]
+        rownames(zero_ind) = NULL
+        num_struc_zero = apply(zero_ind[, -1], 1, sum)
+        comp_idx = which(num_struc_zero == 0)
+        comp_table = feature_table[comp_idx, ]
     }else{
         zero_ind = NULL
         comp_table = feature_table
@@ -390,7 +396,7 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
     # 5. Primary results
     q_data = apply(p_data, 2, function(x) p.adjust(x, method = p_adj_method))
     W = apply(q_data, 2, function(x) sum(x < alpha))
-    res_comp = data.frame(taxon_id, W, row.names = NULL, check.names = FALSE)
+    res_comp = data.frame(taxon = taxon_id, W, row.names = NULL, check.names = FALSE)
     res_comp = res_comp %>%
         mutate(detected_0.9 = ifelse(.data$W > 0.9 * (n_tax - 1), TRUE, FALSE),
                detected_0.8 = ifelse(.data$W > 0.8 * (n_tax - 1), TRUE, FALSE),
@@ -399,11 +405,11 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
 
     # Combine the information of structural zeros
     if (struc_zero){
-        res = data.frame(taxon_id = rownames(zero_ind), W = Inf,
+        res = data.frame(taxon = tax_name, W = Inf,
                          detected_0.9 = TRUE, detected_0.8 = TRUE,
                          detected_0.7 = TRUE, detected_0.6 = TRUE,
                          row.names = NULL, check.names = FALSE)
-        res[match(taxon_id, res$taxon_id), ] = res_comp
+        res[comp_idx, ] = res_comp
     }else{
         res = res_comp
     }

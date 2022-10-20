@@ -170,7 +170,7 @@ set.seed(123)
 out = ancom(data = NULL, assay_name = NULL,
             tax_level = "Family", phyloseq = pseq,
             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-            main_var = "bmi_group", adj_formula = "nationality",
+            main_var = "bmi_group", adj_formula = "age + nationality",
             rand_formula = NULL, lme_control = NULL,
             struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
 
