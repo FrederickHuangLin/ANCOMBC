@@ -147,7 +147,8 @@
 #' @importFrom mia makeTreeSummarizedExperimentFromPhyloseq taxonomyRanks agglomerateByRank
 #' @importFrom SingleCellExperiment altExp
 #' @importFrom SummarizedExperiment assay colData rowData
-#' @importFrom S4Vectors DataFrame
+#' @importFrom TreeSummarizedExperiment TreeSummarizedExperiment
+#' @importFrom S4Vectors DataFrame SimpleList
 #' @importFrom lmerTest lmer
 #' @importFrom lme4 lmerControl
 #' @importFrom dplyr mutate

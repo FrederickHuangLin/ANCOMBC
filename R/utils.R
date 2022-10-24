@@ -18,7 +18,7 @@ combn_fun = function(x, fun, sep) {
 combn_fun2 = function(x, fun, sep) {
     combn_mat = utils::combn(colnames(x), 2)
     y = vector(mode = "numeric")
-    for (i in ncol(combn_mat)) {
+    for (i in seq(ncol(combn_mat))) {
         idx = c(combn_mat[2, i], combn_mat[1, i])
         y = c(y, fun(x[idx, idx]))
     }

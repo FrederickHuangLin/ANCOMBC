@@ -120,7 +120,8 @@
 #' @importFrom mia makeTreeSummarizedExperimentFromPhyloseq taxonomyRanks agglomerateByRank
 #' @importFrom SingleCellExperiment altExp
 #' @importFrom SummarizedExperiment assay colData rowData
-#' @importFrom S4Vectors DataFrame
+#' @importFrom TreeSummarizedExperiment TreeSummarizedExperiment
+#' @importFrom S4Vectors DataFrame SimpleList
 #' @importFrom energy dcor dcor.test
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom foreach foreach %dopar%

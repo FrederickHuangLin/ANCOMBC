@@ -17,7 +17,6 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA,
                       fig.width = 6.25, fig.height = 5)
 library(ANCOMBC)
 library(tidyverse)
-library(mia)
 library(caret)
 library(DT)
 options(DT.options = list(
@@ -199,9 +198,9 @@ log_otu_data = log_otu_data + fmd$seq_eff
 otu_data = round(exp(log_otu_data))
 
 # Create the tse object
-assays = SimpleList(counts = otu_data)
-smd = DataFrame(smd)
-tse = TreeSummarizedExperiment(assays = assays, colData = smd)
+assays = S4Vectors::SimpleList(counts = otu_data)
+smd = S4Vectors::DataFrame(smd)
+tse = TreeSummarizedExperiment::TreeSummarizedExperiment(assays = assays, colData = smd)
 ```
 
 ## 3.2 Run ancombc2 function
@@ -238,21 +237,17 @@ considered nonsignificant.
 
 ```{r, fig.width=10}
 sens_cat = tab_sens %>%
-    transmute(sens_cat = cat_cov2) %>%
-    rownames_to_column("tax_id") %>%
+    transmute(taxon, sens_cat = cat_cov2) %>%
     left_join(res_prim %>%
-                  rownames_to_column("tax_id") %>%
-                  transmute(tax_id, diff_cat = diff_cat_cov2), 
-              by = "tax_id") %>%
+                  transmute(taxon, diff_cat = diff_cat_cov2), 
+              by = "taxon") %>%
     mutate(group = "Cat2 vs. Cat1") %>%
     bind_rows(
         tab_sens %>%
-            transmute(sens_cat = cat_cov3) %>%
-            rownames_to_column("tax_id") %>%
+            transmute(taxon, sens_cat = cat_cov3) %>%
             left_join(res_prim %>%
-                          rownames_to_column("tax_id") %>%
-                          transmute(tax_id, diff_cat = diff_cat_cov3), 
-                      by = "tax_id") %>%
+                          transmute(taxon, diff_cat = diff_cat_cov3), 
+                      by = "taxon") %>%
             mutate(group = "Cat3 vs. Cat1")
     )
 sens_cat$diff_cat = recode(sens_cat$diff_cat * 1, 
@@ -260,7 +255,7 @@ sens_cat$diff_cat = recode(sens_cat$diff_cat * 1,
                            `0` = "Nonsignificant")
 
 fig_sens_cat = sens_cat %>%
-    ggplot(aes(x = tax_id, y = sens_cat, color = diff_cat)) +
+    ggplot(aes(x = taxon, y = sens_cat, color = diff_cat)) +
     geom_point() +
     scale_color_brewer(palette = "Dark2", name = NULL) +
     facet_grid(rows = vars(group), scales = "free") +
@@ -440,7 +435,7 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                                               byrow = TRUE)),
                                        node = list(2, 2),
                                        solver = "ECOS",
-                                       B = 1))
+                                       B = 100))
 ```
 
 ## 4.3 Structural zeros
@@ -1048,7 +1043,7 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                                               byrow = TRUE)),
                                        node = list(2),
                                        solver = "ECOS",
-                                       B = 1))
+                                       B = 100))
 ```
 
 # Session information

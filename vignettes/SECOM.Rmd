@@ -17,7 +17,6 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA,
                       fig.width = 6.25, fig.height = 5)
 library(ANCOMBC)
 library(tidyverse)
-library(mia)
 ```
 
 ```{r helper}

@@ -29,19 +29,22 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         if (is.null(tax_level)) {
             if (length(SingleCellExperiment::altExpNames(tse)) == 0) {
                 tax_levels = mia::taxonomyRanks(tse)
-                tax_level = tax_levels[length(tax_levels)]
                 txt = sprintf(paste0("`tax_level` is not speficified \n",
-                                     "The lowest taxonomic level will be used: ",
-                                     tax_level, "\n",
+                                     "No agglomeration will be performed",
+                                     "\n",
                                      "Otherwise, please speficy `tax_level` ",
                                      "by one of the following: \n",
                                      paste(tax_levels, collapse = ", ")))
                 message(txt)
+                tax_level = "ASV"
+                tse_alt = tse
             } else {
                 tax_level = SingleCellExperiment::altExpNames(tse)
+                tse_alt = SingleCellExperiment::altExp(tse)
             }
+        } else {
+            tse_alt = mia::agglomerateByRank(tse, tax_level)
         }
-        tse_alt = mia::agglomerateByRank(tse, tax_level)
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else if (!is.null(phyloseq)) {
         tse = mia::makeTreeSummarizedExperimentFromPhyloseq(phyloseq)
@@ -58,19 +61,22 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         if (is.null(tax_level)) {
             if (length(SingleCellExperiment::altExpNames(tse)) == 0) {
                 tax_levels = mia::taxonomyRanks(tse)
-                tax_level = tax_levels[length(tax_levels)]
                 txt = sprintf(paste0("`tax_level` is not speficified \n",
-                                     "The lowest taxonomic level will be used: ",
-                                     tax_level, "\n",
+                                     "No agglomeration will be performed",
+                                     "\n",
                                      "Otherwise, please speficy `tax_level` ",
                                      "by one of the following: \n",
                                      paste(tax_levels, collapse = ", ")))
                 message(txt)
+                tax_level = "ASV"
+                tse_alt = tse
             } else {
                 tax_level = SingleCellExperiment::altExpNames(tse)
+                tse_alt = SingleCellExperiment::altExp(tse)
             }
+        } else {
+            tse_alt = mia::agglomerateByRank(tse, tax_level)
         }
-        tse_alt = mia::agglomerateByRank(tse, tax_level)
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else {
         stop_txt = paste0("The input data are missing. ",
