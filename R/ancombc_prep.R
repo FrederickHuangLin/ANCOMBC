@@ -1,6 +1,7 @@
 # Construct TSE object
 tse_construct = function(data, assay_name, tax_level, phyloseq) {
     if (!is.null(data)) {
+        # Check data types
         if (!inherits(data, c("phyloseq", "SummarizedExperiment",
                               "TreeSummarizedExperiment"))) {
             stop_txt = paste0("The input data should be in one of the ",
@@ -18,6 +19,7 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
             assay_name = assay_name
         }
 
+        # Check feature metadata
         if (ncol(SummarizedExperiment::rowData(tse)) == 0) {
             tax_tab = matrix(rownames(tse), ncol = 1)
             rownames(tax_tab) = rownames(tse)
@@ -26,22 +28,18 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
             SummarizedExperiment::rowData(tse) = tax_tab
         }
 
+        # Check if agglomeration should be performed
         if (is.null(tax_level)) {
-            if (length(SingleCellExperiment::altExpNames(tse)) == 0) {
-                tax_levels = mia::taxonomyRanks(tse)
-                txt = sprintf(paste0("`tax_level` is not speficified \n",
-                                     "No agglomeration will be performed",
-                                     "\n",
-                                     "Otherwise, please speficy `tax_level` ",
-                                     "by one of the following: \n",
-                                     paste(tax_levels, collapse = ", ")))
-                message(txt)
-                tax_level = "ASV"
-                tse_alt = tse
-            } else {
-                tax_level = SingleCellExperiment::altExpNames(tse)
-                tse_alt = SingleCellExperiment::altExp(tse)
-            }
+            tax_levels = mia::taxonomyRanks(tse)
+            txt = sprintf(paste0("`tax_level` is not speficified \n",
+                                 "No agglomeration will be performed",
+                                 "\n",
+                                 "Otherwise, please speficy `tax_level` ",
+                                 "by one of the following: \n",
+                                 paste(tax_levels, collapse = ", ")))
+            message(txt)
+            tax_level = "ASV"
+            tse_alt = tse
         } else {
             tse_alt = mia::agglomerateByRank(tse, tax_level)
         }
@@ -59,21 +57,16 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         }
 
         if (is.null(tax_level)) {
-            if (length(SingleCellExperiment::altExpNames(tse)) == 0) {
-                tax_levels = mia::taxonomyRanks(tse)
-                txt = sprintf(paste0("`tax_level` is not speficified \n",
-                                     "No agglomeration will be performed",
-                                     "\n",
-                                     "Otherwise, please speficy `tax_level` ",
-                                     "by one of the following: \n",
-                                     paste(tax_levels, collapse = ", ")))
-                message(txt)
-                tax_level = "ASV"
-                tse_alt = tse
-            } else {
-                tax_level = SingleCellExperiment::altExpNames(tse)
-                tse_alt = SingleCellExperiment::altExp(tse)
-            }
+            tax_levels = mia::taxonomyRanks(tse)
+            txt = sprintf(paste0("`tax_level` is not speficified \n",
+                                 "No agglomeration will be performed",
+                                 "\n",
+                                 "Otherwise, please speficy `tax_level` ",
+                                 "by one of the following: \n",
+                                 paste(tax_levels, collapse = ", ")))
+            message(txt)
+            tax_level = "ASV"
+            tse_alt = tse
         } else {
             tse_alt = mia::agglomerateByRank(tse, tax_level)
         }
@@ -91,11 +84,11 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
 }
 
 # Filter data by prevalence and library size
-data_core = function(tse = tse, assay_name = assay_name,
+data_core = function(tse = tse, tax_level, assay_name = assay_name,
                      alt = FALSE, prv_cut, lib_cut,
                      tax_keep = NULL, samp_keep = NULL) {
     if (alt) {
-        tse_alt = SingleCellExperiment::altExp(tse)
+        tse_alt = SingleCellExperiment::altExp(tse, tax_level)
         feature_table = SummarizedExperiment::assay(tse_alt, assay_name)
         meta_data = SummarizedExperiment::colData(tse_alt)
     } else {
@@ -249,9 +242,10 @@ data_qc = function(meta_data, group, struc_zero,
 }
 
 # Identify structural zeros
-get_struc_zero = function(tse, assay_name, alt = FALSE, group, neg_lb) {
+get_struc_zero = function(tse, tax_level, assay_name,
+                          alt = FALSE, group, neg_lb) {
     if (alt) {
-        tse_alt = SingleCellExperiment::altExp(tse)
+        tse_alt = SingleCellExperiment::altExp(tse, tax_level)
         feature_table = SummarizedExperiment::assay(tse_alt, assay_name)
         meta_data = SummarizedExperiment::colData(tse_alt)
         tax_name = rownames(tse_alt)

@@ -234,10 +234,11 @@ ancombc = function(data = NULL, assay_name = "counts",
                             tax_level = tax_level, phyloseq = phyloseq)
     tse = tse_obj$tse
     assay_name = tse_obj$assay_name
+    tax_level = tse_obj$tax_level
 
     # Filter data by prevalence and library size
-    core = data_core(tse = tse, assay_name = assay_name, alt = TRUE,
-                     prv_cut = prv_cut, lib_cut = lib_cut,
+    core = data_core(tse = tse, tax_level = tax_level, assay_name = assay_name,
+                     alt = TRUE, prv_cut = prv_cut, lib_cut = lib_cut,
                      tax_keep = NULL, samp_keep = NULL)
     feature_table = core$feature_table
     meta_data = core$meta_data
@@ -274,7 +275,8 @@ ancombc = function(data = NULL, assay_name = "counts",
                              "Otherwise, set struc_zero = FALSE to proceed")
             stop(stop_txt, call. = FALSE)
         }
-        zero_ind = get_struc_zero(tse = tse, assay_name = assay_name,
+        zero_ind = get_struc_zero(tse = tse, tax_level = tax_level,
+                                  assay_name = assay_name,
                                   alt = TRUE, group = group, neg_lb = neg_lb)
         zero_ind = zero_ind[tax_keep, ]
         rownames(zero_ind) = NULL

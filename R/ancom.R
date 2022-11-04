@@ -171,10 +171,11 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                             tax_level = tax_level, phyloseq = phyloseq)
     tse = tse_obj$tse
     assay_name = tse_obj$assay_name
+    tax_level = tse_obj$tax_level
 
     # Filter data by prevalence and library size
-    core = data_core(tse = tse, assay_name = assay_name, alt = TRUE,
-                     prv_cut = prv_cut, lib_cut = lib_cut,
+    core = data_core(tse = tse, tax_level = tax_level, assay_name = assay_name,
+                     alt = TRUE, prv_cut = prv_cut, lib_cut = lib_cut,
                      tax_keep = NULL, samp_keep = NULL)
     feature_table = core$feature_table
     tax_keep = core$tax_keep
@@ -242,7 +243,8 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                                      "Otherwise, set struc_zero = FALSE to proceed"))
             stop(stop_txt, call. = FALSE)
         }
-        zero_ind = get_struc_zero(tse = tse, assay_name = assay_name,
+        zero_ind = get_struc_zero(tse = tse, tax_level = tax_level,
+                                  assay_name = assay_name,
                                   alt = TRUE, group = main_var,
                                   neg_lb = neg_lb)
         zero_ind = zero_ind[tax_keep, ]
@@ -308,6 +310,7 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                                            meta_data,
                                            check.names = FALSE)
                     lm_fit = suppressWarnings(tfun(tformula, data = test_data))
+                    # The main variable is on the second row
                     p_vec[idx2] = summary(lm_fit)$coef[2, "Pr(>|t|)"]
                     beta_vec[idx2] = summary(lm_fit)$coef[2, "t value"]
                 }
@@ -326,8 +329,9 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                         beta_vec[idx2] = NA
                     } else {
                         summary_fit = summary(lme_fit)
-                        p_vec[idx2] = summary_fit$coefficients[main_var, "Pr(>|t|)"]
-                        beta_vec[idx2] = summary_fit$coefficients[main_var, "Estimate"]
+                        # The main variable is on the second row
+                        p_vec[idx2] = summary_fit$coefficients[2, "Pr(>|t|)"]
+                        beta_vec[idx2] = summary_fit$coefficients[2, "Estimate"]
                     }
                 }
             }
