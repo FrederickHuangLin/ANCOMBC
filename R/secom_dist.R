@@ -127,8 +127,8 @@ secom_dist = function(data, assay_name = "counts", tax_level = NULL,
     if (length(data) == 1) {
         tse_obj = tse_construct(data = data[[1]], assay_name = assay_name[1],
                                 tax_level = tax_level[1], phyloseq = NULL)
-        abn_list = abn_est(tse = tse_obj$tse, pseudo = pseudo,
-                           assay_name = tse_obj$assay_name,
+        abn_list = abn_est(tse = tse_obj$tse, tax_level = tse_obj$tax_level,
+                           assay_name = tse_obj$assay_name, pseudo = pseudo,
                            prv_cut = prv_cut, lib_cut = lib_cut)
         s_diff_hat = abn_list$s_diff_hat
         y_hat = abn_list$y_hat
@@ -152,22 +152,22 @@ secom_dist = function(data, assay_name = "counts", tax_level = NULL,
         tse_list = lapply(seq_along(data), function(i) {
             tse_obj = tse_construct(data = data[[i]], assay_name = assay_name[i],
                                     tax_level = tax_level[i], phyloseq = NULL)
-            tse = tse_obj$tse
-            return(tse)
+            return(tse_obj)
         })
 
         for (i in seq_along(tse_list)) {
-            rownames(SingleCellExperiment::altExp(tse_list[[i]],
-                                                  tax_level[i])) =
+            rownames(SingleCellExperiment::altExp(tse_list[[i]]$tse,
+                                                  tse_list[[i]]$tax_level)) =
                 paste(names(data)[[i]],
-                      rownames(SingleCellExperiment::altExp(tse_list[[i]],
-                                                            tax_level[i])),
+                      rownames(SingleCellExperiment::altExp(tse_list[[i]]$tse,
+                                                            tse_list[[i]]$tax_level)),
                       sep = " - ")
         }
 
         abn_list = lapply(seq_along(tse_list), function(i) {
-            abn_est(tse = tse_list[[i]], pseudo = pseudo,
-                    assay_name = assay_name[i],
+            abn_est(tse = tse_list[[i]]$tse,
+                    tax_level = tse_list[[i]]$tax_level,
+                    assay_name = assay_name[i], pseudo = pseudo,
                     prv_cut = prv_cut, lib_cut = lib_cut)
         })
         s_diff_hat = lapply(abn_list, function(x) x$s_diff_hat)

@@ -1044,6 +1044,11 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                        node = list(2),
                                        solver = "ECOS",
                                        B = 100))
+
+res_prim = output$res %>%
+    mutate_if(is.numeric, function(x) round(x, 2))
+res_prim %>%
+    datatable(caption = "ANCOM-BC2 Primary Results")
 ```
 
 # Session information

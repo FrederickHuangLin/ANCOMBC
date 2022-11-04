@@ -16,3 +16,21 @@ citEntry(
     Nature communications, 11(1), 1-11, https://doi.org/10.1038/s41467-020-17041-7"
   )
 )
+
+citEntry(
+  entry    = "Article",
+  title    = "Linear and nonlinear correlation estimators unveil undescribed taxa interactions in microbiome data",
+  author   = personList( as.person("Huang Lin"),
+                         as.person("Merete Eggesbo"),
+                         as.person("Shyamal Das Peddada")),
+  journal  = "Nature communications",
+  year     = 2022,
+  volume   = "13",
+  number   = "1",
+  pages    = "1-16",
+  url      = "https://www.nature.com/articles/s41467-022-32243-x",
+  textVersion = paste(
+    "Lin, H., Eggesbo, M., & Peddada, S. D. (2022). Linear and nonlinear correlation estimators unveil undescribed taxa interactions in microbiome data.
+    Nature communications, 13(1), 1-16, https://doi.org/10.1038/s41467-022-32243-x"
+  )
+)

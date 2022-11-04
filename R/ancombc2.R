@@ -378,11 +378,13 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                             tax_level = tax_level, phyloseq = NULL)
     tse = tse_obj$tse
     assay_name = tse_obj$assay_name
+    tax_level = tse_obj$tax_level
     tse_alt = tse_obj$tse_alt
 
     # Identify taxa with structural zeros
     if (struc_zero) {
-        zero_ind = get_struc_zero(tse = tse, assay_name = assay_name,
+        zero_ind = get_struc_zero(tse = tse, tax_level = tax_level,
+                                  assay_name = assay_name,
                                   alt = TRUE, group = group, neg_lb = neg_lb)
         # Taxa with structural zeros will be removed from ANCOM-BC2 analyses
         tax_idx = apply(zero_ind[, -1], 1, function(x) all(x == FALSE))
@@ -393,13 +395,15 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         tax_keep = seq(nrow(tse_alt))}
 
     # Filter data by prevalence and library size
-    core1 = data_core(tse = tse, assay_name = assay_name, alt = FALSE,
+    core1 = data_core(tse = tse, tax_level = tax_level,
+                      assay_name = assay_name, alt = FALSE,
                       prv_cut = prv_cut, lib_cut = lib_cut,
                       tax_keep = NULL, samp_keep = NULL)
     O1 = core1$feature_table
     samp_keep = colnames(O1)
 
-    core2 = data_core(tse = tse, assay_name = assay_name, alt = TRUE,
+    core2 = data_core(tse = tse, tax_level = tax_level,
+                      assay_name = assay_name, alt = TRUE,
                       prv_cut = prv_cut, lib_cut = lib_cut,
                       tax_keep = tax_keep, samp_keep = samp_keep)
     O2 = core2$feature_table
@@ -505,6 +509,7 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         para2 = iter_remle(x = x, y = y2, meta_data = meta_data,
                            fix_formula = fix_formula,
                            rand_formula = rand_formula,
+                           lme_control = lme_control,
                            theta = theta_hat, tol = iter_control$tol,
                            max_iter = iter_control$max_iter,
                            verbose = iter_control$verbose)

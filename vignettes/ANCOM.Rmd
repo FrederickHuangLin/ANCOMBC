@@ -149,7 +149,7 @@ beta_max = vapply(seq_along(beta_pos), function(i)
     beta_val[beta_pos[i], i], FUN.VALUE = double(1))
 # Number of taxa except structural zeros
 n_taxa = ifelse(is.null(out$zero_ind), 
-                nrow(feature_table), 
+                nrow(tse), 
                 sum(apply(out$zero_ind[, -1], 1, sum) == 0))
 # Cutoff values for declaring differentially abundant taxa
 cut_off = 0.7 * (n_taxa - 1)
@@ -223,8 +223,8 @@ out = ancom(data = tse, assay_name = "counts",
             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
             main_var = "group",
             adj_formula = "nationality + timepoint", 
-            rand_formula = "~ timepoint | subject", 
-            lme_control = list(maxIter = 100, msMaxIter = 100, opt = "optim"), 
+            rand_formula = "(timepoint | subject)", 
+            lme_control = lme4::lmerControl(), 
             struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
 
 res = out$res
@@ -243,7 +243,7 @@ beta_max = vapply(seq_along(beta_pos), function(i) beta_val[beta_pos[i], i],
                   FUN.VALUE = double(1))
 # Number of taxa except structural zeros
 n_taxa = ifelse(is.null(out$zero_ind), 
-                nrow(feature_table), 
+                nrow(tse), 
                 sum(apply(out$zero_ind[, -1], 1, sum) == 0))
 # Cutoff values for declaring differentially abundant taxa
 cut_off = 0.7 * (n_taxa - 1)
