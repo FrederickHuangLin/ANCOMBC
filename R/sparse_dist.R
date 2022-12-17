@@ -93,11 +93,13 @@ sparse_dist = function(mat, wins_quant, R, thresh_hard, max_p) {
     # Symmetrize the matrix
     dcorr[lower.tri(dcorr)] = t(dcorr)[lower.tri(dcorr)]
     diag(dcorr) = 1
-    dcorr[mat_cooccur == 0] = 0
+    dcorr[mat_cooccur < 2] = 0
+    dcorr[is.infinite(dcorr)] = 0
     dcorr_p[lower.tri(dcorr_p)] = t(dcorr_p)[lower.tri(dcorr_p)]
     diag(dcorr_p) = 0
-    dcorr_p[mat_cooccur == 0] = 1
+    dcorr_p[mat_cooccur < 2] = 1
     dcorr_p[is.na(dcorr_p)] = 1
+    dcorr_p[is.infinite(dcorr_p)] = 1
     dimnames(dcorr) = list(taxanames, taxanames)
     dimnames(dcorr_p) = list(taxanames, taxanames)
 

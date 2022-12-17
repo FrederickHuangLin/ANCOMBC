@@ -5,14 +5,7 @@
 \title{Simulate Microbial Absolute Abundance Data by Poisson lognormal
 (PLN) model Based on a Real Dataset}
 \usage{
-sim_plnm(
-  abn_table,
-  taxa_are_rows = TRUE,
-  prv_cut = 0.1,
-  n,
-  scale_mean,
-  scale_sd
-)
+sim_plnm(abn_table, taxa_are_rows = TRUE, prv_cut = 0.1, n, lib_mean, disp)
 }
 \arguments{
 \item{abn_table}{the input microbial count table. It is used to obtain
@@ -29,11 +22,12 @@ less than 10 samples, it will not be further analyzed. Default is 0.10.}
 
 \item{n}{numeric. The desired sample size for the simulated data.}
 
-\item{scale_mean}{numeric. Mean of the scale factor. Increase this parameter
-will lead to larger microbial abundances.}
+\item{lib_mean}{numeric. Mean of the library size. Library sizes are
+generated from the negative binomial distribution with parameters
+\code{lib_mean} and \code{disp}. For details, see \code{?rnbinom}.}
 
-\item{scale_sd}{numeric. Standard deviation of the scale factor.
-Increase this parameter will lead to more variable microbial abundances.}
+\item{disp}{numeric. The dispersion parameter for the library size.
+For details, see \code{?rnbinom}.}
 }
 \value{
 a \code{matrix} of microbial absolute abundances, where taxa are in
@@ -63,7 +57,7 @@ which will make the simulated data more resemble real data.
 library(ANCOMBC)
 data(QMP)
 abn_data = sim_plnm(abn_table = QMP, taxa_are_rows = FALSE, prv_cut = 0.05,
-                    n = 100, scale_mean = 1e8, scale_sd = 1e8/3)
+                    n = 100, lib_mean = 1e8, disp = 0.5)
 rownames(abn_data) = paste0("Taxon", seq_len(nrow(abn_data)))
 colnames(abn_data) = paste0("Sample", seq_len(ncol(abn_data)))
 
