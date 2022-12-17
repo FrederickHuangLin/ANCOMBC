@@ -2,7 +2,7 @@
 title: "ANCOM-BC2 Tutorial"
 author: 
   - Huang Lin$^1$
-  - $^1$NICHD, 6710B Rockledge Dr, Bethesda, MD 20892
+  - $^1$NICHD, 6710B Rockledge Dr, Bethesda, MD 20817
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: rmarkdown::html_vignette
 bibliography: bibliography.bib
@@ -12,7 +12,7 @@ vignette: >
   \usepackage[utf8]{inputenc}
 ---
 
-```{r setup, include = FALSE}
+```{r setup, message = FALSE, warning = FALSE, comment = NA}
 knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA, 
                       fig.width = 6.25, fig.height = 5)
 library(ANCOMBC)
