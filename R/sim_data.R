@@ -29,11 +29,11 @@
 #' suppose there are 100 samples, if a taxon has nonzero counts presented in
 #' less than 10 samples, it will not be further analyzed. Default is 0.10.
 #' @param n numeric. The desired sample size for the simulated data.
-#' @param scale_mean numeric. Mean of the scale factor. Increase this parameter
-#' will lead to larger microbial abundances.
-#' @param scale_sd numeric. Standard deviation of the scale factor.
-#' Increase this parameter will lead to more variable microbial abundances.
-#'
+#' @param lib_mean numeric. Mean of the library size. Library sizes are
+#' generated from the negative binomial distribution with parameters
+#' \code{lib_mean} and \code{disp}. For details, see \code{?rnbinom}.
+#' @param disp numeric. The dispersion parameter for the library size.
+#' For details, see \code{?rnbinom}.
 #' @return a \code{matrix} of microbial absolute abundances, where taxa are in
 #' rows and samples are in columns.
 #'
@@ -41,7 +41,7 @@
 #' library(ANCOMBC)
 #' data(QMP)
 #' abn_data = sim_plnm(abn_table = QMP, taxa_are_rows = FALSE, prv_cut = 0.05,
-#'                     n = 100, scale_mean = 1e8, scale_sd = 1e8/3)
+#'                     n = 100, lib_mean = 1e8, disp = 0.5)
 #' rownames(abn_data) = paste0("Taxon", seq_len(nrow(abn_data)))
 #' colnames(abn_data) = paste0("Sample", seq_len(ncol(abn_data)))
 #'
@@ -54,7 +54,7 @@
 #'
 #' @export
 sim_plnm = function(abn_table, taxa_are_rows = TRUE,
-                    prv_cut = 0.1, n, scale_mean, scale_sd) {
+                    prv_cut = 0.1, n, lib_mean, disp) {
     abn_table = as.matrix(abn_table)
     if (!taxa_are_rows) {
         abn_table = t(abn_table)
@@ -93,7 +93,7 @@ sim_plnm = function(abn_table, taxa_are_rows = TRUE,
         t(Q[, pos_idx, drop = FALSE])
     mean_est = log(mean_rel) - 0.5 * diag(cov_est)
 
-    N = round(rnorm(n, scale_mean, scale_sd))
+    N = rnbinom(n = n, mu = lib_mean, size = disp)
     sim_data = rplnm(mu = mean_est, sigma = sqrt(cov_est),
                      n = n, N = N)
     return(t(sim_data))

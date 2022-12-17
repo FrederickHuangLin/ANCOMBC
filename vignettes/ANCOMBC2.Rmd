@@ -154,7 +154,7 @@ lfc_cat3_vs_1 = 1
 
 # Generate the true abundances
 abn_data = sim_plnm(abn_table = QMP, taxa_are_rows = FALSE, prv_cut = 0.05, 
-                    n = n, scale_mean = 1e8, scale_sd = 1e8/3)
+                    n = n, lib_mean = 1e8, disp = 0.5)
 log_abn_data = log(abn_data + 1e-5)
 rownames(log_abn_data) = paste0("T", seq_len(d))
 colnames(log_abn_data) = paste0("S", seq_len(n))
@@ -227,7 +227,7 @@ tab_sens = output$pseudo_sens_tab
 
 ## 3.3 Sensitivity scores for "cat_cov"
 
-1. Extreme values (>5) of the sensitivity score are observed. 
+1. Extreme values (>4) of the sensitivity score are observed. 
 
 2. Significant taxa with extreme sensitivity scores are likely false positives.
 
@@ -264,8 +264,8 @@ fig_sens_cat = sens_cat %>%
     theme(axis.text.x = element_text(angle = 60, vjust = 0.5))
 fig_sens_cat
 
-sens_cut1 = 5
-sens_cut2 = 5
+sens_cut1 = 4
+sens_cut2 = 4
 ```
 
 ## 3.4 Power and FDR
