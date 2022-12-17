@@ -74,7 +74,8 @@ sparse_linear = function(mat, wins_quant, method, soft, thresh_len,
     # Correlation matrix
     corr_list = suppressWarnings(Hmisc::rcorr(x = mat, type = method))
     corr = corr_list$r
-    corr[mat_cooccur == 0] = 0
+    corr[mat_cooccur < 2] = 0
+    corr[is.infinite(corr)] = 0
 
     # Cross-Validation
     max_thresh = max(abs(corr[corr != 1]), na.rm = TRUE)
@@ -99,8 +100,9 @@ sparse_linear = function(mat, wins_quant, method, soft, thresh_len,
     # Correlation matrix after filtering
     corr_p = corr_list$P
     diag(corr_p) = 0
-    corr_p[mat_cooccur == 0] = 1
+    corr_p[mat_cooccur < 2] = 1
     corr_p[is.na(corr_p)] = 1
+    corr_p[is.infinite(corr_p)] = 1
     corr_fl = p_filter(mat = corr, mat_p = corr_p, max_p = max_p)
     corr_fl = mat_thresh(mat = corr_fl, th = thresh_hard, soft = FALSE)
 
