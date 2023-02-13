@@ -109,10 +109,10 @@
 #' @examples
 #' library(ANCOMBC)
 #' library(mia)
-#' data(atlas1006)
+#' data(hitchip1006)
 #'
 #' # subset to baseline
-#' tse = atlas1006[, atlas1006$time == 0]
+#' tse = hitchip1006[, hitchip1006$time == 0]
 #'
 #' # run ancom function
 #' set.seed(123)

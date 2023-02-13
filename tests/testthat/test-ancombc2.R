@@ -2,10 +2,10 @@ context("Testing ancombc2 function")
 library(ANCOMBC)
 library(testthat)
 
-data(atlas1006)
+data(hitchip1006)
 
 # subset to baseline
-tse = atlas1006[, atlas1006$time == 0]
+tse = hitchip1006[, hitchip1006$time == 0]
 
 # test
 test_that("`ancombc2` function provides expected results", {

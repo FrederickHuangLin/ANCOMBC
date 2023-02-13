@@ -63,10 +63,10 @@ microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq]
 format.
 
 ```{r}
-data(atlas1006)
+data(hitchip1006)
 
 # Subset to baseline
-tse = atlas1006[, atlas1006$time == 0]
+tse = hitchip1006[, hitchip1006$time == 0]
 
 # Re-code the bmi group
 tse$bmi = recode(tse$bmi_group,

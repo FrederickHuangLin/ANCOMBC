@@ -2,10 +2,10 @@ context("Testing secom functions")
 library(ANCOMBC)
 library(testthat)
 
-data(atlas1006)
+data(hitchip1006)
 
 # subset to baseline
-tse = atlas1006[, atlas1006$time == 0]
+tse = hitchip1006[, hitchip1006$time == 0]
 
 # test 1
 test_that("`secom_linear` function provides expected results", {
