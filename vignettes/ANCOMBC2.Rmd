@@ -377,10 +377,10 @@ format. In this tutorial, we consider the following covariates:
     + The reference group: "obese"
 
 ```{r}
-data(atlas1006)
+data(hitchip1006)
 
 # Subset to baseline
-tse = atlas1006[, atlas1006$time == 0]
+tse = hitchip1006[, hitchip1006$time == 0]
 
 # Re-code the bmi group
 tse$bmi = recode(tse$bmi_group,

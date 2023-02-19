@@ -45,7 +45,7 @@ NULL
 #' @description This dataset contains genus-level microbiota profiling with
 #' HITChip for 1006 western adults with no reported health complications,
 #' reported in Lahti et al. (2014) \url{https://doi.org/10.1038/ncomms5344}.
-#' @name atlas1006
+#' @name hitchip1006
 #' @details The dataset is also available via the microbiome R package
 #' \url{http://microbiome.github.com/microbiome} in \code{phyloseq} format.
 #' @docType data
@@ -54,7 +54,7 @@ NULL
 #' @references
 #' Lahti et al. Nature Communications 5:4344, 2014.
 #' \url{https://doi.org/10.1038/ncomms5344}
-#' @usage data(atlas1006)
+#' @usage data(hitchip1006)
 #' @format The dataset in \code{TreeSummarizedExperiment} format.
 #' @keywords data
 NULL
