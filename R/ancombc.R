@@ -164,10 +164,11 @@
 #'
 #' #========================Run ANCOMBC Using a Real Data=======================
 #' library(ANCOMBC)
-#' data(atlas1006)
+#' data(atlas1006, package = "microbiome")
+#' tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 #'
 #' # subset to baseline
-#' tse = atlas1006[, atlas1006$time == 0]
+#' tse = tse[, tse$time == 0]
 #'
 #' # run ancombc function
 #' set.seed(123)
@@ -208,7 +209,7 @@
 #' @importFrom TreeSummarizedExperiment TreeSummarizedExperiment
 #' @importFrom S4Vectors DataFrame SimpleList
 #' @importFrom parallel makeCluster stopCluster
-#' @importFrom foreach foreach %dopar%
+#' @importFrom foreach foreach %dopar% registerDoSEQ
 #' @importFrom doParallel registerDoParallel
 #' @importFrom doRNG %dorng%
 #' @importFrom MASS ginv
@@ -224,9 +225,13 @@ ancombc = function(data = NULL, assay_name = "counts",
                    conserve = FALSE, alpha = 0.05, global = FALSE,
                    n_cl = 1, verbose = FALSE){
     message("'ancombc' is deprecated \n", "Use 'ancombc2' instead")
-
-    cl = parallel::makeCluster(n_cl)
-    doParallel::registerDoParallel(cl)
+  
+    if (n_cl > 1) {
+      cl = parallel::makeCluster(n_cl)
+      doParallel::registerDoParallel(cl)
+    } else {
+      foreach::registerDoSEQ()
+    }
 
     # 1. Data pre-processing
     # TSE data construction
@@ -415,7 +420,10 @@ ancombc = function(data = NULL, assay_name = "counts",
                samp_frac = theta_hat, delta_em = delta_em,
                delta_wls = delta_wls, res = res, res_global = res_global)
 
-    parallel::stopCluster(cl)
+    if (n_cl > 1) {
+      parallel::stopCluster(cl)
+    }
+    
     return(out)
 }
 

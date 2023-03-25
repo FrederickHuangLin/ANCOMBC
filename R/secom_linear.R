@@ -49,7 +49,7 @@
 #' extreme values. Default is \code{c(0.05, 0.95)}. For details,
 #' see \code{?DescTools::Winsorize}.
 #' @param method character. It indicates which correlation coefficient is to be
-#' computed. One of "pearson", "kendall", or "spearman": can be abbreviated.
+#' computed. It can be either "pearson" or "spearman".
 #' @param soft logical. \code{TRUE} indicates that soft thresholding is applied
 #' to achieve the sparsity of the correlation matrix. \code{FALSE} indicates
 #' that hard thresholding is applied to achieve the sparsity of the correlation
@@ -99,10 +99,11 @@
 #'
 #' @examples
 #' library(ANCOMBC)
-#' data(dietswap)
+#' data(dietswap, package = "microbiome")
+#' tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
 #'
 #' # subset to baseline
-#' tse = dietswap[, dietswap$timepoint == 1]
+#' tse = tse[, tse$timepoint == 1]
 #'
 #' set.seed(123)
 #' res_linear = secom_linear(data = list(tse), assay_name = "counts",
@@ -197,8 +198,12 @@ secom_linear = function(data, assay_name = "counts", tax_level = NULL,
     }
 
     # =================Sparse estimation on linear correlations=================
-    cl = parallel::makeCluster(n_cl)
-    doParallel::registerDoParallel(cl)
+    if (n_cl > 1) {
+      cl = parallel::makeCluster(n_cl)
+      doParallel::registerDoParallel(cl)
+    } else {
+      foreach::registerDoSEQ()
+    }
 
     if (method %in% c("pearson", "kendall", "spearman")) {
         res_corr = sparse_linear(mat = t(y_hat), wins_quant, method, soft,
@@ -209,7 +214,9 @@ secom_linear = function(data, assay_name = "counts", tax_level = NULL,
         stop(stop_txt, call. = FALSE)
     }
 
-    parallel::stopCluster(cl)
+    if (n_cl > 1) {
+      parallel::stopCluster(cl)
+    }
 
     # To prevent FP from taxa with extremely small variances
     if (length(data) == 1) {

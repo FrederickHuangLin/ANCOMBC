@@ -39,7 +39,7 @@ ancombc_global = function(x, group, beta_hat, vcov_hat, p_adj_method, alpha){
     return(output)
 }
 
-# ANCOM-BC pairwise test
+# ANCOM-BC multiple pairwise comparisons
 ancombc_pair = function(x, group, beta_hat, var_hat, vcov_hat,
                         fwer_ctrl_method, alpha) {
     covariates = colnames(x)
@@ -137,9 +137,9 @@ ancombc_dunn = function(x, group, beta_hat, var_hat,
     return(output)
 }
 
-# ANCOM-BC trend test
+# ANCOM-BC pattern analysis
 ancombc_trend = function(x, group, beta_hat, var_hat, vcov_hat,
-                         p_adj_method, alpha,
+                         p_adj_method, alpha, 
                          trend_control = list(contrast = NULL,
                                               node = NULL,
                                               solver = "ECOS",
@@ -167,11 +167,11 @@ ancombc_trend = function(x, group, beta_hat, var_hat, vcov_hat,
     fun_list = list(constrain_est, l_infty)
 
     beta_hat_opt_all = foreach(i = seq_len(n_tax), .combine = rbind) %dorng% {
-        beta_hat_opt = unlist(lapply(X = contrast,
-                                     FUN = fun_list[[1]],
-                                     beta_hat = beta_hat_sub[i, ],
-                                     vcov_hat = vcov_hat_sub[[i]],
-                                     solver = solver))
+      beta_hat_opt = unlist(lapply(X = contrast,
+                                   FUN = fun_list[[1]],
+                                   beta_hat = beta_hat_sub[i, ],
+                                   vcov_hat = vcov_hat_sub[[i]],
+                                   solver = solver))
     }
 
     l = matrix(NA, nrow = n_tax, ncol = n_trend)
@@ -194,22 +194,22 @@ ancombc_trend = function(x, group, beta_hat, var_hat, vcov_hat,
     rng = rngtools::RNGseq(B * n_tax, 1234)
     b = r = NULL
     W_trend_null = foreach(b = seq_len(B), .combine = 'cbind') %:%
-        foreach(i = seq_len(n_tax), r = rng[(b - 1) * n_tax + seq_len(n_tax)], .combine = 'c') %dopar% {
-            rngtools::setRNG(r)
-            beta_null = rnorm(n_group) * sqrt(var_hat_sub[i, ])
-            beta_null_opt = unlist(lapply(X = contrast,
-                                          FUN = fun_list[[1]],
-                                          beta_hat = beta_null,
-                                          vcov_hat = vcov_hat_sub[[i]],
-                                          solver = solver))
-            l_null = unlist(lapply(X = seq_len(n_trend),
-                                   FUN = function(j) {
-                                       l = fun_list[[2]](beta_opt = beta_null_opt[grepl(trend_name[j], names(beta_null_opt))],
-                                                         node = node[[j]])
-                                       return(l)
-                                   }))
-            W_null = max(l_null, na.rm = TRUE)
-        }
+      foreach(i = seq_len(n_tax), r = rng[(b - 1) * n_tax + seq_len(n_tax)], .combine = 'c') %dopar% {
+        rngtools::setRNG(r)
+        beta_null = rnorm(n_group) * sqrt(var_hat_sub[i, ])
+        beta_null_opt = unlist(lapply(X = contrast,
+                                      FUN = fun_list[[1]],
+                                      beta_hat = beta_null,
+                                      vcov_hat = vcov_hat_sub[[i]],
+                                      solver = solver))
+        l_null = unlist(lapply(X = seq_len(n_trend),
+                               FUN = function(j) {
+                                 l = fun_list[[2]](beta_opt = beta_null_opt[grepl(trend_name[j], names(beta_null_opt))],
+                                                   node = node[[j]])
+                                 return(l)
+                               }))
+        W_null = max(l_null, na.rm = TRUE)
+      }
     W_trend_null = as.matrix(W_trend_null)
 
     p_trend = 1/B * apply(W_trend_null > W_trend, 1, function(x)

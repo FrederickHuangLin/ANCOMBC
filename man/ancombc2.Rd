@@ -55,8 +55,11 @@ Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
 
 \item{tax_level}{character. The taxonomic level of interest. The input data
-can be agglomerated at different taxonomic levels based on your research
-interest. Default is NULL, i.e., do not perform agglomeration, and the
+can be analyzed at any taxonomic level without prior agglomeration. 
+Note that \code{tax_level} must be a value from \code{taxonomyRanks}, which 
+includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" or "Species".
+See \code{?mia::taxonomyRanks} for more details.
+Default is NULL, i.e., do not perform agglomeration, and the
 ANCOM-BC2 anlysis will be performed at the lowest taxonomic level of the
 input \code{data}.}
 
@@ -336,19 +339,20 @@ pseq = makePhyloseqFromTreeSummarizedExperiment(tse)
 
 #=======================Run ANCOMBC2 Using a Real Data=======================
 library(ANCOMBC)
-data(dietswap)
+data(dietswap, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
 
-colData(dietswap)$bmi_group = factor(colData(dietswap)$bmi_group,
-                                     levels = c("obese",
-                                                "overweight",
-                                                "lean"))
+colData(tse)$bmi_group = factor(colData(tse)$bmi_group,
+                                levels = c("obese",
+                                           "overweight",
+                                           "lean"))
 
 set.seed(123)
 # Note that setting pseudo_sens = FALSE, max_iter = 1, and B = 1 is
 # only for the sake of speed
 # Set pseudo_sens = TRUE, and use default or larger values for max_iter and B
 # for better performance
-out = ancombc2(data = dietswap, assay_name = "counts", tax_level = "Phylum",
+out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
                fix_formula = "nationality + timepoint + bmi_group",
                rand_formula = "(timepoint | subject)",
                p_adj_method = "holm", pseudo = 0, pseudo_sens = FALSE,

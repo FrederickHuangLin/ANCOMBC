@@ -115,10 +115,11 @@ nonlinear relationships.
 }
 \examples{
 library(ANCOMBC)
-data(dietswap)
+data(dietswap, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
 
 # subset to baseline
-tse = dietswap[, dietswap$timepoint == 1]
+tse = tse[, tse$timepoint == 1]
 
 set.seed(123)
 res_dist = secom_dist(data = list(tse), assay_name = "counts",

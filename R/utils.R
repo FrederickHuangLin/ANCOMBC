@@ -70,10 +70,10 @@ mdfdr = function(global_test = c("pairwise", "dunnet"),
 constrain_est = function(beta_hat, vcov_hat, contrast, solver) {
     beta_opt = CVXR::Variable(rows = length(beta_hat), cols = 1, name = "beta")
     obj = CVXR::Minimize(CVXR::matrix_frac(beta_opt - beta_hat, vcov_hat))
-    cons = contrast %*% beta_opt >= 0
+    cons = suppressMessages(contrast %*% beta_opt >= 0)
     problem = CVXR::Problem(objective = obj, constraints = list(cons))
 
-    suppressWarnings(result <- try(CVXR::solve(problem, solver = solver),
+    suppressMessages(result <- try(CVXR::solve(problem, solver = solver),
                                    silent = TRUE))
 
     if (inherits(result, "try-error")) {

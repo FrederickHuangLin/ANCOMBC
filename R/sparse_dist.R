@@ -41,7 +41,13 @@ sparse_dist = function(mat, wins_quant, R, thresh_hard, max_p) {
                             values_to = "occur") %>%
         dplyr::filter(.data$occur == 1)
 
-    mat_cooccur = crossprod(table(df_occur[, seq_len(2)]))
+    mat_cooccur = matrix(0, nrow = ncol(mat_occur), ncol = ncol(mat_occur))
+    rownames(mat_cooccur) = colnames(mat_occur)
+    colnames(mat_cooccur) = colnames(mat_occur)
+    
+    mat_cooccur_comp = crossprod(table(df_occur[, seq_len(2)]))
+    idx = base::match(colnames(mat_cooccur_comp), colnames(mat_cooccur))
+    mat_cooccur[idx, idx] = mat_cooccur_comp
     diag(mat_cooccur) = colSums(mat_occur)
 
     if (any(mat_cooccur < 10)) {
@@ -66,24 +72,29 @@ sparse_dist = function(mat, wins_quant, R, thresh_hard, max_p) {
         dcorr_idx = rep(NA, d)
         p_val_idx = rep(NA, d)
 
-        mat_x = mat[!is.na(mat[, idx]), ]
+        mat_x = mat[!is.na(mat[, idx]), , drop = FALSE]
         x = mat_x[, idx]
 
-        # Distance correlation
-        dcorr_idx[(idx + 1):d] = apply(mat_x[, (idx + 1):d, drop = FALSE], 2,
-                                       function(y) {
+        if (length(x) == 1) {
+          dcorr_idx = rep(0, d)
+          p_val_idx = rep(1, d)
+        } else {
+          # Distance correlation
+          dcorr_idx[(idx + 1):d] = apply(mat_x[, (idx + 1):d, drop = FALSE], 2,
+                                         function(y) {
                                            z = x[!is.na(y)]
                                            y = y[!is.na(y)]
                                            dcor(z, y, index = 1.0)
-                                           })
-
-        # P-values
-        p_val_idx[(idx + 1):d] = apply(mat_x[, (idx + 1):d, drop = FALSE], 2,
-                                       function(y) {
+                                         })
+          
+          # P-values
+          p_val_idx[(idx + 1):d] = apply(mat_x[, (idx + 1):d, drop = FALSE], 2,
+                                         function(y) {
                                            z = x[!is.na(y)]
                                            y = y[!is.na(y)]
                                            dcor.test(z, y, index = 1.0, R = R)$p.value
-                                           })
+                                         })
+        }
 
         list(dcorr_idx, p_val_idx)
         }

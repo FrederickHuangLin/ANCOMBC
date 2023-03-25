@@ -2,12 +2,12 @@
 title: "ANCOM-BC2 Tutorial"
 author: 
   - Huang Lin$^1$
-  - $^1$NICHD, 6710B Rockledge Dr, Bethesda, MD 20817
+  - $^1$NIEHS, Research Triangle Park, NC 27709, USA
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: rmarkdown::html_vignette
 bibliography: bibliography.bib
 vignette: >
-  %\VignetteIndexEntry{ANCOMBC2}
+  %\VignetteIndexEntry{ANCOM-BC2 Tutorial}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
@@ -61,9 +61,9 @@ result is a false positive.
 methodology extends ANCOM-BC for multiple groups and repeated measurements 
 as follows:
 
-    + Multiple pairwise directional test: When performning pairwise directional 
-    test, the mixed directional false discover rate (mdFDR) should be taken into
-    account. The mdFDR is the combination of false 
+    + Multiple pairwise comparisons: When performning multiple pairwise 
+    comparisons, the mixed directional false discover rate (mdFDR) should be 
+    taken into account. The mdFDR is the combination of false 
     discovery rate due to multiple testing, multiple pairwise comparisons, 
     and directional tests within each pairwise comparison. For example, suppose 
     we have five taxa and three experimental groups: g1, g2, and g3. 
@@ -75,19 +75,19 @@ as follows:
     The overall false discovery rate is controlled by the mdFDR methodology we
     adopted from [@guo2010controlling; @grandhi2016multiple].
     
-    + Multiple pairwise directional test against a pre-specified group 
+    + Multiple pairwise comparisons against a pre-specified group 
     (e.g., Dunnett's type of test): We use the same set-up as in the multiple 
-    pairwise directional test but use the Dunnett-type modification described 
+    pairwise comparisons but use the Dunnett-type modification described 
     in [@grandhi2016multiple] to control the mdFDR which is more powerful.
     
-    + Trend test for ordered groups: In some instances, researchers are 
+    + Pattern analysis for ordered groups: In some instances, researchers are 
     interested in discovering abundance patterns of each taxon over the ordered 
     groups, for example, groups based on the health condition of subjects 
     (e.g., lean, overweight, obese). In such cases, in addition to pairwise 
     comparison, one may be interested in identifying taxa whose abundances are 
     increasing or decreasing or have other patterns over the groups.
     We adopted methodologies from [@jelsema2016clme] to 
-    perform trend test under the ANCOM-BC2 framework.
+    perform pattern analysis under the ANCOM-BC2 framework.
 
 **A clarification regarding Structural zeros**: A taxon is considered to have 
 structural zeros in some (>=1) groups if it is completely (or nearly completely) 
@@ -238,16 +238,16 @@ considered nonsignificant.
 ```{r, fig.width=10}
 sens_cat = tab_sens %>%
     transmute(taxon, sens_cat = cat_cov2) %>%
-    left_join(res_prim %>%
-                  transmute(taxon, diff_cat = diff_cat_cov2), 
-              by = "taxon") %>%
+    dplyr::left_join(res_prim %>%
+                       transmute(taxon, diff_cat = diff_cat_cov2), 
+                     by = "taxon") %>%
     mutate(group = "Cat2 vs. Cat1") %>%
     bind_rows(
         tab_sens %>%
             transmute(taxon, sens_cat = cat_cov3) %>%
-            left_join(res_prim %>%
-                          transmute(taxon, diff_cat = diff_cat_cov3), 
-                      by = "taxon") %>%
+            dplyr::left_join(res_prim %>%
+                               transmute(taxon, diff_cat = diff_cat_cov3), 
+                             by = "taxon") %>%
             mutate(group = "Cat3 vs. Cat1")
     )
 sens_cat$diff_cat = recode(sens_cat$diff_cat * 1, 
@@ -278,7 +278,7 @@ diff = res_prim %>%
     dplyr::select(starts_with("diff"))
 res_merge = (lfc * diff) %>%
     mutate(taxon = res_prim$taxon) %>%
-    left_join(fmd %>%
+    dplyr::left_join(fmd %>%
                   rownames_to_column("taxon"), 
               by = "taxon") %>%
     transmute(
@@ -321,7 +321,7 @@ fdr2_nosens = fp/(tp + fp)
 
 # Considering the effect of pseudo-count addition
 res_merge2 = res_merge %>%
-    left_join(tab_sens, by = "taxon")
+    dplyr::left_join(tab_sens, by = "taxon")
 
 # Cat 2 vs Cat 1
 lfc_est = res_merge2$est_cov2 * (res_merge2$cat_cov2 < sens_cut1)
@@ -362,7 +362,7 @@ tab_summ2 %>%
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
 HITChip for 1006 western adults with no reported health complications, 
-reported in [@lahti2014tipping]. The dataset is also available via the 
+reported in [@lahti2014tipping]. The dataset is available via the 
 microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
 format. In this tutorial, we consider the following covariates:
 
@@ -377,10 +377,11 @@ format. In this tutorial, we consider the following covariates:
     + The reference group: "obese"
 
 ```{r}
-data(atlas1006)
+data(atlas1006, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
-# Subset to baseline
-tse = atlas1006[, atlas1006$time == 0]
+# subset to baseline
+tse = tse[, tse$time == 0]
 
 # Re-code the bmi group
 tse$bmi = recode(tse$bmi_group,
@@ -415,6 +416,10 @@ print(tse)
 
 ```{r}
 set.seed(123)
+# It should be noted that we have set the number of bootstrap samples (B) equal 
+# to 10 in the 'trend_control' function for computational expediency. 
+# However, it is recommended that users utilize the default value of B, 
+# which is 100, or larger values for optimal performance.
 output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                   fix_formula = "age + region + bmi", rand_formula = NULL,
                   p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
@@ -435,7 +440,7 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                                               byrow = TRUE)),
                                        node = list(2, 2),
                                        solver = "ECOS",
-                                       B = 100))
+                                       B = 10))
 ```
 
 ## 4.3 Structural zeros
@@ -507,7 +512,7 @@ All significant taxa have low sensitivity scores.
 ```{r}
 sens_age = tab_sens %>%
     transmute(taxon, sens_age = age) %>%
-    left_join(df_age, by = "taxon")
+    dplyr::left_join(df_age, by = "taxon")
 sens_age$diff_age = recode(sens_age$diff_age * 1, 
                            `1` = "Significant",
                            `0` = "Nonsignificant")
@@ -566,16 +571,16 @@ All significant taxa have low sensitivity scores.
 ```{r}
 sens_bmi = tab_sens %>%
     transmute(taxon, sens_bmi = bmilean) %>%
-    left_join(df_bmi %>%
-                  transmute(taxon, diff_bmi = diff_bmilean), 
-              by = "taxon") %>%
+    dplyr::left_join(df_bmi %>%
+                       transmute(taxon, diff_bmi = diff_bmilean),
+                     by = "taxon") %>%
     mutate(group = "Lean vs. Obese") %>%
     bind_rows(
         tab_sens %>%
             transmute(taxon, sens_bmi = bmioverweight) %>%
-            left_join(df_bmi %>%
-                          transmute(taxon, diff_bmi = diff_bmioverweight), 
-                      by = "taxon") %>%
+            dplyr::left_join(df_bmi %>%
+                               transmute(taxon, diff_bmi = diff_bmioverweight), 
+                             by = "taxon") %>%
             mutate(group = "Overweight vs. Obese")
     )
 sens_bmi$diff_bmi = recode(sens_bmi$diff_bmi * 1, 
@@ -614,7 +619,7 @@ res_global = output$res_global
 df_bmi = res_prim %>%
     dplyr::select(taxon, contains("bmi")) 
 df_fig_global = df_bmi %>%
-    left_join(res_global %>%
+    dplyr::left_join(res_global %>%
                   transmute(taxon, diff_bmi = diff_abn)) %>%
     dplyr::filter(diff_bmi == 1) %>%
     mutate(lfc_lean = ifelse(diff_bmilean == 1, 
@@ -652,9 +657,9 @@ All significant taxa have low sensitivity scores.
 ```{r}
 sens_global = tab_sens %>%
     transmute(taxon, sens_global = global) %>%
-    left_join(res_global %>%
-                  transmute(taxon, diff_global = diff_abn * 1), 
-              by = "taxon") 
+    dplyr::left_join(res_global %>%
+                       transmute(taxon, diff_global = diff_abn * 1), 
+                     by = "taxon") 
 sens_global$diff_global = recode(sens_global$diff_global, 
                                  `1` = "Significant",
                                  `0` = "Nonsignificant")
@@ -669,9 +674,9 @@ fig_sens_global = sens_global %>%
 fig_sens_global
 ```
 
-## 4.7 ANCOM-BC2 pairwise directional test {.tabset}
+## 4.7 ANCOM-BC2 multiple pairwise comparisons {.tabset}
 
-ANCOM-BC2 pairwise directional test aims to determine taxa that are 
+ANCOM-BC2 multiple pairwise comparisons aim to determine taxa that are 
 differentially abundant between any pair of two groups across three or more 
 experimental groups, while controlling the mdFDR.
 
@@ -734,27 +739,27 @@ All significant taxa have low sensitivity scores.
 ```{r, fig.height=8}
 sens_pair = tab_sens %>%
     transmute(taxon, sens_pair = `obese - lean`) %>%
-    left_join(res_pair %>%
-                  transmute(taxon, 
-                            diff_pair = diff_bmilean), 
-              by = "taxon") %>%
+    dplyr::left_join(res_pair %>%
+                       transmute(taxon, 
+                                 diff_pair = diff_bmilean), 
+                     by = "taxon") %>%
     mutate(group = "Lean vs. Obese") %>%
     bind_rows(
         tab_sens %>%
             transmute(taxon, sens_pair = `obese - overweight`) %>%
-            left_join(res_pair %>%
-                          transmute(taxon, 
-                                    diff_pair = diff_bmioverweight), 
-                      by = "taxon") %>%
+            dplyr::left_join(res_pair %>%
+                               transmute(taxon, 
+                                         diff_pair = diff_bmioverweight), 
+                             by = "taxon") %>%
             mutate(group = "Overweight vs. Obese")
     ) %>%
     bind_rows(
         tab_sens %>%
             transmute(taxon, sens_pair = `overweight - lean`) %>%
-            left_join(res_pair %>%
-                          transmute(taxon, 
-                                    diff_pair = diff_bmilean_bmioverweight), 
-                      by = "taxon") %>%
+            dplyr::left_join(res_pair %>%
+                               transmute(taxon, 
+                                         diff_pair = diff_bmilean_bmioverweight), 
+                             by = "taxon") %>%
             mutate(group = "Lean vs. Overweight")
     )
 sens_pair$diff_pair = recode(sens_pair$diff_pair * 1, 
@@ -776,7 +781,7 @@ fig_sens_pair = sens_pair %>%
 fig_sens_pair
 ```
 
-## 4.8 ANCOM-BC2 Dunnett's type of test {.tabset}
+## 4.8 ANCOM-BC2 multiple pairwise comparisons against a pre-specified group (Dunnett's type of test) {.tabset}
 
 The Dunnett’s test [@dunnett1955multiple; @dunnett1991step; @dunnett1992step] 
 is designed for making comparisons of several experimental groups with the 
@@ -835,16 +840,16 @@ All significant taxa have low sensitivity scores.
 ```{r}
 sens_dunn = tab_sens %>%
     transmute(taxon, sens_bmi = bmilean) %>%
-    left_join(res_dunn %>%
-                  transmute(taxon, diff_bmi = diff_bmilean), 
-              by = "taxon") %>%
+    dplyr::left_join(res_dunn %>%
+                       transmute(taxon, diff_bmi = diff_bmilean), 
+                     by = "taxon") %>%
     mutate(group = "Lean vs. Obese") %>%
     bind_rows(
         tab_sens %>%
             transmute(taxon, sens_bmi = bmioverweight) %>%
-            left_join(res_dunn %>%
-                          transmute(taxon, diff_bmi = diff_bmioverweight), 
-                      by = "taxon") %>%
+            dplyr::left_join(res_dunn %>%
+                               transmute(taxon, diff_bmi = diff_bmioverweight), 
+                             by = "taxon") %>%
             mutate(group = "Overweight vs. Obese")
     )
 sens_dunn$diff_bmi = recode(sens_dunn$diff_bmi * 1, 
@@ -862,14 +867,14 @@ fig_sens_dunn = sens_dunn %>%
 fig_sens_dunn
 ```
 
-## 4.9 ANCOM-BC2 trend test {.tabset}
+## 4.9 ANCOM-BC2 pattern analysis {.tabset}
 
 Sometimes the experimental groups are intrinsically ordered (e.g., in a 
 dose-response study), and we would like to see if the microbial abundances
-show some trends accordingly. Examples of trends include: monotonically
+show some patterns accordingly. Examples of patterns include: monotonically
 increasing, monotonically decreasing, and umbrella shape.
 
-ANCOM-BC2 is able to identify potential trends by testing the contrast:
+ANCOM-BC2 is able to identify potential patterns by testing the contrast:
 $$Ax \ge 0$$
 where $A$ is the contrast matrix and $x$ is the vector of parameters.
 
@@ -945,7 +950,7 @@ fig_trend = df_fig_trend %>%
   theme(plot.title = element_text(hjust = 0.5),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
-        legend.position = c(0.9, 0.2))
+        legend.position = c(0.92, 0.2))
 fig_trend
 ```
 
@@ -954,24 +959,37 @@ fig_trend
 For the covariate of bmi, no outlying sensitivity scores are observed. 
 All significant taxa have low sensitivity scores.
 
-```{r}
+```{r, fig.height=8}
 sens_trend = tab_sens %>%
-    transmute(taxon, sens_bmi = bmilean) %>%
-    left_join(res_trend %>%
-                  transmute(taxon, diff_bmi = diff_abn), 
-              by = "taxon") %>%
+    transmute(taxon, sens_bmi = `obese - lean`) %>%
+    dplyr::left_join(res_trend %>%
+                       transmute(taxon, diff_bmi = diff_abn),
+                     by = "taxon") %>%
     mutate(group = "Lean vs. Obese") %>%
     bind_rows(
         tab_sens %>%
-            transmute(taxon, sens_bmi = bmioverweight) %>%
-            left_join(res_trend %>%
-                          transmute(taxon, diff_bmi = diff_abn), 
-                      by = "taxon") %>%
+            transmute(taxon, sens_bmi = `obese - overweight`) %>%
+            dplyr::left_join(res_trend %>%
+                               transmute(taxon, diff_bmi = diff_abn), 
+                             by = "taxon") %>%
             mutate(group = "Overweight vs. Obese")
+    ) %>%
+    bind_rows(
+        tab_sens %>%
+            transmute(taxon, sens_bmi = `overweight - lean`) %>%
+            dplyr::left_join(res_trend %>%
+                               transmute(taxon, diff_bmi = diff_abn), 
+                             by = "taxon") %>%
+            mutate(group = "Lean vs. Overweight")
     )
 sens_trend$diff_bmi = recode(sens_trend$diff_bmi * 1, 
                             `1` = "Significant",
                             `0` = "Nonsignificant")
+
+sens_trend$group = factor(sens_trend$group, 
+                          levels = c("Lean vs. Obese",
+                                     "Overweight vs. Obese",
+                                     "Lean vs. Overweight"))
 
 fig_sens_trend = sens_trend %>%
     ggplot(aes(x = taxon, y = sens_bmi, color = diff_bmi)) +
@@ -989,13 +1007,13 @@ fig_sens_trend
 ## 5. 1 Import example data
 
 A two-week diet swap study between western (USA) and traditional (rural Africa) 
-diets [@lahti2014tipping]. The dataset is also available via the 
+diets [@lahti2014tipping]. The dataset is available via the 
 microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
 format.
 
 ```{r}
-data(dietswap)
-tse = dietswap
+data(dietswap, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
 print(tse)
 ```
 
@@ -1025,6 +1043,10 @@ data shown above.
 
 ```{r}
 set.seed(123)
+# It should be noted that we have set the number of bootstrap samples (B) equal 
+# to 10 in the 'trend_control' function for computational expediency. 
+# However, it is recommended that users utilize the default value of B, 
+# which is 100, or larger values for optimal performance.
 output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                   fix_formula = "nationality + timepoint + group",
                   rand_formula = "(timepoint | subject)",
@@ -1043,12 +1065,41 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                                               byrow = TRUE)),
                                        node = list(2),
                                        solver = "ECOS",
-                                       B = 100))
+                                       B = 10))
 
 res_prim = output$res %>%
     mutate_if(is.numeric, function(x) round(x, 2))
 res_prim %>%
     datatable(caption = "ANCOM-BC2 Primary Results")
+```
+
+# 6. Bias-corrected abundances
+
+To obtain bias-corrected abundances, the following steps can be taken:
+
+Step 1: Calculate the estimated sample-specific sampling fractions, 
+in log scale.
+
+Step 2: Correct the log observed abundances by subtracting the estimated 
+sampling fraction from the log observed abundances of each sample.
+
+It is important to note that we can only estimate sampling fractions up to an 
+additive constant, meaning that only the difference between bias-corrected 
+abundances is meaningful. Additionally, taxon-specific biases are not taken into 
+account in the calculation of bias-corrected abundances, as it is assumed that 
+these biases vary across taxa but remain constant across samples within a taxon.
+
+```{r}
+samp_frac = out$samp_frac
+# Replace NA with 0
+samp_frac[is.na(samp_frac)] = 0 
+# Add pesudo-count (1) to avoid taking the log of 0
+log_obs_abn = log(out$feature_table + 1)
+# Adjust the log observed abundances
+log_corr_abn = t(t(log_obs_abn) - samp_frac)
+# Show the first 6 samples
+round(log_corr_abn[, 1:6], 2) %>% 
+  datatable(caption = "Bias-corrected log observed abundances")
 ```
 
 # Session information

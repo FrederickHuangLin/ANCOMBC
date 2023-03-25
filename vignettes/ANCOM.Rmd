@@ -2,12 +2,12 @@
 title: "ANCOM Tutorial"
 author: 
   - Huang Lin$^1$
-  - $^1$NICHD, 6710B Rockledge Dr, Bethesda, MD 20817
+  - $^1$NIEHS, Research Triangle Park, NC 27709, USA
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: rmarkdown::html_vignette
 bibliography: bibliography.bib
 vignette: >
-  %\VignetteIndexEntry{ANCOM}
+  %\VignetteIndexEntry{ANCOM Tutorial}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
@@ -54,7 +54,7 @@ library(ANCOMBC)
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
 HITChip for 1006 western adults with no reported health complications, 
-reported in [@lahti2014tipping]. The dataset is also available via the 
+reported in [@lahti2014tipping]. The dataset is available via the 
 microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
 format. In this tutorial, we consider the following covariates:
 
@@ -69,10 +69,11 @@ format. In this tutorial, we consider the following covariates:
     + The reference group: "obese"
 
 ```{r}
-data(atlas1006)
+data(atlas1006, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
 # Subset to baseline
-tse = atlas1006[, atlas1006$time == 0]
+tse = tse[, tse$time == 0]
 
 # Re-code the bmi group
 tse$bmi = recode(tse$bmi_group,
@@ -188,7 +189,7 @@ p_w
 ## 4.1 Import example data
 
 A two-week diet swap study between western (USA) and traditional (rural Africa) 
-diets [@lahti2014tipping]. The dataset is also available via the 
+diets [@lahti2014tipping]. The dataset is available via the 
 microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
 format. In this tutorial, we consider the following fixed effects:
 
@@ -209,8 +210,8 @@ and the following random effects:
 * A random slope: "timepoint"
 
 ```{r}
-data(dietswap)
-tse = dietswap
+data(dietswap, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
 print(tse)
 ```
 

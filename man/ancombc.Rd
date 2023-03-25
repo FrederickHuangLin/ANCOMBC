@@ -208,10 +208,11 @@ pseq = makePhyloseqFromTreeSummarizedExperiment(tse)
 
 #========================Run ANCOMBC Using a Real Data=======================
 library(ANCOMBC)
-data(atlas1006)
+data(atlas1006, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
 # subset to baseline
-tse = atlas1006[, atlas1006$time == 0]
+tse = tse[, tse$time == 0]
 
 # run ancombc function
 set.seed(123)
