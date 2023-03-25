@@ -75,7 +75,7 @@ extreme values. Default is \code{c(0.05, 0.95)}. For details,
 see \code{?DescTools::Winsorize}.}
 
 \item{method}{character. It indicates which correlation coefficient is to be
-computed. One of "pearson", "kendall", or "spearman": can be abbreviated.}
+computed. It can be either "pearson" or "spearman".}
 
 \item{soft}{logical. \code{TRUE} indicates that soft thresholding is applied
 to achieve the sparsity of the correlation matrix. \code{FALSE} indicates
@@ -136,10 +136,11 @@ Kendall's \eqn{\tau}.
 }
 \examples{
 library(ANCOMBC)
-data(dietswap)
+data(dietswap, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
 
 # subset to baseline
-tse = dietswap[, dietswap$timepoint == 1]
+tse = tse[, tse$timepoint == 1]
 
 set.seed(123)
 res_linear = secom_linear(data = list(tse), assay_name = "counts",

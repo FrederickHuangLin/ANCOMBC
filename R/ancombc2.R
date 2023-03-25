@@ -77,8 +77,11 @@
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
 #' @param tax_level character. The taxonomic level of interest. The input data
-#' can be agglomerated at different taxonomic levels based on your research
-#' interest. Default is NULL, i.e., do not perform agglomeration, and the
+#' can be analyzed at any taxonomic level without prior agglomeration. 
+#' Note that \code{tax_level} must be a value from \code{taxonomyRanks}, which 
+#' includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" or "Species".
+#' See \code{?mia::taxonomyRanks} for more details.
+#' Default is NULL, i.e., do not perform agglomeration, and the
 #' ANCOM-BC2 anlysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
 #' @param fix_formula the character string expresses how the microbial absolute
@@ -276,19 +279,20 @@
 #'
 #' #=======================Run ANCOMBC2 Using a Real Data=======================
 #' library(ANCOMBC)
-#' data(dietswap)
+#' data(dietswap, package = "microbiome")
+#' tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
 #'
-#' colData(dietswap)$bmi_group = factor(colData(dietswap)$bmi_group,
-#'                                      levels = c("obese",
-#'                                                 "overweight",
-#'                                                 "lean"))
+#' colData(tse)$bmi_group = factor(colData(tse)$bmi_group,
+#'                                 levels = c("obese",
+#'                                            "overweight",
+#'                                            "lean"))
 #'
 #' set.seed(123)
 #' # Note that setting pseudo_sens = FALSE, max_iter = 1, and B = 1 is
 #' # only for the sake of speed
 #' # Set pseudo_sens = TRUE, and use default or larger values for max_iter and B
 #' # for better performance
-#' out = ancombc2(data = dietswap, assay_name = "counts", tax_level = "Phylum",
+#' out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
 #'                fix_formula = "nationality + timepoint + bmi_group",
 #'                rand_formula = "(timepoint | subject)",
 #'                p_adj_method = "holm", pseudo = 0, pseudo_sens = FALSE,
@@ -329,7 +333,7 @@
 #' \insertRef{guo2010controlling}{ANCOMBC}
 #'
 #' \insertRef{grandhi2016multiple}{ANCOMBC}
-#'
+#' 
 #' @rawNamespace import(stats, except = filter)
 #' @importFrom utils combn
 #' @importFrom mia makeTreeSummarizedExperimentFromPhyloseq taxonomyRanks agglomerateByRank
@@ -342,7 +346,7 @@
 #' @importFrom emmeans emmeans contrast
 #' @importFrom CVXR Variable Minimize Problem solve matrix_frac
 #' @importFrom parallel makeCluster stopCluster
-#' @importFrom foreach foreach %dopar% %:%
+#' @importFrom foreach foreach %dopar% %:% registerDoSEQ
 #' @importFrom doParallel registerDoParallel
 #' @importFrom doRNG %dorng%
 #' @importFrom rngtools setRNG
@@ -369,8 +373,12 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                                          node = NULL,
                                          solver = "ECOS",
                                          B = 100)){
-    cl = parallel::makeCluster(n_cl)
-    doParallel::registerDoParallel(cl)
+    if (n_cl > 1) {
+      cl = parallel::makeCluster(n_cl)
+      doParallel::registerDoParallel(cl)
+    } else {
+      foreach::registerDoSEQ()
+    }
 
     # 1. Data pre-processing
     # TSE data construction
@@ -474,13 +482,16 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         message("Estimating sample-specific biases ...")
     }
     fun_list = list(bias_em)
+    
     bias1 = foreach(i = seq_len(ncol(beta1)), .combine = rbind) %dorng% {
-        output = fun_list[[1]](beta = beta1[, i],
-                               var_hat = var_hat1[, i],
-                               tol = em_control$tol,
-                               max_iter = em_control$max_iter)
+      output = fun_list[[1]](beta = beta1[, i],
+                             var_hat = var_hat1[, i],
+                             tol = em_control$tol,
+                             max_iter = em_control$max_iter)
     }
     bias1 = data.frame(bias1, row.names = fix_eff, check.names = FALSE)
+    colnames(bias1) = c("delta_em", "delta_wls", "var_delta")
+    
     delta_em = bias1$delta_em
     delta_wls = bias1$delta_wls
     var_delta = bias1$var_delta
@@ -564,43 +575,45 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         }
         pseudo_list = seq(0, 1, 0.01)
         tformula = paste0("~ ", fix_formula)
+        
         pseudo_sens_tab = foreach(i = seq_len(n_tax), .combine = rbind) %dorng% {
-            count1 = core2$feature_table[i, ]
-            nlp_tab = vector(mode = "numeric")
-            for (j in seq_along(pseudo_list)) {
-                pseudo = pseudo_list[j]
-                count2 = count1 + pseudo
-                log_count = log(count2)
-                log_count[is.infinite(log_count)] = 0
-                log_resid = log_count - mean(log_count)
-                log_resid_crt = log_resid - theta_hat
-                df = data.frame(y = log_resid_crt, meta_data)
-                lm_fit = stats::lm(formula(paste("y", tformula)), data = df)
-                # Negative log p-value
-                nlp = -log(summary(lm_fit)$coef[, "Pr(>|t|)"])
-                if (global) {
-                    anova_fit = anova(lm_fit)
-                    nlp_global = -log(anova_fit$`Pr(>F)`[grep(group, rownames(anova_fit))])
-                    nlp = c(nlp, global = nlp_global)
-                }
-                if (pairwise) {
-                    emm_fit = emmeans::emmeans(lm_fit, specs = group)
-                    emm_pair = emmeans::contrast(emm_fit, "pairwise",
-                                                 adjust = "none")
-                    nlp_pair = -log(summary(emm_pair)[, "p.value"])
-                    names(nlp_pair) = summary(emm_pair)[, "contrast"]
-                    nlp = c(nlp, nlp_pair)
-                }
-                nlp_tab = cbind(nlp_tab, nlp)
+          count1 = core2$feature_table[i, ]
+          nlp_tab = vector(mode = "numeric")
+          for (j in seq_along(pseudo_list)) {
+            pseudo = pseudo_list[j]
+            count2 = count1 + pseudo
+            log_count = log(count2)
+            log_count[is.infinite(log_count)] = 0
+            log_resid = log_count - mean(log_count)
+            log_resid_crt = log_resid - theta_hat
+            df = data.frame(y = log_resid_crt, meta_data)
+            lm_fit = stats::lm(formula(paste("y", tformula)), data = df)
+            # Negative log p-value
+            nlp = -log(summary(lm_fit)$coef[, "Pr(>|t|)"])
+            if (global) {
+              anova_fit = anova(lm_fit)
+              nlp_global = -log(anova_fit$`Pr(>F)`[grep(group, rownames(anova_fit))])
+              nlp = c(nlp, global = nlp_global)
             }
-            apply(nlp_tab, 1, function(x) {
-                ifelse(all(x > -log(alpha)), 0, sd(x))
-            })
+            if (pairwise | trend) {
+              emm_fit = emmeans::emmeans(lm_fit, specs = group)
+              emm_pair = emmeans::contrast(emm_fit, "pairwise",
+                                           adjust = "none")
+              nlp_pair = -log(summary(emm_pair)[, "p.value"])
+              names(nlp_pair) = summary(emm_pair)[, "contrast"]
+              nlp = c(nlp, nlp_pair)
+            }
+            nlp_tab = cbind(nlp_tab, nlp)
+          }
+          apply(nlp_tab, 1, function(x) {
+            ifelse(all(x > -log(alpha)), 0, sd(x))
+          })
         }
-        pseudo_sens_tab = as.data.frame(pseudo_sens_tab)
-        pseudo_sens_tab = cbind(data.frame(taxon = tax_name),
-                                pseudo_sens_tab)
+        pseudo_sens_tab = data.frame(taxon = tax_name, 
+                                     pseudo_sens_tab, 
+                                     check.names = FALSE)
         rownames(pseudo_sens_tab) = NULL
+        
     } else {
         pseudo_sens_tab = NULL
     }
@@ -617,10 +630,10 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                                     alpha = alpha)
     } else { res_global = NULL }
 
-    # 6. Results of pairwise test
+    # 6. Results of multiple pairwise comparisons
     if (pairwise) {
         if (verbose) {
-            message("ANCOM-BC2 pairwise directional test ...")
+            message("ANCOM-BC2 multiple pairwise comparisons ...")
         }
         res_pair = ancombc_pair(x = x, group = group,
                                 beta_hat = beta_hat,
@@ -652,7 +665,7 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     # 7. Results of Dunnet's type of test
     if (dunnet) {
         if (verbose) {
-            message("ANCOM-BC2 Dunnet's type of test ...")
+            message("ANCOM-BC2 multiple pairwise comparisons against the reference group ...")
         }
         res_dunn = ancombc_dunn(x = x, group = group,
                                 beta_hat = beta_hat, var_hat = var_hat,
@@ -680,10 +693,10 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         res_dunn = NULL
     }
 
-    # 8. Results of trend test
+    # 8. Results of pattern analysis
     if (trend) {
         if (verbose) {
-            message("ANCOM-BC2 trend test ...")
+            message("ANCOM-BC2 pattern analysis ...")
         }
         res_trend = ancombc_trend(
             x = x, group = group, beta_hat = beta_hat,
@@ -722,7 +735,10 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
              res_dunn = res_dunn,
              res_trend = res_trend)
 
-  parallel::stopCluster(cl)
+  if (n_cl > 1) {
+    parallel::stopCluster(cl)
+  }
+  
   return(out)
 }
 

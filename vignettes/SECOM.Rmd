@@ -2,12 +2,12 @@
 title: "SECOM Tutorial"
 author: 
   - Huang Lin$^1$
-  - $^1$NICHD, 6710B Rockledge Dr, Bethesda, MD 20817
+  - $^1$NIEHS, Research Triangle Park, NC 27709, USA
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: rmarkdown::html_vignette
 bibliography: bibliography.bib
 vignette: >
-  %\VignetteIndexEntry{SECOM}
+  %\VignetteIndexEntry{SECOM Tutorial}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
@@ -58,15 +58,16 @@ library(ANCOMBC)
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
 HITChip for 1006 western adults with no reported health complications, 
-reported in [@lahti2014tipping]. The dataset is also available via the 
+reported in [@lahti2014tipping]. The dataset is available via the 
 microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
 format.
 
 ```{r}
-data(hitchip1006)
+data(atlas1006, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
-# Subset to baseline
-tse = hitchip1006[, hitchip1006$time == 0]
+# subset to baseline
+tse = tse[, tse$time == 0]
 
 # Re-code the bmi group
 tse$bmi = recode(tse$bmi_group,

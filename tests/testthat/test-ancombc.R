@@ -2,10 +2,11 @@ context("Testing ancombc function")
 library(ANCOMBC)
 library(testthat)
 
-data(hitchip1006)
+data(atlas1006, package = "microbiome")
+tse = makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
 # subset to baseline
-tse = hitchip1006[, hitchip1006$time == 0]
+tse = tse[, tse$time == 0]
 
 # test
 test_that("`ancombc` function provides expected results", {

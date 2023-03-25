@@ -147,10 +147,11 @@ relatively large (e.g. > 30).
 \examples{
 library(ANCOMBC)
 library(mia)
-data(hitchip1006)
+data(atlas1006, package = "microbiome")
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
 # subset to baseline
-tse = hitchip1006[, hitchip1006$time == 0]
+tse = tse[, tse$time == 0]
 
 # run ancom function
 set.seed(123)

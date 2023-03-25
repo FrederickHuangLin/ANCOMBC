@@ -109,10 +109,11 @@
 #' @examples
 #' library(ANCOMBC)
 #' library(mia)
-#' data(hitchip1006)
+#' data(atlas1006, package = "microbiome")
+#' tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 #'
 #' # subset to baseline
-#' tse = hitchip1006[, hitchip1006$time == 0]
+#' tse = tse[, tse$time == 0]
 #'
 #' # run ancom function
 #' set.seed(123)
@@ -153,7 +154,7 @@
 #' @importFrom lme4 lmerControl
 #' @importFrom dplyr mutate
 #' @importFrom parallel makeCluster stopCluster
-#' @importFrom foreach foreach %dopar%
+#' @importFrom foreach foreach %dopar% registerDoSEQ
 #' @importFrom doParallel registerDoParallel
 #' @importFrom magrittr %>%
 #' @importFrom rlang .data
@@ -292,10 +293,15 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
     }
 
     idx1 = NULL
+    
+    if (n_cl > 1) {
+      cl = parallel::makeCluster(n_cl)
+      doParallel::registerDoParallel(cl)
+    } else {
+      foreach::registerDoSEQ()
+    }
+    
     if (main_cat == 0) {
-        cl = makeCluster(n_cl)
-        registerDoParallel(cl)
-
         result = foreach(idx1 = seq_len(n_tax), .combine = comb, .multicombine = TRUE) %dopar% {
             alr_data = apply(comp_table, 1, function(x) x - comp_table[idx1, ])
             alr_data = cbind(alr_data, meta_data)
@@ -338,11 +344,7 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
 
             list(p_vec, beta_vec)
         }
-        stopCluster(cl)
     } else {
-        cl = makeCluster(n_cl)
-        registerDoParallel(cl)
-
         result = foreach(idx1 = seq_len(n_tax), .combine = comb, .multicombine = TRUE) %dopar% {
             alr_data = apply(comp_table, 1, function(x) x - comp_table[idx1, ])
             alr_data = cbind(alr_data, meta_data)
@@ -382,7 +384,10 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
 
             list(p_vec, beta_vec)
         }
-        stopCluster(cl)
+    }
+    
+    if (n_cl > 1) {
+      parallel::stopCluster(cl)
     }
 
     p_data = result[[1]]

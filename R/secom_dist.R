@@ -83,10 +83,11 @@
 #'
 #' @examples
 #' library(ANCOMBC)
-#' data(dietswap)
+#' data(dietswap, package = "microbiome")
+#' tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
 #'
 #' # subset to baseline
-#' tse = dietswap[, dietswap$timepoint == 1]
+#' tse = tse[, tse$timepoint == 1]
 #'
 #' set.seed(123)
 #' res_dist = secom_dist(data = list(tse), assay_name = "counts",
@@ -106,7 +107,7 @@
 #' @importFrom S4Vectors DataFrame SimpleList
 #' @importFrom energy dcor dcor.test
 #' @importFrom parallel makeCluster stopCluster
-#' @importFrom foreach foreach %dopar%
+#' @importFrom foreach foreach %dopar% registerDoSEQ
 #' @importFrom doParallel registerDoParallel
 #' @importFrom doRNG %dorng%
 #' @importFrom dplyr filter bind_rows left_join right_join
@@ -177,12 +178,18 @@ secom_dist = function(data, assay_name = "counts", tax_level = NULL,
     }
 
     # ================Sparse estimation on distance correlations================
-    cl = parallel::makeCluster(n_cl)
-    doParallel::registerDoParallel(cl)
+    if (n_cl > 1) {
+      cl = parallel::makeCluster(n_cl)
+      doParallel::registerDoParallel(cl)
+    } else {
+      foreach::registerDoSEQ()
+    }
 
     res_corr = sparse_dist(mat = t(y_hat), wins_quant, R, thresh_hard, max_p)
 
-    parallel::stopCluster(cl)
+    if (n_cl > 1) {
+      parallel::stopCluster(cl)
+    }
 
     # To prevent FP from taxa with extremely small variances
     if (length(data) == 1) {

@@ -52,7 +52,13 @@ sparse_linear = function(mat, wins_quant, method, soft, thresh_len,
                             values_to = "occur") %>%
         dplyr::filter(.data$occur == 1)
 
-    mat_cooccur = crossprod(table(df_occur[, seq_len(2)]))
+    mat_cooccur = matrix(0, nrow = ncol(mat_occur), ncol = ncol(mat_occur))
+    rownames(mat_cooccur) = colnames(mat_occur)
+    colnames(mat_cooccur) = colnames(mat_occur)
+    
+    mat_cooccur_comp = crossprod(table(df_occur[, seq_len(2)]))
+    idx = base::match(colnames(mat_cooccur_comp), colnames(mat_cooccur))
+    mat_cooccur[idx, idx] = mat_cooccur_comp
     diag(mat_cooccur) = colSums(mat_occur)
 
     if (any(mat_cooccur < 10)) {
