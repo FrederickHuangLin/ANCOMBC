@@ -1090,11 +1090,11 @@ account in the calculation of bias-corrected abundances, as it is assumed that
 these biases vary across taxa but remain constant across samples within a taxon.
 
 ```{r}
-samp_frac = out$samp_frac
+samp_frac = output$samp_frac
 # Replace NA with 0
 samp_frac[is.na(samp_frac)] = 0 
 # Add pesudo-count (1) to avoid taking the log of 0
-log_obs_abn = log(out$feature_table + 1)
+log_obs_abn = log(output$feature_table + 1)
 # Adjust the log observed abundances
 log_corr_abn = t(t(log_obs_abn) - samp_frac)
 # Show the first 6 samples
