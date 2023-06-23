@@ -31,10 +31,10 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         # Check if agglomeration should be performed
         if (is.null(tax_level)) {
             tax_levels = mia::taxonomyRanks(tse)
-            txt = sprintf(paste0("`tax_level` is not speficified \n",
+            txt = sprintf(paste0("`tax_level` is not specified \n",
                                  "No agglomeration will be performed",
                                  "\n",
-                                 "Otherwise, please speficy `tax_level` ",
+                                 "Otherwise, please specifyy `tax_level` ",
                                  "by one of the following: \n",
                                  paste(tax_levels, collapse = ", ")))
             message(txt)
