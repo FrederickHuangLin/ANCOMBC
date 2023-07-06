@@ -31,10 +31,10 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         # Check if agglomeration should be performed
         if (is.null(tax_level)) {
             tax_levels = mia::taxonomyRanks(tse)
-            txt = sprintf(paste0("`tax_level` is not speficified \n",
+            txt = sprintf(paste0("`tax_level` is not specified \n",
                                  "No agglomeration will be performed",
                                  "\n",
-                                 "Otherwise, please speficy `tax_level` ",
+                                 "Otherwise, please specify `tax_level` ",
                                  "by one of the following: \n",
                                  paste(tax_levels, collapse = ", ")))
             message(txt)
@@ -184,7 +184,15 @@ data_qc = function(meta_data, group, struc_zero,
         # Check contrast matrices and nodes for trend test
         if (trend) {
             if (is.null(trend_control)) {
-                stop("Please specify `trend_control` for trend test",
+                stop("Please specify the `trend_control` parameter for the trend test.",
+                     call. = FALSE)
+            }
+            if (is.null(trend_control$contrast)) {
+                stop("Please specify the contrast matrices for the trend test.",
+                     call. = FALSE)
+            }
+            if (is.null(trend_control$node)) {
+                stop("Please specify the nodes for the trend test",
                      call. = FALSE)
             }
             if (length(trend_control$contrast) != length(trend_control$node)) {
@@ -194,13 +202,13 @@ data_qc = function(meta_data, group, struc_zero,
             sq_mat_check = vapply(trend_control$contrast, function(x)
                 nrow(x) == ncol(x), FUN.VALUE = logical(1))
             if (any(sq_mat_check == FALSE)) {
-                stop("The contrast matrices for trend test should be square matrices",
+                stop("The contrast matrices for the trend test should be square matrices",
                      call. = FALSE)
             }
             dim_mat_check = vapply(trend_control$contrast, function(x)
                 nrow(x), FUN.VALUE = integer(1))
             if (any(dim_mat_check != (n_level - 1))) {
-                stop_txt = paste0("The contrast matrices for trend test should be square matrices ",
+                stop_txt = paste0("The contrast matrices for the trend test should be square matrices ",
                                   "with dimension #group - 1 \n",
                                   "The number of groups in current data is: ",
                                   n_level)

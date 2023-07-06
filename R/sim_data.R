@@ -51,6 +51,7 @@
 #' \insertRef{hu2020testing}{ANCOMBC}
 #'
 #' @rawNamespace import(stats, except = filter)
+#' @importFrom Matrix nearPD
 #'
 #' @export
 sim_plnm = function(abn_table, taxa_are_rows = TRUE,
@@ -91,6 +92,11 @@ sim_plnm = function(abn_table, taxa_are_rows = TRUE,
     cov_est = Q[, pos_idx, drop = FALSE] %*%
         log(Lambda[pos_idx]) %*%
         t(Q[, pos_idx, drop = FALSE])
+    
+    if (!all(eigen(cov_est)$values > 0)) {
+      cov_est = as.matrix(Matrix::nearPD(cov_est)$mat)
+    }
+    
     mean_est = log(mean_rel) - 0.5 * diag(cov_est)
 
     N = rnbinom(n = n, mu = lib_mean, size = disp)

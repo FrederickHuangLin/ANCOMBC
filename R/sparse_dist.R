@@ -35,17 +35,23 @@ sparse_dist = function(mat, wins_quant, R, thresh_hard, max_p) {
     mat_occur[mat_occur == 0] = 0
     mat_occur[is.na(mat_occur)] = 0
 
-    df_occur = as.data.frame(mat_occur) %>%
-        tibble::rownames_to_column("sample_id") %>%
-        tidyr::pivot_longer(cols = -.data$sample_id, names_to = "taxon",
-                            values_to = "occur") %>%
-        dplyr::filter(.data$occur == 1)
+    df_occur = as.data.frame(mat_occur)
+    df_occur$sample_id = rownames(df_occur)
+    df_occur_long = stats::reshape(df_occur,
+                                   direction = "long",
+                                   varying = list(colnames(mat_occur)),
+                                   v.names = "occur",
+                                   idvar = "sample_id",
+                                   times = colnames(mat_occur),
+                                   new.row.names = seq_len(nrow(df_occur)*ncol(df_occur)))
+    names(df_occur_long)[names(df_occur_long) == "time"] = "taxon"
+    df_occur_long = df_occur_long[df_occur_long$occur == 1, ]
 
     mat_cooccur = matrix(0, nrow = ncol(mat_occur), ncol = ncol(mat_occur))
     rownames(mat_cooccur) = colnames(mat_occur)
     colnames(mat_cooccur) = colnames(mat_occur)
-    
-    mat_cooccur_comp = crossprod(table(df_occur[, seq_len(2)]))
+
+    mat_cooccur_comp = crossprod(table(df_occur_long[, seq_len(2)]))
     idx = base::match(colnames(mat_cooccur_comp), colnames(mat_cooccur))
     mat_cooccur[idx, idx] = mat_cooccur_comp
     diag(mat_cooccur) = colSums(mat_occur)
@@ -86,7 +92,7 @@ sparse_dist = function(mat, wins_quant, R, thresh_hard, max_p) {
                                            y = y[!is.na(y)]
                                            dcor(z, y, index = 1.0)
                                          })
-          
+
           # P-values
           p_val_idx[(idx + 1):d] = apply(mat_x[, (idx + 1):d, drop = FALSE], 2,
                                          function(y) {

@@ -12,8 +12,6 @@ ancombc2(
   fix_formula,
   rand_formula = NULL,
   p_adj_method = "holm",
-  pseudo = 0,
-  pseudo_sens = TRUE,
   prv_cut = 0.1,
   lib_cut = 0,
   s0_perc = 0.05,
@@ -35,19 +33,17 @@ ancombc2(
 )
 }
 \arguments{
-\item{data}{the input data. A
-\code{phyloseq}, \code{SummarizedExperiment}, or
-\code{TreeSummarizedExperiment} object, which consists of
-a feature table (microbial count table), a sample metadata, a
-taxonomy table (optional), and a phylogenetic tree (optional). The row names
-of the metadata must match the sample names of the feature table, and the
-row names of the taxonomy table must match the taxon (feature) names of the
-feature table. See \code{?phyloseq::phyloseq},
-\code{?SummarizedExperiment::SummarizedExperiment}, or
-\code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.
-It is highly recommended that the input data
-are in low taxonomic levels, such as OTU or species level, as the estimation
-of sampling fractions requires a large number of taxa.}
+\item{data}{the input data. The \code{data} parameter should be either a
+\code{phyloseq} or a \code{TreeSummarizedExperiment} object, which
+consists of a feature table (microbial count table), a sample metadata table,
+a taxonomy table (optional), and a phylogenetic tree (optional).
+Ensure that the row names of the metadata table match the sample names in the
+feature table, and the row names of the taxonomy table match the taxon
+(feature) names in the feature table. For detailed information, refer to
+\code{?phyloseq::phyloseq} or
+\code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
+It is recommended to use low taxonomic levels, such as OTU or species level,
+as the estimation of sampling fractions requires a large number of taxa.}
 
 \item{assay_name}{character. Name of the count table in the data object
 (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
@@ -55,8 +51,8 @@ Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
 
 \item{tax_level}{character. The taxonomic level of interest. The input data
-can be analyzed at any taxonomic level without prior agglomeration. 
-Note that \code{tax_level} must be a value from \code{taxonomyRanks}, which 
+can be analyzed at any taxonomic level without prior agglomeration.
+Note that \code{tax_level} must be a value from \code{taxonomyRanks}, which
 includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" or "Species".
 See \code{?mia::taxonomyRanks} for more details.
 Default is NULL, i.e., do not perform agglomeration, and the
@@ -64,7 +60,9 @@ ANCOM-BC2 anlysis will be performed at the lowest taxonomic level of the
 input \code{data}.}
 
 \item{fix_formula}{the character string expresses how the microbial absolute
-abundances for each taxon depend on the fixed effects in metadata.}
+abundances for each taxon depend on the fixed effects in metadata. When
+specifying the \code{fix_formula}, make sure to include the \code{group}
+variable in the formula if it is not NULL.}
 
 \item{rand_formula}{the character string expresses how the microbial absolute
 abundances for each taxon depend on the random effects in metadata. ANCOM-BC2
@@ -75,17 +73,12 @@ follows the \code{lmerTest} package in formulating the random effects. See
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
 
-\item{pseudo}{numeric. Add pseudo-counts to the data.
-Default is 0 (no pseudo-count addition).}
-
-\item{pseudo_sens}{logical. Whether to perform the sensitivity analysis to
-the pseudo-count addition. Default is \code{TRUE}. See \code{Details} for
-a more comprehensive discussion on this sensitivity analysis.}
-
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
-less than \code{prv_cut} will be excluded in the analysis. For instance,
-suppose there are 100 samples, if a taxon has nonzero counts presented in
-less than 10 samples, it will not be further analyzed. Default is 0.10.}
+(the proportion of samples in which the taxon is present)
+less than \code{prv_cut} will be excluded in the analysis. For example,
+if there are 100 samples, and a taxon has nonzero counts present in less than
+100*prv_cut samples, it will not be considered in the analysis.
+Default is 0.10.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
@@ -100,12 +93,17 @@ especially for rare taxa. This small positive constant is chosen as
 \code{s0_perc}-th percentile of standard error values for each fixed effect.
 Default is 0.05 (5th percentile).}
 
-\item{group}{character. The name of the group variable in metadata.
-\code{group} should be discrete. Specifying \code{group} is required for
-detecting structural zeros and performing multi-group comparisons (global
+\item{group}{character. the name of the group variable in metadata.
+The \code{group} parameter should be a character string representing the name
+of the group variable in the metadata. The \code{group} variable should be
+discrete, meaning it consists of categorical values. Specifying the
+\code{group} variable is required if you are interested in detecting
+structural zeros and performing performing multi-group comparisons (global
 test, pairwise directional test, Dunnett's type of test, and trend test).
-Default is NULL. If the \code{group} of interest contains only two
-categories, leave it as NULL.}
+However, if these analyses are not of interest to you, you can leave the
+\code{group} parameter as NULL. If the \code{group} variable of interest
+contains only two categories, you can also leave the \code{group} parameter
+as NULL. Default is NULL.}
 
 \item{struc_zero}{logical. Whether to detect structural zeros based on
 \code{group}. Default is FALSE. See \code{Details} for
@@ -167,6 +165,10 @@ a \code{list} with components:
         \itemize{
         \item{ \code{feature_table}, a \code{data.frame} of pre-processed
         (based on \code{prv_cut} and \code{lib_cut}) microbial count table.}
+        \item{ \code{bias_correct_log_table}, a \code{data.frame} of
+        bias-corrected log abundance table.}
+        \item{ \code{ss_tab}, a \code{data.frame} of sensitivity scores for
+        pseudo-count addition to 0s.}
         \item{ \code{zero_ind}, a logical \code{data.frame} with TRUE
         indicating the taxon is detected to contain structural zeros in
         some specific groups.}
@@ -176,8 +178,6 @@ a \code{list} with components:
         through E-M algorithm.}
         \item{ \code{delta_wls}, estimated sample-specific biases through
         weighted least squares (WLS) algorithm.}
-        \item{ \code{pseudo_sens_tab}, the results of sensitivity analysis
-        for the pseudo-count addition. }
         \item{ \code{res},  a \code{data.frame} containing ANCOM-BC2 primary
         result:}
         \itemize{
@@ -194,6 +194,9 @@ a \code{list} with components:
         to \code{p}.}
         \item{ columns started with \code{diff}: TRUE if the
         taxon is significant (has \code{q} less than \code{alpha}).}
+        \item{ columns started with \code{passed_ss}: TRUE if the
+        taxon passed the sensitivity analysis, i.e., adding different
+        pseudo-counts to 0s would not change the results.}
         }
         \item{ \code{res_global},  a \code{data.frame} containing ANCOM-BC2
         global test result for the variable specified in \code{group},
@@ -206,6 +209,8 @@ a \code{list} with components:
         obtained by applying \code{p_adj_method} to \code{p_val}.}
         \item{ \code{diff_abn}, A logical vector. TRUE if the taxon has
         \code{q_val} less than \code{alpha}.}
+        \item{ \code{passed_ss}, A logical vector. TRUE if the taxon has
+        passed the sensitivity analysis.}
         }
         \item{ \code{res_pair},  a \code{data.frame} containing ANCOM-BC2
         pairwise directional test result for the variable specified in
@@ -218,6 +223,8 @@ a \code{list} with components:
         \item{ columns started with \code{q}: adjusted p-values.}
         \item{ columns started with \code{diff}: TRUE if the
         taxon is significant (has \code{q} less than \code{alpha}).}
+        \item{ columns started with \code{passed_ss}: TRUE if the
+        taxon has passed the sensitivity analysis.}
         }
         \item{ \code{res_dunn},  a \code{data.frame} containing ANCOM-BC2
         Dunnett's type of test result for the variable specified in
@@ -230,6 +237,8 @@ a \code{list} with components:
         \item{ columns started with \code{q}: adjusted p-values.}
         \item{ columns started with \code{diff}: TRUE if the
         taxon is significant (has \code{q} less than \code{alpha}).}
+        \item{ columns started with \code{passed_ss}: TRUE if the
+        taxon has passed the sensitivity analysis.}
         }
         \item{ \code{res_trend},  a \code{data.frame} containing ANCOM-BC2
         trend test result for the variable specified in
@@ -242,6 +251,8 @@ a \code{list} with components:
         \item{ \code{q_val}: adjusted p-values.}
         \item{ \code{diff_abn}: TRUE if the
         taxon is significant (has \code{q} less than \code{alpha}).}
+        \item{ \code{passed_ss}, A logical vector. TRUE if the taxon has
+        passed the sensitivity analysis.}
         }
         }
 }
@@ -277,18 +288,25 @@ equation 1 in section 3.2 for declaring structural zeros. Generally, it is
 recommended to set \code{neg_lb = TRUE} when the sample size per group is
 relatively large (e.g. > 30).
 
-Like other differential abundance analysis methods, ANCOM-BC2 log transforms
-the observed counts. However, to deal with zero counts, a pseudo-count is
-added before the log transformation. Several studies have shown that
-differential abundance results could be sensitive to the choice of
-pseudo-count
-(\href{https://doi.org/10.1038/nmeth.2897}{Costea et al. (2014)};
-\href{https://doi.org/10.1038/nmeth.2898}{Paulson, Bravo, and Pop (2014)}),
-resulting in an inflated false positive rate. To avoid such false positives,
-we conduct a sensitivity analysis and provide a sensitivity score for
-each taxon to determine if a particular taxon is sensitive to the choice of
-pseudo-count. The larger the score, the more likely the significant
-result is a false positive.
+Like other differential abundance analysis methods, ANCOM-BC2 applies a log
+transformation to the observed counts. However, the presence of zero counts
+poses a challenge, and researchers often consider adding a pseudo-count before
+the log transformation. However, it has been shown that the choice of
+pseudo-count can impact the results and lead to an inflated false positive
+rate (\href{https://doi.org/10.1038/nmeth.2897}{Costea et al. (2014)};
+\href{https://doi.org/10.1038/nmeth.2898}{Paulson, Bravo, and Pop (2014)}).
+To address this issue, we conduct a sensitivity analysis to assess the impact
+of different pseudo-counts on zero counts for each taxon. This analysis
+involves adding a series of pseudo-counts (ranging from 0.01 to 0.5 in
+increments of 0.01) to the zero counts of each taxon. Linear regression
+models are then performed on the bias-corrected log abundance table using the
+different pseudo-counts. The sensitivity score for each taxon is calculated
+as the proportion of times that the p-value exceeds the specified
+significance level (alpha). If all p-values consistently show significance or
+nonsignificance across different pseudo-counts and are consistent with the
+results obtained without adding pseudo-counts to zero counts (using the
+default settings), then the taxon is considered not sensitive to the
+pseudo-count addition.
 
 When performning pairwise directional (or Dunnett's type of) test, the mixed
 directional false discover rate (mdFDR) should be taken into account.
@@ -348,14 +366,12 @@ colData(tse)$bmi_group = factor(colData(tse)$bmi_group,
                                            "lean"))
 
 set.seed(123)
-# Note that setting pseudo_sens = FALSE, max_iter = 1, and B = 1 is
-# only for the sake of speed
-# Set pseudo_sens = TRUE, and use default or larger values for max_iter and B
-# for better performance
+# Note that setting max_iter = 1 and B = 1 is only for the sake of speed
+# Use default or larger values for max_iter and B for better performance
 out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
                fix_formula = "nationality + timepoint + bmi_group",
                rand_formula = "(timepoint | subject)",
-               p_adj_method = "holm", pseudo = 0, pseudo_sens = FALSE,
+               p_adj_method = "holm",
                prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
                group = "bmi_group", struc_zero = TRUE, neg_lb = TRUE,
                alpha = 0.05, n_cl = 1, verbose = TRUE,
