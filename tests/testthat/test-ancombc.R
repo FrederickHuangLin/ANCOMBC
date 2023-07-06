@@ -3,7 +3,7 @@ library(ANCOMBC)
 library(testthat)
 
 data(atlas1006, package = "microbiome")
-tse = makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
 # subset to baseline
 tse = tse[, tse$time == 0]

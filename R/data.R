@@ -18,3 +18,4 @@
 #' @format The dataset in \code{matrix} format.
 #' @keywords data
 NULL
+

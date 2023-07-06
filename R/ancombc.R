@@ -28,16 +28,15 @@
 #' recommended to set \code{neg_lb = TRUE} when the sample size per group is
 #' relatively large (e.g. > 30).
 #'
-#' @param data the input data. A
-#' \code{phyloseq}, \code{SummarizedExperiment}, or
-#' \code{TreeSummarizedExperiment} object, which consists of
-#' a feature table (microbial count table), a sample metadata, a
-#' taxonomy table (optional), and a phylogenetic tree (optional). The row names
-#' of the metadata must match the sample names of the feature table, and the
-#' row names of the taxonomy table must match the taxon (feature) names of the
-#' feature table. See \code{?phyloseq::phyloseq},
-#' \code{?SummarizedExperiment::SummarizedExperiment}, or
-#' \code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.
+#' @param data the input data. The \code{data} parameter should be either a
+#' \code{phyloseq} or a \code{TreeSummarizedExperiment} object, which
+#' consists of a feature table (microbial count table), a sample metadata table,
+#' a taxonomy table (optional), and a phylogenetic tree (optional).
+#' Ensure that the row names of the metadata table match the sample names in the
+#' feature table, and the row names of the taxonomy table match the taxon
+#' (feature) names in the feature table. For detailed information, refer to
+#' \code{?phyloseq::phyloseq} or
+#' \code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
 #' @param assay_name character. Name of the count table in the data object
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
@@ -49,22 +48,30 @@
 #' input \code{data}.
 #' @param phyloseq a \code{phyloseq} object. Will be deprecated.
 #' @param formula the character string expresses how microbial absolute
-#' abundances for each taxon depend on the variables in metadata.
+#' abundances for each taxon depend on the variables in metadata. When
+#' specifying the \code{formula}, make sure to include the \code{group} variable
+#' in the formula if it is not NULL.
 #' @param p_adj_method character. method to adjust p-values. Default is "holm".
 #' Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 #' "fdr", "none". See \code{?stats::p.adjust} for more details.
 #' @param prv_cut a numerical fraction between 0 and 1. Taxa with prevalences
-#' less than \code{prv_cut} will be excluded in the analysis. For instance,
-#' suppose there are 100 samples, if a taxon has nonzero counts presented in
-#' less than 10 samples, it will not be further analyzed. Default is 0.10.
+#' (the proportion of samples in which the taxon is present)
+#' less than \code{prv_cut} will be excluded in the analysis. For example,
+#' if there are 100 samples, and a taxon has nonzero counts present in less than
+#' 100*prv_cut samples, it will not be considered in the analysis.
+#' Default is 0.10.
 #' @param lib_cut a numerical threshold for filtering samples based on library
 #' sizes. Samples with library sizes less than \code{lib_cut} will be
 #' excluded in the analysis. Default is 0, i.e. do not discard any sample.
 #' @param group character. the name of the group variable in metadata.
-#' \code{group} should be discrete. Specifying \code{group} is required for
-#' detecting structural zeros and performing global test.
-#' Default is NULL. If the \code{group} of interest contains only two
-#' categories, leave it as NULL.
+#' The \code{group} parameter should be a character string representing the name
+#' of the group variable in the metadata. The \code{group} variable should be
+#' discrete, meaning it consists of categorical values. Specifying the
+#' \code{group} variable is required if you are interested in detecting
+#' structural zeros and performing global tests. However, if these analyses are
+#' not of interest to you, you can leave the \code{group} parameter as NULL.
+#' If the \code{group} variable of interest contains only two categories, you
+#' can also leave the \code{group} parameter as NULL. Default is NULL.
 #' @param struc_zero logical. whether to detect structural zeros based on
 #' \code{group}. Default is FALSE.
 #' @param neg_lb logical. whether to classify a taxon as a structural zero using
@@ -224,8 +231,9 @@ ancombc = function(data = NULL, assay_name = "counts",
                    neg_lb = FALSE, tol = 1e-05, max_iter = 100,
                    conserve = FALSE, alpha = 0.05, global = FALSE,
                    n_cl = 1, verbose = FALSE){
-    message("'ancombc' is deprecated \n", "Use 'ancombc2' instead")
-  
+    message("'ancombc' has been fully evolved to 'ancombc2'. \n",
+            "Explore the enhanced capabilities of our refined method!")
+
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
       doParallel::registerDoParallel(cl)
@@ -294,7 +302,7 @@ ancombc = function(data = NULL, assay_name = "counts",
 
     para = iter_mle(x = x, y = y, meta_data = meta_data,
                     formula = formula, theta = NULL, tol = tol,
-                    max_iter = max_iter, verbose = FALSE, type = "ancombc")
+                    max_iter = max_iter, verbose = FALSE)
     beta = para$beta
     vcov_hat = para$vcov_hat
     var_hat = para$var_hat
@@ -344,7 +352,7 @@ ancombc = function(data = NULL, assay_name = "counts",
     W = beta_hat/se_hat
     p = 2 * pnorm(abs(W), mean = 0, sd = 1, lower.tail = FALSE)
     q = apply(p, 2, function(x) p.adjust(x, method = p_adj_method))
-    diff_abn = q < alpha & !is.na(q)
+    diff_abn = q <= alpha & !is.na(q)
 
     beta_prim = cbind(taxon = data.frame(taxon = tax_name),
                       data.frame(beta_hat, check.names = FALSE,
@@ -377,11 +385,11 @@ ancombc = function(data = NULL, assay_name = "counts",
         if (verbose) {
             message("ANCOM-BC global test ...")
         }
-        res_global = ancombc_global(x = x, group = group,
-                                    beta_hat = beta_hat,
-                                    vcov_hat = vcov_hat,
-                                    p_adj_method = p_adj_method,
-                                    alpha = alpha)
+        res_global = ancombc_global_F(x = x, group = group,
+                                      beta_hat = beta_hat,
+                                      vcov_hat = vcov_hat,
+                                      p_adj_method = p_adj_method,
+                                      alpha = alpha)
     } else { res_global = NULL }
 
     # 8. Combine the information of structural zeros
@@ -400,7 +408,7 @@ ancombc = function(data = NULL, assay_name = "counts",
         res$se[, group_ind] = res$se[, group_ind] * zero_mask
         res$p_val[, group_ind] = res$p_val[, group_ind] * zero_mask
         res$q_val[, group_ind] = res$q_val[, group_ind] * zero_mask
-        res$diff_abn[, group_ind] = data.frame(res$q_val[, group_ind] < alpha &
+        res$diff_abn[, group_ind] = data.frame(res$q_val[, group_ind] <= alpha &
                                                    !is.na(res$q_val[, group_ind]),
                                   check.names = FALSE)
 
@@ -410,7 +418,7 @@ ancombc = function(data = NULL, assay_name = "counts",
                 sum(x) > 0 & sum(x) < ncol(zero_idx))
             res_global[, "p_val"] = res_global[, "p_val"] * zero_mask
             res_global[, "q_val"] = res_global[, "q_val"] * zero_mask
-            res_global[, "diff_abn"] = res_global[, "q_val"] < alpha &
+            res_global[, "diff_abn"] = res_global[, "q_val"] <= alpha &
                 !is.na(res_global[, "q_val"])
         }
     }
@@ -423,7 +431,7 @@ ancombc = function(data = NULL, assay_name = "counts",
     if (n_cl > 1) {
       parallel::stopCluster(cl)
     }
-    
+
     return(out)
 }
 
