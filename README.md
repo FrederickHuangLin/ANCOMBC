@@ -2,6 +2,8 @@
 
 *Author & Maintainer: Huang Lin: <huanglinfrederick@gmail.com>*
 
+**Cautionary Notice: Please exercise discretion while using ANCOM-BC2, as it is founded on a paper that is yet to be published. The manuscript underpinning ANCOM-BC2 is presently under peer review, and as such, the existing software version may exhibit instability. The expected timeline for ANCOM-BC2's publication is set for later this year.**
+
 ANCOMBC is a package containing differential abundance (DA) and correlation 
 analyses for microbiome data. Specifically, the package includes 
 Analysis of Compositions of Microbiomes with Bias Correction 2 (ANCOM-BC2, submitted),
