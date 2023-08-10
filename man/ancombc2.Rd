@@ -12,6 +12,8 @@ ancombc2(
   fix_formula,
   rand_formula = NULL,
   p_adj_method = "holm",
+  pseudo = 0,
+  pseudo_sens = TRUE,
   prv_cut = 0.1,
   lib_cut = 0,
   s0_perc = 0.05,
@@ -72,6 +74,18 @@ follows the \code{lmerTest} package in formulating the random effects. See
 \item{p_adj_method}{character. method to adjust p-values. Default is "holm".
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
+
+\item{pseudo}{numeric. Add pseudo-counts to the data.
+Please note that this option is now deprecated in ANCOM-BC2. The software
+will utilize the complete data (nonzero counts) as its default analysis
+input. Specifying a pseudo-count will not affect the analysis or its results.}
+
+\item{pseudo_sens}{logical. Whether to perform the sensitivity analysis to
+the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes
+complete data (nonzero counts) by default for its analysis, a comprehensive
+evaluation of result robustness is performed by assessing how pseudo-count
+addition may affect the outcomes. For a detailed discussion on this
+sensitivity analysis, refer to the \code{Details} section.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
 (the proportion of samples in which the taxon is present)
@@ -371,7 +385,7 @@ set.seed(123)
 out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
                fix_formula = "nationality + timepoint + bmi_group",
                rand_formula = "(timepoint | subject)",
-               p_adj_method = "holm",
+               p_adj_method = "holm", pseudo_sens = TRUE,
                prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
                group = "bmi_group", struc_zero = TRUE, neg_lb = TRUE,
                alpha = 0.05, n_cl = 1, verbose = TRUE,

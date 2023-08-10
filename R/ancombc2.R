@@ -100,6 +100,16 @@
 #' @param p_adj_method character. method to adjust p-values. Default is "holm".
 #' Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 #' "fdr", "none". See \code{?stats::p.adjust} for more details.
+#' @param pseudo numeric. Add pseudo-counts to the data.
+#' Please note that this option is now deprecated in ANCOM-BC2. The software
+#' will utilize the complete data (nonzero counts) as its default analysis
+#' input. Specifying a pseudo-count will not affect the analysis or its results.
+#' @param pseudo_sens logical. Whether to perform the sensitivity analysis to
+#' the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes
+#' complete data (nonzero counts) by default for its analysis, a comprehensive
+#' evaluation of result robustness is performed by assessing how pseudo-count
+#' addition may affect the outcomes. For a detailed discussion on this
+#' sensitivity analysis, refer to the \code{Details} section.
 #' @param prv_cut a numerical fraction between 0 and 1. Taxa with prevalences
 #' (the proportion of samples in which the taxon is present)
 #' less than \code{prv_cut} will be excluded in the analysis. For example,
@@ -315,7 +325,7 @@
 #' out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
 #'                fix_formula = "nationality + timepoint + bmi_group",
 #'                rand_formula = "(timepoint | subject)",
-#'                p_adj_method = "holm",
+#'                p_adj_method = "holm", pseudo_sens = TRUE,
 #'                prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
 #'                group = "bmi_group", struc_zero = TRUE, neg_lb = TRUE,
 #'                alpha = 0.05, n_cl = 1, verbose = TRUE,
@@ -376,7 +386,7 @@
 #' @export
 ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                     fix_formula , rand_formula = NULL,
-                    p_adj_method = "holm",
+                    p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
                     prv_cut = 0.10, lib_cut = 0, s0_perc = 0.05,
                     group = NULL, struc_zero = FALSE, neg_lb = FALSE,
                     alpha = 0.05, n_cl = 1, verbose = FALSE,
@@ -572,48 +582,52 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     })
 
     # 4. Sensitivity analysis for pseudo-count addition to 0s
-    if (verbose) {
-      message("Sensitivity analysis for pseudo-count addition to 0s: ...")
-    }
-    pseudo_list = seq(0.01, 0.5, 0.01)
-    fun_list = list(get_p)
+    if (pseudo_sens) {
+        if (verbose) {
+            message("Sensitivity analysis for pseudo-count addition to 0s: ...")
+        }
+        pseudo_list = seq(0.01, 0.5, 0.01)
+        fun_list = list(get_p)
 
-    if (!is.null(group)) {
-      all_levels = as.character(unique(meta_data[, group]))
-      n_levels = length(all_levels)
+        if (!is.null(group)) {
+            all_levels = as.character(unique(meta_data[, group]))
+            n_levels = length(all_levels)
+        } else {
+            n_levels = NULL
+        }
+
+        # The sensitivity score is calculated as the standard deviation of the
+        # negative log p-values derived from bias-corrected abundance regression
+        # analyses across different pseudo-count additions.
+        pseudo = NULL
+        ss_list = foreach(pseudo = pseudo_list) %dorng% {
+            count1 = core2$feature_table
+            count2 = count1
+            count2[count2 == 0] = pseudo
+            log_count = log(count2)
+            log_resid = log_count - rowMeans(log_count, na.rm = TRUE)
+            log_resid_crt = t(t(log_resid) - theta_hat)
+            Y = data.frame(t(log_resid_crt), check.names = FALSE)
+
+            p_list = lapply(Y, fun_list[[1]], data = meta_data,
+                            formula = fix_formula, group = group,
+                            n_levels = n_levels, pairwise = pairwise,
+                            global = global, trend = trend)
+            p = do.call(rbind, p_list)
+            data.frame(p, check.names = FALSE)
+        }
+
+        ss_3d = array(unlist(ss_list), c(dim(ss_list[[1]]), length(ss_list)))
+        ss_tab = apply(ss_3d, c(1, 2), function(x) {
+            sum(x > alpha)/length(pseudo_list)
+        })
+        ss_tab = data.frame(taxon = tax_name, ss_tab,  check.names = FALSE)
+        rownames(ss_tab) = NULL
+        colnames(ss_tab) = c("taxon", colnames(ss_list[[1]]))
+        ss_flag = ss_tab
     } else {
-      n_levels = NULL
+        ss_tab = NULL
     }
-
-    # The sensitivity score is calculated as the standard deviation of the
-    # negative log p-values derived from bias-corrected abundance regression
-    # analyses across different pseudo-count additions.
-    pseudo = NULL
-    ss_list = foreach(pseudo = pseudo_list) %dorng% {
-      count1 = core2$feature_table
-      count2 = count1
-      count2[count2 == 0] = pseudo
-      log_count = log(count2)
-      log_resid = log_count - rowMeans(log_count, na.rm = TRUE)
-      log_resid_crt = t(t(log_resid) - theta_hat)
-      Y = data.frame(t(log_resid_crt), check.names = FALSE)
-
-      p_list = lapply(Y, fun_list[[1]], data = meta_data,
-                      formula = fix_formula, group = group,
-                      n_levels = n_levels, pairwise = pairwise,
-                      global = global, trend = trend)
-      p = do.call(rbind, p_list)
-      data.frame(p, check.names = FALSE)
-    }
-
-    ss_3d = array(unlist(ss_list), c(dim(ss_list[[1]]), length(ss_list)))
-    ss_tab = apply(ss_3d, c(1, 2), function(x) {
-      sum(x > alpha)/length(pseudo_list)
-    })
-    ss_tab = data.frame(taxon = tax_name, ss_tab,  check.names = FALSE)
-    rownames(ss_tab) = NULL
-    colnames(ss_tab) = c("taxon", colnames(ss_list[[1]]))
-    ss_flag = ss_tab
 
     # 5. Primary results
     if (verbose) {
@@ -640,14 +654,16 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     res = do.call("cbind", list(data.frame(taxon = tax_name),
                                 beta_prim, se_prim, W_prim,
                                 p_prim, q_prim, diff_prim))
-    ss_flag_prim = ss_flag[fix_eff]
-    for (col in fix_eff) {
-      ss_flag_prim[[col]] = with(ss_flag_prim,
-                                 (ss_flag_prim[[col]] == 0 & res[[paste0("diff_", col)]] == TRUE) |
-                                   (ss_flag_prim[[col]] == 1 & res[[paste0("diff_", col)]] == FALSE))
+    if (pseudo_sens) {
+        ss_flag_prim = ss_flag[fix_eff]
+        for (col in fix_eff) {
+            ss_flag_prim[[col]] = with(ss_flag_prim,
+                                       (ss_flag_prim[[col]] == 0 & res[[paste0("diff_", col)]] == TRUE) |
+                                           (ss_flag_prim[[col]] == 1 & res[[paste0("diff_", col)]] == FALSE))
+        }
+        colnames(ss_flag_prim) = paste0("passed_ss_", colnames(ss_flag_prim))
+        res = cbind(res, ss_flag_prim)
     }
-    colnames(ss_flag_prim) = paste0("passed_ss_", colnames(ss_flag_prim))
-    res = cbind(res, ss_flag_prim)
     rownames(res) = NULL
 
     # 6. Results of global test
@@ -673,11 +689,13 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                                           p_adj_method = p_adj_method,
                                           alpha = alpha)
         }
-        ss_flag_global = ss_flag["global"]
-        ss_flag_global$global = (ss_flag_global$global == 0 & res_global$diff_abn == TRUE) |
-          (ss_flag_global$global == 1 & res_global$diff_abn == FALSE)
-        colnames(ss_flag_global) = "passed_ss"
-        res_global = cbind(res_global, ss_flag_global)
+        if (pseudo_sens) {
+            ss_flag_global = ss_flag["global"]
+            ss_flag_global$global = (ss_flag_global$global == 0 & res_global$diff_abn == TRUE) |
+                (ss_flag_global$global == 1 & res_global$diff_abn == FALSE)
+            colnames(ss_flag_global) = "passed_ss"
+            res_global = cbind(res_global, ss_flag_global)
+        }
         rownames(res_global) = NULL
     } else { res_global = NULL }
 
@@ -717,16 +735,18 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                                          beta_pair, se_pair, W_pair,
                                          p_pair, q_pair, diff_pair))
         pair_col_name = gsub("lfc_", "", colnames(beta_pair))
-        ss_flag_pair = ss_flag[grepl(group, colnames(ss_flag))]
-        colnames(ss_flag_pair) = pair_col_name
-        for (col in pair_col_name) {
-          ss_flag_pair[[col]] = with(ss_flag_pair,
-                                     (ss_flag_pair[[col]] == 0 & res_pair[[paste0("diff_", col)]] == TRUE) |
-                                       (ss_flag_pair[[col]] == 1 & res_pair[[paste0("diff_", col)]] == FALSE))
-        }
+        if (pseudo_sens) {
+            ss_flag_pair = ss_flag[grepl(group, colnames(ss_flag))]
+            colnames(ss_flag_pair) = pair_col_name
+            for (col in pair_col_name) {
+                ss_flag_pair[[col]] = with(ss_flag_pair,
+                                           (ss_flag_pair[[col]] == 0 & res_pair[[paste0("diff_", col)]] == TRUE) |
+                                               (ss_flag_pair[[col]] == 1 & res_pair[[paste0("diff_", col)]] == FALSE))
+            }
 
-        colnames(ss_flag_pair) = paste0("passed_ss_", colnames(ss_flag_pair))
-        res_pair = cbind(res_pair, ss_flag_pair)
+            colnames(ss_flag_pair) = paste0("passed_ss_", colnames(ss_flag_pair))
+            res_pair = cbind(res_pair, ss_flag_pair)
+        }
         rownames(res_pair) = NULL
     } else {
         res_pair = NULL
@@ -759,14 +779,16 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                                          beta_dunn, se_dunn, W_dunn,
                                          p_dunn, q_dunn, diff_dunn))
         dunn_col_name = gsub("lfc_", "", colnames(beta_dunn))
-        ss_flag_dunn = ss_flag[dunn_col_name]
-        for (col in dunn_col_name) {
-          ss_flag_dunn[[col]] = with(ss_flag_dunn,
-                                     (ss_flag_dunn[[col]] == 0 & res_dunn[[paste0("diff_", col)]] == TRUE) |
-                                       (ss_flag_dunn[[col]] == 1 & res_dunn[[paste0("diff_", col)]] == FALSE))
+        if (pseudo_sens) {
+            ss_flag_dunn = ss_flag[dunn_col_name]
+            for (col in dunn_col_name) {
+                ss_flag_dunn[[col]] = with(ss_flag_dunn,
+                                           (ss_flag_dunn[[col]] == 0 & res_dunn[[paste0("diff_", col)]] == TRUE) |
+                                               (ss_flag_dunn[[col]] == 1 & res_dunn[[paste0("diff_", col)]] == FALSE))
+            }
+            colnames(ss_flag_dunn) = paste0("passed_ss_", colnames(ss_flag_dunn))
+            res_dunn = cbind(res_dunn, ss_flag_dunn)
         }
-        colnames(ss_flag_dunn) = paste0("passed_ss_", colnames(ss_flag_dunn))
-        res_dunn = cbind(res_dunn, ss_flag_dunn)
         rownames(res_dunn) = NULL
     } else {
         res_dunn = NULL
@@ -796,11 +818,13 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
                           beta_trend, se_trend,
                           data.frame(W = W_trend, p_val = p_trend,
                                      q_val = q_trend, diff_abn = diff_trend))
-        ss_flag_trend = ss_flag["trend"]
-        ss_flag_trend$trend = (ss_flag_trend$trend == 0 & res_trend$diff_abn == TRUE) |
-          (ss_flag_trend$trend == 1 & res_trend$diff_abn == FALSE)
-        colnames(ss_flag_trend) = "passed_ss"
-        res_trend = cbind(res_trend, ss_flag_trend)
+        if (pseudo_sens) {
+            ss_flag_trend = ss_flag["trend"]
+            ss_flag_trend$trend = (ss_flag_trend$trend == 0 & res_trend$diff_abn == TRUE) |
+                (ss_flag_trend$trend == 1 & res_trend$diff_abn == FALSE)
+            colnames(ss_flag_trend) = "passed_ss"
+            res_trend = cbind(res_trend, ss_flag_trend)
+        }
         rownames(res_trend) = NULL
     } else {
         res_trend = NULL
