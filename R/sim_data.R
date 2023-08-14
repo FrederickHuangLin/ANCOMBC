@@ -89,14 +89,18 @@ sim_plnm = function(abn_table, taxa_are_rows = TRUE,
     }
     Q = ev$vectors
     pos_idx = which(Lambda > 0)
-    cov_est = Q[, pos_idx, drop = FALSE] %*%
-        log(Lambda[pos_idx]) %*%
+    if (length(pos_idx) == 1) {
+        log_Lambda = log(Lambda[pos_idx])
+    } else {
+        log_Lambda = diag(log(Lambda[pos_idx]))
+    }
+    cov_est = Q[, pos_idx, drop = FALSE] %*% log_Lambda %*%
         t(Q[, pos_idx, drop = FALSE])
-    
+
     if (!all(eigen(cov_est)$values > 0)) {
       cov_est = as.matrix(Matrix::nearPD(cov_est)$mat)
     }
-    
+
     mean_est = log(mean_rel) - 0.5 * diag(cov_est)
 
     N = rnbinom(n = n, mu = lib_mean, size = disp)
