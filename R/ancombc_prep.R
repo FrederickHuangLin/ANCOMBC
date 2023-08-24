@@ -30,7 +30,7 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
 
         # Check if agglomeration should be performed
         if (is.null(tax_level)) {
-            tax_levels = mia::taxonomyRanks(tse)
+            tax_levels = union(mia::taxonomyRanks(tse), rownames(SummarizedExperiment::rowData(tse)))
             txt = sprintf(paste0("`tax_level` is not specified \n",
                                  "No agglomeration will be performed",
                                  "\n",
@@ -41,7 +41,15 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
             tax_level = "ASV"
             tse_alt = tse
         } else {
-            tse_alt = mia::agglomerateByRank(tse, tax_level)
+            # Check if tax_level parameter belongs to taxonomyRanks
+            if (is.character(tax_level) && length(tax_level) == 1 && tax_level %in% mia::taxonomyRanks(tse)) {
+                #Merge using agglomerateByRank
+                tse_alt <- mia::agglomerateByRank(tse, tax_level)
+            } else {
+                # Merge using mergeRows
+                tse_alt <- mia::mergeRows(tse, tax_level)
+            }
+            tse_alt
         }
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else if (!is.null(phyloseq)) {
@@ -57,7 +65,7 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         }
 
         if (is.null(tax_level)) {
-            tax_levels = mia::taxonomyRanks(tse)
+            tax_levels = union(mia::taxonomyRanks(tse), rownames(SummarizedExperiment::rowData(tse)))
             txt = sprintf(paste0("`tax_level` is not speficified \n",
                                  "No agglomeration will be performed",
                                  "\n",
@@ -68,7 +76,15 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
             tax_level = "ASV"
             tse_alt = tse
         } else {
-            tse_alt = mia::agglomerateByRank(tse, tax_level)
+            # Check if tax_level parameter belongs to taxonomyRanks
+            if (is.character(tax_level) && length(tax_level) == 1 && tax_level %in% mia::taxonomyRanks(tse)) {
+                #Merge using agglomerateByRank
+                tse_alt <- mia::agglomerateByRank(tse, tax_level)
+            } else {
+                # Merge using mergeRows
+                tse_alt <- mia::mergeRows(tse, tax_level)
+            }
+            tse_alt
         }
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else {
