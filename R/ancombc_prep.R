@@ -30,7 +30,7 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
 
         # Check if agglomeration should be performed
         if (is.null(tax_level)) {
-            tax_levels = union(mia::taxonomyRanks(tse), rownames(SummarizedExperiment::rowData(tse)))
+            tax_levels = union(mia::taxonomyRanks(tse), colnames(SummarizedExperiment::rowData(tse)))
             txt = sprintf(paste0("`tax_level` is not specified \n",
                                  "No agglomeration will be performed",
                                  "\n",
@@ -65,7 +65,7 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         }
 
         if (is.null(tax_level)) {
-            tax_levels = union(mia::taxonomyRanks(tse), rownames(SummarizedExperiment::rowData(tse)))
+            tax_levels = union(mia::taxonomyRanks(tse), colnames(SummarizedExperiment::rowData(tse)))
             txt = sprintf(paste0("`tax_level` is not speficified \n",
                                  "No agglomeration will be performed",
                                  "\n",
