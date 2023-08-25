@@ -43,11 +43,11 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         } else {
             # Check if tax_level parameter belongs to taxonomyRanks
             if (is.character(tax_level) && length(tax_level) == 1 && tax_level %in% mia::taxonomyRanks(tse)) {
-                #Merge using agglomerateByRank
-                tse_alt <- mia::agglomerateByRank(tse, tax_level)
+                #Merge using mergeFeaturesByRank
+                tse_alt <- mia::mergeFeaturesByRank(tse, tax_level)
             } else {
-                # Merge using mergeRows
-                tse_alt <- mia::mergeRows(tse, tax_level)
+                # Merge using mergeFeatures
+                tse_alt <- mia::mergeFeatures(tse, tax_level)
             }
             tse_alt
         }
@@ -78,11 +78,11 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         } else {
             # Check if tax_level parameter belongs to taxonomyRanks
             if (is.character(tax_level) && length(tax_level) == 1 && tax_level %in% mia::taxonomyRanks(tse)) {
-                #Merge using agglomerateByRank
-                tse_alt <- mia::agglomerateByRank(tse, tax_level)
+                #Merge using mergeFeaturesByRank
+                tse_alt <- mia::mergeFeaturesByRank(tse, tax_level)
             } else {
-                # Merge using mergeRows
-                tse_alt <- mia::mergeRows(tse, tax_level)
+                # Merge using mergeFeatures
+                tse_alt <- mia::mergeFeatures(tse, tax_level)
             }
             tse_alt
         }
