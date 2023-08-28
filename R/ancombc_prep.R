@@ -41,15 +41,7 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
             tax_level = "ASV"
             tse_alt = tse
         } else {
-            # Check if tax_level parameter belongs to taxonomyRanks
-            if (is.character(tax_level) && length(tax_level) == 1 && tax_level %in% mia::taxonomyRanks(tse)) {
-                #Merge using mergeFeaturesByRank
-                tse_alt <- mia::mergeFeaturesByRank(tse, tax_level)
-            } else {
-                # Merge using mergeFeatures
-                tse_alt <- mia::mergeFeatures(tse, tax_level)
-            }
-            tse_alt
+            tse_alt = mia:::.merge_features(tse, tax_level)
         }
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else if (!is.null(phyloseq)) {
@@ -76,15 +68,7 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
             tax_level = "ASV"
             tse_alt = tse
         } else {
-            # Check if tax_level parameter belongs to taxonomyRanks
-            if (is.character(tax_level) && length(tax_level) == 1 && tax_level %in% mia::taxonomyRanks(tse)) {
-                #Merge using mergeFeaturesByRank
-                tse_alt <- mia::mergeFeaturesByRank(tse, tax_level)
-            } else {
-                # Merge using mergeFeatures
-                tse_alt <- mia::mergeFeatures(tse, tax_level)
-            }
-            tse_alt
+            tse_alt = mia:::.merge_features(tse, tax_level)
         }
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else {
