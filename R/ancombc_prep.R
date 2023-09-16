@@ -30,18 +30,10 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
 
         # Check if agglomeration should be performed
         if (is.null(tax_level)) {
-            tax_levels = mia::taxonomyRanks(tse)
-            txt = sprintf(paste0("`tax_level` is not specified \n",
-                                 "No agglomeration will be performed",
-                                 "\n",
-                                 "Otherwise, please specify `tax_level` ",
-                                 "by one of the following: \n",
-                                 paste(tax_levels, collapse = ", ")))
-            message(txt)
             tax_level = "ASV"
             tse_alt = tse
         } else {
-            tse_alt = mia::agglomerateByRank(tse, tax_level)
+            tse_alt = mia:::.merge_features(tse, tax_level)
         }
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else if (!is.null(phyloseq)) {
@@ -57,18 +49,10 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         }
 
         if (is.null(tax_level)) {
-            tax_levels = mia::taxonomyRanks(tse)
-            txt = sprintf(paste0("`tax_level` is not speficified \n",
-                                 "No agglomeration will be performed",
-                                 "\n",
-                                 "Otherwise, please speficy `tax_level` ",
-                                 "by one of the following: \n",
-                                 paste(tax_levels, collapse = ", ")))
-            message(txt)
             tax_level = "ASV"
             tse_alt = tse
         } else {
-            tse_alt = mia::agglomerateByRank(tse, tax_level)
+            tse_alt = mia:::.merge_features(tse, tax_level)
         }
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else {

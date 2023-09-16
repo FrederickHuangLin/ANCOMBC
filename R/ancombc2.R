@@ -81,13 +81,13 @@
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
-#' @param tax_level character. The taxonomic level of interest. The input data
-#' can be analyzed at any taxonomic level without prior agglomeration.
-#' Note that \code{tax_level} must be a value from \code{taxonomyRanks}, which
-#' includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" or "Species".
+#' @param tax_level character. The taxonomic or non taxonomic(rowData) level of interest. The input data
+#' can be analyzed at any taxonomic or rowData level without prior agglomeration.
+#' Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{rowData}, which
+#' includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
 #' See \code{?mia::taxonomyRanks} for more details.
 #' Default is NULL, i.e., do not perform agglomeration, and the
-#' ANCOM-BC2 anlysis will be performed at the lowest taxonomic level of the
+#' ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
 #' @param fix_formula the character string expresses how the microbial absolute
 #' abundances for each taxon depend on the fixed effects in metadata. When
