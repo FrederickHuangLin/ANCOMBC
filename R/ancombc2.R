@@ -77,10 +77,11 @@
 #' \code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
 #' It is recommended to use low taxonomic levels, such as OTU or species level,
 #' as the estimation of sampling fractions requires a large number of taxa.
-#' @param assay_name character. Name of the count table in the data object
+#' @param assay.type character. Name of the count table in the data object
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
+#' @param assay_name (Deprecated) alias for \code{assay.type}. 
 #' @param tax_level character. The taxonomic or non taxonomic(rowData) level of interest. The input data
 #' can be analyzed at any taxonomic or rowData level without prior agglomeration.
 #' Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{rowData}, which
@@ -89,6 +90,14 @@
 #' Default is NULL, i.e., do not perform agglomeration, and the
 #' ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
+#' @param rank character. The taxonomic or non taxonomic(rowData) level of interest. The input data
+#' can be analyzed at any taxonomic or rowData level without prior agglomeration.
+#' Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{rowData}, which
+#' includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
+#' See \code{?mia::taxonomyRanks} for more details.
+#' Default is NULL, i.e., do not perform agglomeration, and the
+#' ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
+#' input \code{data}.(alias for tax_level)
 #' @param fix_formula the character string expresses how the microbial absolute
 #' abundances for each taxon depend on the fixed effects in metadata. When
 #' specifying the \code{fix_formula}, make sure to include the \code{group}
@@ -384,7 +393,7 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
+ancombc2 = function(data, assay.type = assay_name, assay_name = "counts", rank = tax_level, tax_level = NULL,
                     fix_formula , rand_formula = NULL,
                     p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
                     prv_cut = 0.10, lib_cut = 0, s0_perc = 0.05,

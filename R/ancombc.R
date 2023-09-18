@@ -37,15 +37,21 @@
 #' (feature) names in the feature table. For detailed information, refer to
 #' \code{?phyloseq::phyloseq} or
 #' \code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
-#' @param assay_name character. Name of the count table in the data object
+#' @param assay.type character. Name of the count table in the data object
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
+#' @param assay_name (Deprecated) alias for \code{assay.type}. 
 #' @param tax_level character. The taxonomic level of interest. The input data
 #' can be agglomerated at different taxonomic levels based on your research
 #' interest. Default is NULL, i.e., do not perform agglomeration, and the
 #' ANCOM-BC anlysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
+#' @param rank character. The taxonomic level of interest. The input data
+#' can be agglomerated at different taxonomic levels based on your research
+#' interest. Default is NULL, i.e., do not perform agglomeration, and the
+#' ANCOM-BC anlysis will be performed at the lowest taxonomic level of the
+#' input \code{data}.(alias for tax_level)
 #' @param phyloseq a \code{phyloseq} object. Will be deprecated.
 #' @param formula the character string expresses how microbial absolute
 #' abundances for each taxon depend on the variables in metadata. When
@@ -224,8 +230,8 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancombc = function(data = NULL, assay_name = "counts",
-                   tax_level = NULL, phyloseq = NULL,
+ancombc = function(data = NULL, assay.type = assay_name, assay_name = "counts",
+                   rank = tax_level, tax_level = NULL, phyloseq = NULL,
                    formula, p_adj_method = "holm", prv_cut = 0.10,
                    lib_cut = 0, group = NULL, struc_zero = FALSE,
                    neg_lb = FALSE, tol = 1e-05, max_iter = 100,
