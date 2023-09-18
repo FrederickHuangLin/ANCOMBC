@@ -1,6 +1,6 @@
 # Iterative MLE
-iter_mle = function(x, y, meta_data, formula, theta = NULL,
-                    tol, max_iter, verbose = FALSE) {
+.iter_mle = function(x, y, meta_data, formula, theta = NULL,
+                     tol, max_iter, verbose = FALSE) {
     tax_id = rownames(y)
     n_tax = nrow(y)
     samp_id = colnames(y)
@@ -40,7 +40,7 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
             if (inherits(fit, "try-error")) {fit = NA}
             return(fit)
         })
-        
+
         # Degree of freedom
         dof = NULL
 
@@ -73,7 +73,7 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
                 if (inherits(fit, "try-error")) {fit = NA}
                 return(fit)
             })
-            
+
             beta_new = lapply(fits, function(i) {
                 beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
                 coef_i = if (inherits(i, "lm")) {
@@ -127,7 +127,7 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
         })
         y_crt_hat = do.call("rbind", y_crt_hat)
         eps = t(t(y - y_crt_hat) - theta)
-        
+
         XTX_inv = MASS::ginv(t(x[complete.cases(x), ]) %*% x[complete.cases(x), ])
         vcov_hat = vector(mode = "list", length = n_tax)
         var_hat = matrix(NA, nrow = n_tax, ncol = n_fix_eff)
@@ -152,7 +152,7 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
             if (inherits(fit, "try-error")) {fit = NA}
             return(fit)
         })
-        
+
         # Degree of freedom
         dof = vapply(fits, function(i) {
           if (inherits(i, "lm")) {
@@ -166,7 +166,7 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
         # Coefficients
         empty_coef = rep(NA, n_fix_eff)
         names(empty_coef) = fix_eff
-        
+
         beta = lapply(fits, function(i) {
             beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
             coef_i = if (inherits(i, "lm")) {
@@ -178,11 +178,11 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
             return(beta_i)
         })
         beta = do.call("rbind", beta)
-        
+
         # Variance-covariance matrices
         empty_fitted = rep(NA, n_samp)
         names(empty_fitted) = samp_id
-        
+
         y_crt_hat = lapply(fits, function(i) {
           y_crt_hat_i = rep(0, n_samp)
           fitted_i = if (inherits(i, "lm")) {
@@ -195,7 +195,7 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
         })
         y_crt_hat = do.call("rbind", y_crt_hat)
         eps = t(t(y - y_crt_hat) - theta)
-        
+
         XTX_inv = MASS::ginv(t(x[complete.cases(x), ]) %*% x[complete.cases(x), ])
         vcov_hat = vector(mode = "list", length = n_tax)
         var_hat = matrix(NA, nrow = n_tax, ncol = n_fix_eff)
@@ -230,9 +230,9 @@ iter_mle = function(x, y, meta_data, formula, theta = NULL,
 }
 
 # Iterative REML
-iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
-                      lme_control = lme_control, theta = NULL,
-                      tol, max_iter, verbose = FALSE) {
+.iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
+                       lme_control = lme_control, theta = NULL,
+                       tol, max_iter, verbose = FALSE) {
     tax_id = rownames(y)
     n_tax = nrow(y)
     samp_id = colnames(y)
@@ -244,7 +244,7 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
     # Test for over-parameterization
     lm_smoke = stats::lm(formula = formula(paste0("y ~ ", fix_formula)),
                          data = data.frame(y = rnorm(n = n_samp), meta_data))
-    
+
     if (any(is.na(lm_smoke$coefficients))) {
       stop_txt = sprintf(paste("Estimation failed for the following covariates:",
                                paste(names(which(is.na(lm_smoke$coefficients))), collapse = ", "),
@@ -252,13 +252,30 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
                                sep = "\n"))
       stop(stop_txt, call. = FALSE)
     }
-    
+
     if (lm_smoke$df.residual == 0) {
       stop_txt = sprintf(paste("No residual degrees of freedom! The model is over-parameterized",
                                "Please consider a more parsimonious model",
                                sep = "\n"))
       stop(stop_txt, call. = FALSE)
     }
+
+    # Test for the fitting of linear mixed-effects model
+    tryCatch({
+        # Try to run the lmerTest model
+        result <- lmerTest::lmer(formula = tformula,
+                                 data = data.frame(y_crt = y[1, ], meta_data),
+                                 control = lme_control)
+    },
+    error = function(e) {
+        # This block will be executed if there's an error in the above code
+        message <- sprintf(paste("Encountering the error for `lmerTest` package.",
+                                 "Please try to select one of your taxa and use its raw counts to fix the same linear mixed-effects model using `lmerTest` without the `ANCOMBC` package.",
+                                 "Load all necessary packages EXCEPT `ANCOMBC`, and see if the error arises due to package incompatibility or other issues.",
+                                 "The error message from `lmerTest` is as follows:",
+                                 e$message, sep = "\n"))
+        stop(message, call. = FALSE)
+    })
 
     # Estimate sample-specific biases
     if (is.null(theta)) {
@@ -268,14 +285,14 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
         # REML fits
         fits = lapply(seq_len(n_tax), function(i) {
             df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-            fit = try(suppressMessages(lmerTest::lmer(tformula, 
+            fit = try(suppressMessages(lmerTest::lmer(tformula,
                                                       data = df,
                                                       control = lme_control)),
                          silent = TRUE)
             if (inherits(fit, "try-error")) {fit = NA}
             return(fit)
         })
-        
+
         # Degree of freedom
         dof = NULL
 
@@ -304,7 +321,7 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
             # Updating beta
             fits = lapply(seq_len(n_tax), function(i) {
               df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-              fit = try(suppressMessages(lmerTest::lmer(tformula, 
+              fit = try(suppressMessages(lmerTest::lmer(tformula,
                                                         data = df,
                                                         control = lme_control)),
                         silent = TRUE)
@@ -383,7 +400,7 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
             } else {
               vcov_hat_i = empty_vcov
             }
-            Sigma_hat_i[match(rownames(vcov_hat_i), fix_eff), 
+            Sigma_hat_i[match(rownames(vcov_hat_i), fix_eff),
                         match(colnames(vcov_hat_i), fix_eff)] = vcov_hat_i
             return(Sigma_hat_i)
         })
@@ -395,14 +412,14 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
         # REML fits
         fits = lapply(seq_len(n_tax), function(i) {
           df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-          fit = try(suppressMessages(lmerTest::lmer(tformula, 
+          fit = try(suppressMessages(lmerTest::lmer(tformula,
                                                     data = df,
                                                     control = lme_control)),
                     silent = TRUE)
           if (inherits(fit, "try-error")) {fit = NA}
           return(fit)
         })
-        
+
         # Degree of freedom
         dof = lapply(fits, function(i) {
           if (inherits(i, "lmerModLmerTest")) {
@@ -412,7 +429,7 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
           }
         })
         dof = do.call("rbind", dof)
-        
+
         # Coefficients
         empty_coef = rep(NA, n_fix_eff)
         names(empty_coef) = fix_eff
@@ -444,7 +461,7 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
           return(eps_i)
         })
         eps = do.call("rbind", eps)
-        
+
         # Variance-covariance matrices
         empty_vcov = matrix(NA, nrow = n_fix_eff, ncol = n_fix_eff)
         colnames(empty_vcov) = fix_eff
@@ -459,7 +476,7 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
           } else {
             vcov_hat_i = empty_vcov
           }
-          Sigma_hat_i[match(rownames(vcov_hat_i), fix_eff), 
+          Sigma_hat_i[match(rownames(vcov_hat_i), fix_eff),
                       match(colnames(vcov_hat_i), fix_eff)] = vcov_hat_i
           return(Sigma_hat_i)
         })
@@ -481,13 +498,13 @@ iter_remle = function(x, y, meta_data, fix_formula, rand_formula,
     rownames(var_hat) = tax_id
     rownames(eps) = tax_id
 
-    output = list(fits = fits, beta = beta, theta = theta, eps = eps, 
+    output = list(fits = fits, beta = beta, theta = theta, eps = eps,
                   dof = dof, vcov_hat = vcov_hat, var_hat = var_hat)
     return(output)
 }
 
 # E-M algorithm
-bias_em = function(beta, var_hat, tol, max_iter) {
+.bias_em = function(beta, var_hat, tol, max_iter) {
     beta = beta[!is.na(beta)]
     nu0 = var_hat
     nu0 = nu0[!is.na(nu0)]

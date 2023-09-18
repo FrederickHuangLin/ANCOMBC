@@ -108,7 +108,7 @@
 #' the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes
 #' complete data (nonzero counts) by default for its analysis, a comprehensive
 #' evaluation of result robustness is performed by assessing how pseudo-count
-#' addition may affect the outcomes. For a detailed discussion on this
+#' addition to zeros may affect the outcomes. For a detailed discussion on this
 #' sensitivity analysis, refer to the \code{Details} section.
 #' @param prv_cut a numerical fraction between 0 and 1. Taxa with prevalences
 #' (the proportion of samples in which the taxon is present)
@@ -299,6 +299,8 @@
 #' rownames(tax_tab) = rownames(otu_mat)
 #' colnames(tax_tab) = c("Kingdom", "Phylum", "Class", "Order",
 #'                       "Family", "Genus", "Species")
+#' # Can also contain non-taxonomic information, for instance
+#' # colnames(tax_tab) = c("G1", "G2", "G3", "G4", "G5", "G6", "G7")
 #' tax_tab = DataFrame(tax_tab)
 #'
 #' # create TSE
@@ -324,7 +326,7 @@
 #' # Use default or larger values for max_iter and B for better performance
 #' out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
 #'                fix_formula = "nationality + timepoint + bmi_group",
-#'                rand_formula = "(timepoint | subject)",
+#'                rand_formula = NULL,
 #'                p_adj_method = "holm", pseudo_sens = TRUE,
 #'                prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
 #'                group = "bmi_group", struc_zero = TRUE, neg_lb = TRUE,
@@ -385,7 +387,7 @@
 #'
 #' @export
 ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
-                    fix_formula , rand_formula = NULL,
+                    fix_formula, rand_formula = NULL,
                     p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
                     prv_cut = 0.10, lib_cut = 0, s0_perc = 0.05,
                     group = NULL, struc_zero = FALSE, neg_lb = FALSE,
@@ -411,8 +413,8 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
 
     # 1. Data pre-processing
     # TSE data construction
-    tse_obj = tse_construct(data = data, assay_name = assay_name,
-                            tax_level = tax_level, phyloseq = NULL)
+    tse_obj = .tse_construct(data = data, assay_name = assay_name,
+                             tax_level = tax_level, phyloseq = NULL)
     tse = tse_obj$tse
     assay_name = tse_obj$assay_name
     tax_level = tse_obj$tax_level
@@ -420,9 +422,9 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
 
     # Identify taxa with structural zeros
     if (struc_zero) {
-        zero_ind = get_struc_zero(tse = tse, tax_level = tax_level,
-                                  assay_name = assay_name,
-                                  alt = TRUE, group = group, neg_lb = neg_lb)
+        zero_ind = .get_struc_zero(tse = tse, tax_level = tax_level,
+                                   assay_name = assay_name,
+                                   alt = TRUE, group = group, neg_lb = neg_lb)
         # Taxa with structural zeros will be removed from ANCOM-BC2 analyses
         tax_idx = apply(zero_ind[, -1], 1, function(x) all(x == FALSE))
         tax_keep = which(tax_idx)
@@ -432,27 +434,28 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         tax_keep = seq(nrow(tse_alt))}
 
     # Filter data by prevalence and library size
-    core1 = data_core(tse = tse, tax_level = tax_level,
-                      assay_name = assay_name, alt = FALSE,
-                      prv_cut = prv_cut, lib_cut = lib_cut,
-                      tax_keep = NULL, samp_keep = NULL)
+    core1 = .data_core(tse = tse, tax_level = tax_level,
+                       assay_name = assay_name, alt = FALSE,
+                       prv_cut = prv_cut, lib_cut = lib_cut,
+                       tax_keep = NULL, samp_keep = NULL)
     O1 = core1$feature_table
     samp_keep = colnames(O1)
 
-    core2 = data_core(tse = tse, tax_level = tax_level,
-                      assay_name = assay_name, alt = TRUE,
-                      prv_cut = prv_cut, lib_cut = lib_cut,
-                      tax_keep = tax_keep, samp_keep = samp_keep)
+    core2 = .data_core(tse = tse, tax_level = tax_level,
+                       assay_name = assay_name, alt = TRUE,
+                       prv_cut = prv_cut, lib_cut = lib_cut,
+                       tax_keep = tax_keep, samp_keep = samp_keep)
     O2 = core2$feature_table
     n_tax = nrow(O2)
     tax_name = rownames(O2)
 
     # Metadata and arguments check
-    qc = data_qc(meta_data = core2$meta_data, group = group,
-                 struc_zero = struc_zero, global = global,
-                 pairwise = pairwise, dunnet = dunnet,
-                 mdfdr_control = mdfdr_control,
-                 trend = trend, trend_control = trend_control)
+    qc = .data_qc(meta_data = core2$meta_data,
+                  formula = fix_formula, group = group,
+                  struc_zero = struc_zero, global = global,
+                  pairwise = pairwise, dunnet = dunnet,
+                  mdfdr_control = mdfdr_control,
+                  trend = trend, trend_control = trend_control)
     meta_data = qc$meta_data
     global = qc$global
     pairwise = qc$pairwise
@@ -485,13 +488,13 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     }
 
     if (is.null(rand_formula)) {
-        para1 = iter_mle(x = x, y = y1, meta_data = meta_data,
-                         formula = fix_formula,
-                         theta = NULL, tol = iter_control$tol,
-                         max_iter = iter_control$max_iter,
-                         verbose = iter_control$verbose)
+        para1 = .iter_mle(x = x, y = y1, meta_data = meta_data,
+                          formula = fix_formula,
+                          theta = NULL, tol = iter_control$tol,
+                          max_iter = iter_control$max_iter,
+                          verbose = iter_control$verbose)
     } else {
-        para1 = iter_remle(x = x, y = y1, meta_data = meta_data,
+        para1 = .iter_remle(x = x, y = y1, meta_data = meta_data,
                            fix_formula = fix_formula,
                            rand_formula = rand_formula,
                            lme_control = lme_control,
@@ -506,7 +509,7 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     if (verbose) {
         message("Estimating sample-specific biases ...")
     }
-    fun_list = list(bias_em)
+    fun_list = list(.bias_em)
 
     bias1 = foreach(i = seq_len(ncol(beta1)), .combine = rbind) %dorng% {
       output = fun_list[[1]](beta = beta1[, i],
@@ -544,19 +547,19 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     y2 = o2 - rowMeans(o2, na.rm = TRUE)
     y_bias_crt = data.frame(t(t(y2) - theta_hat), check.names = FALSE)
     if (is.null(rand_formula)) {
-        para2 = iter_mle(x = x, y = y2, meta_data = meta_data,
-                         formula = fix_formula,
-                         theta = theta_hat, tol = iter_control$tol,
-                         max_iter = iter_control$max_iter,
-                         verbose = iter_control$verbose)
+        para2 = .iter_mle(x = x, y = y2, meta_data = meta_data,
+                          formula = fix_formula,
+                          theta = theta_hat, tol = iter_control$tol,
+                          max_iter = iter_control$max_iter,
+                          verbose = iter_control$verbose)
     } else {
-        para2 = iter_remle(x = x, y = y2, meta_data = meta_data,
-                           fix_formula = fix_formula,
-                           rand_formula = rand_formula,
-                           lme_control = lme_control,
-                           theta = theta_hat, tol = iter_control$tol,
-                           max_iter = iter_control$max_iter,
-                           verbose = iter_control$verbose)
+        para2 = .iter_remle(x = x, y = y2, meta_data = meta_data,
+                            fix_formula = fix_formula,
+                            rand_formula = rand_formula,
+                            lme_control = lme_control,
+                            theta = theta_hat, tol = iter_control$tol,
+                            max_iter = iter_control$max_iter,
+                            verbose = iter_control$verbose)
     }
     beta_hat = para2$beta
     var_hat = para2$var_hat
@@ -587,7 +590,7 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
             message("Sensitivity analysis for pseudo-count addition to 0s: ...")
         }
         pseudo_list = seq(0.01, 0.5, 0.01)
-        fun_list = list(get_p)
+        fun_list = list(.get_p)
 
         if (!is.null(group)) {
             all_levels = as.character(unique(meta_data[, group]))
@@ -672,22 +675,22 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
             message("ANCOM-BC2 global test ...")
         }
         if (is.null(rand_formula)) {
-          res_global = ancombc_global_F(x = x, group = group,
-                                        beta_hat = beta_hat,
-                                        vcov_hat = vcov_hat,
-                                        dof = dof,
-                                        p_adj_method = p_adj_method,
-                                        alpha = alpha)
+          res_global = .ancombc_global_F(x = x, group = group,
+                                         beta_hat = beta_hat,
+                                         vcov_hat = vcov_hat,
+                                         dof = dof,
+                                         p_adj_method = p_adj_method,
+                                         alpha = alpha)
         } else {
-          res_global = ancombc_global_LRT(full_model = para2$fits,
-                                          fix_formula = fix_formula,
-                                          rand_formula = rand_formula,
-                                          control = lme_control,
-                                          x = x, group = group,
-                                          y = y_bias_crt,
-                                          meta_data = meta_data,
-                                          p_adj_method = p_adj_method,
-                                          alpha = alpha)
+          res_global = .ancombc_global_LRT(full_model = para2$fits,
+                                           fix_formula = fix_formula,
+                                           rand_formula = rand_formula,
+                                           control = lme_control,
+                                           x = x, group = group,
+                                           y = y_bias_crt,
+                                           meta_data = meta_data,
+                                           p_adj_method = p_adj_method,
+                                           alpha = alpha)
         }
         if (pseudo_sens) {
             ss_flag_global = ss_flag["global"]
@@ -704,19 +707,19 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         if (verbose) {
             message("ANCOM-BC2 multiple pairwise comparisons ...")
         }
-        res_pair = ancombc_pair(x = x, group = group,
-                                beta_hat = beta_hat,
-                                var_hat = var_hat,
-                                vcov_hat = vcov_hat,
-                                dof = dof,
-                                fwer_ctrl_method = mdfdr_control$fwer_ctrl_method,
-                                alpha = alpha,
-                                full_model = para2$fits,
-                                fix_formula = fix_formula,
-                                rand_formula = rand_formula,
-                                control = lme_control,
-                                y = y_bias_crt,
-                                meta_data = meta_data)
+        res_pair = .ancombc_pair(x = x, group = group,
+                                 beta_hat = beta_hat,
+                                 var_hat = var_hat,
+                                 vcov_hat = vcov_hat,
+                                 dof = dof,
+                                 fwer_ctrl_method = mdfdr_control$fwer_ctrl_method,
+                                 alpha = alpha,
+                                 full_model = para2$fits,
+                                 fix_formula = fix_formula,
+                                 rand_formula = rand_formula,
+                                 control = lme_control,
+                                 y = y_bias_crt,
+                                 meta_data = meta_data)
         beta_pair = data.frame(res_pair$beta, check.names = FALSE)
         se_pair = data.frame(res_pair$se, check.names = FALSE)
         W_pair = data.frame(res_pair$W, check.names = FALSE)
@@ -757,10 +760,10 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         if (verbose) {
             message("ANCOM-BC2 multiple pairwise comparisons against the reference group ...")
         }
-        res_dunn = ancombc_dunn(x = x, group = group, beta_hat = beta_hat,
-                                var_hat = var_hat, dof = dof,
-                                fwer_ctrl_method = mdfdr_control$fwer_ctrl_method,
-                                B = mdfdr_control$B, alpha = alpha)
+        res_dunn = .ancombc_dunn(x = x, group = group, beta_hat = beta_hat,
+                                 var_hat = var_hat, dof = dof,
+                                 fwer_ctrl_method = mdfdr_control$fwer_ctrl_method,
+                                 B = mdfdr_control$B, alpha = alpha)
         beta_dunn = data.frame(res_dunn$beta, check.names = FALSE)
         se_dunn = data.frame(res_dunn$se, check.names = FALSE)
         W_dunn = data.frame(res_dunn$W, check.names = FALSE)
@@ -799,7 +802,7 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
         if (verbose) {
             message("ANCOM-BC2 pattern analysis ...")
         }
-        res_trend = ancombc_trend(
+        res_trend = .ancombc_trend(
             x = x, group = group, beta_hat = beta_hat,
             var_hat = var_hat, vcov_hat = vcov_hat,
             p_adj_method = p_adj_method, alpha = alpha,

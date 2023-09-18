@@ -1,5 +1,5 @@
 # Sampling fraction difference estimation
-s_diff_est = function(feature_table) {
+.s_diff_est = function(feature_table) {
     if (nrow(feature_table) < 50) {
         warn_txt = sprintf(paste("The number of taxa used for estimating sample-specific biases is: ",
                                  nrow(feature_table),
@@ -26,21 +26,21 @@ s_diff_est = function(feature_table) {
 }
 
 # Bias-corrected abundance estimation
-abn_est = function(tse, tax_level, assay_name, pseudo, prv_cut, lib_cut) {
+.abn_est = function(tse, tax_level, assay_name, pseudo, prv_cut, lib_cut) {
     # Sampling fraction difference estimation
-    core1 = data_core(tse = tse, tax_level = tax_level,
-                      assay_name = assay_name, alt = FALSE,
-                      prv_cut = prv_cut, lib_cut = lib_cut,
-                      tax_keep = NULL, samp_keep = NULL)
+    core1 = .data_core(tse = tse, tax_level = tax_level,
+                       assay_name = assay_name, alt = FALSE,
+                       prv_cut = prv_cut, lib_cut = lib_cut,
+                       tax_keep = NULL, samp_keep = NULL)
     O1 = core1$feature_table
-    s_diff_hat = s_diff_est(O1)
+    s_diff_hat = .s_diff_est(O1)
 
     # Data pre-processing
     samp_keep = names(s_diff_hat)
-    core2 = data_core(tse = tse, tax_level = tax_level,
-                      assay_name = assay_name, alt = TRUE,
-                      prv_cut = prv_cut, lib_cut = lib_cut,
-                      tax_keep = NULL, samp_keep = samp_keep)
+    core2 = .data_core(tse = tse, tax_level = tax_level,
+                       assay_name = assay_name, alt = TRUE,
+                       prv_cut = prv_cut, lib_cut = lib_cut,
+                       tax_keep = NULL, samp_keep = samp_keep)
     O2 = core2$feature_table
     O2 = O2 + pseudo
     o = log(O2)

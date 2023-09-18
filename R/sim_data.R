@@ -104,8 +104,8 @@ sim_plnm = function(abn_table, taxa_are_rows = TRUE,
     mean_est = log(mean_rel) - 0.5 * diag(cov_est)
 
     N = rnbinom(n = n, mu = lib_mean, size = disp)
-    sim_data = rplnm(mu = mean_est, sigma = sqrt(cov_est),
-                     n = n, N = N)
+    sim_data = .rplnm(mu = mean_est, sigma = sqrt(cov_est),
+                      n = n, N = N)
     return(t(sim_data))
 }
 

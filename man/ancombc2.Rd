@@ -52,13 +52,13 @@ as the estimation of sampling fractions requires a large number of taxa.}
 Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
 
-\item{tax_level}{character. The taxonomic level of interest. The input data
-can be analyzed at any taxonomic level without prior agglomeration.
-Note that \code{tax_level} must be a value from \code{taxonomyRanks}, which
-includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" or "Species".
+\item{tax_level}{character. The taxonomic or non taxonomic(rowData) level of interest. The input data
+can be analyzed at any taxonomic or rowData level without prior agglomeration.
+Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{rowData}, which
+includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
 See \code{?mia::taxonomyRanks} for more details.
 Default is NULL, i.e., do not perform agglomeration, and the
-ANCOM-BC2 anlysis will be performed at the lowest taxonomic level of the
+ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
 input \code{data}.}
 
 \item{fix_formula}{the character string expresses how the microbial absolute
@@ -84,7 +84,7 @@ input. Specifying a pseudo-count will not affect the analysis or its results.}
 the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes
 complete data (nonzero counts) by default for its analysis, a comprehensive
 evaluation of result robustness is performed by assessing how pseudo-count
-addition may affect the outcomes. For a detailed discussion on this
+addition to zeros may affect the outcomes. For a detailed discussion on this
 sensitivity analysis, refer to the \code{Details} section.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
@@ -359,6 +359,8 @@ tax_tab = matrix(sample(letters, 70, replace = TRUE),
 rownames(tax_tab) = rownames(otu_mat)
 colnames(tax_tab) = c("Kingdom", "Phylum", "Class", "Order",
                       "Family", "Genus", "Species")
+# Can also contain non-taxonomic information, for instance
+# colnames(tax_tab) = c("G1", "G2", "G3", "G4", "G5", "G6", "G7")
 tax_tab = DataFrame(tax_tab)
 
 # create TSE
@@ -384,7 +386,7 @@ set.seed(123)
 # Use default or larger values for max_iter and B for better performance
 out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
                fix_formula = "nationality + timepoint + bmi_group",
-               rand_formula = "(timepoint | subject)",
+               rand_formula = NULL,
                p_adj_method = "holm", pseudo_sens = TRUE,
                prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
                group = "bmi_group", struc_zero = TRUE, neg_lb = TRUE,

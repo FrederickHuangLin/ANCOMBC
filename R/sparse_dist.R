@@ -1,4 +1,4 @@
-sparse_dist = function(mat, wins_quant, R, thresh_hard, max_p) {
+.sparse_dist = function(mat, wins_quant, R, thresh_hard, max_p) {
     # Thresholding
     mat_thresh = function(mat, th, soft){
         mat_sign = sign(mat)
