@@ -22,6 +22,11 @@ options(DT.options = list(
   initComplete = JS("function(settings, json) {",
   "$(this.api().table().header()).css({'background-color': 
   '#000', 'color': '#fff'});","}")))
+
+# It appears to be a package compatibility issue between the release version of 
+# phyloseq and lme4, a fresh installation of phyloseq might be needed
+# See this post: https://github.com/lme4/lme4/issues/743
+# remotes::install_github("joey711/phyloseq", force = TRUE)
 ```
 
 # 1. Introduction

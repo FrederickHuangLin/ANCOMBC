@@ -7,7 +7,9 @@
 \usage{
 ancombc(
   data = NULL,
+  assay.type = NULL,
   assay_name = "counts",
+  rank = NULL,
   tax_level = NULL,
   phyloseq = NULL,
   formula,
@@ -37,10 +39,14 @@ feature table, and the row names of the taxonomy table match the taxon
 \code{?phyloseq::phyloseq} or
 \code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.}
 
+\item{assay.type}{alias for \code{assay_name}.}
+
 \item{assay_name}{character. Name of the count table in the data object
 (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
+
+\item{rank}{alias for \code{tax_level}.}
 
 \item{tax_level}{character. The taxonomic level of interest. The input data
 can be agglomerated at different taxonomic levels based on your research

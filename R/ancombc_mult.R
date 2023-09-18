@@ -198,7 +198,7 @@
 
     W_global_null = matrix(NA, nrow = n_tax, ncol = B)
     for (b in seq_len(B)) {
-        W_null_b = matrix(unlist(apply(dof, 1:2, function(df) rt(1, df = df))),
+        W_null_b = matrix(unlist(apply(dof, seq_len(2), function(df) rt(1, df = df))),
                           nrow = nrow(dof), ncol = ncol(dof))
         W_global_null_b = apply(W_null_b, 1, function(x)
             max(abs(x), na.rm = TRUE))

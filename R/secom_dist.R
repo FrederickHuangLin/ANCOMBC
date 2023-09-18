@@ -27,11 +27,13 @@
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
+#' @param assay.type alias for \code{assay_name}.
 #' @param tax_level character. The taxonomic level of interest. The input data
 #' can be agglomerated at different taxonomic levels based on your research
 #' interest. Default is NULL, i.e., do not perform agglomeration, and the
 #' SECOM anlysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
+#' @param rank alias for \code{tax_level}.
 #' @param pseudo numeric. Add pseudo-counts to the data.
 #' Default is 0 (no pseudo-counts).
 #' @param prv_cut a numerical fraction between 0 and 1. Taxa with prevalences
@@ -117,10 +119,20 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-secom_dist = function(data, assay_name = "counts", tax_level = NULL,
+secom_dist = function(data, assay.type = assay_name, assay_name = "counts",
+                      rank = tax_level, tax_level = NULL,
                       pseudo = 0, prv_cut = 0.5, lib_cut = 1000,
                       corr_cut = 0.5, wins_quant = c(0.05, 0.95), R = 1000,
                       thresh_hard = 0, max_p = 0.005, n_cl = 1) {
+    # Check for aliases
+    if (!is.null(assay.type)) {
+        assay_name = assay.type
+    }
+
+    if (!is.null(rank)) {
+        tax_level = rank
+    }
+
     # ===========Sampling fraction and absolute abundance estimation============
     if (length(data) == 1) {
         tse_obj = .tse_construct(data = data[[1]], assay_name = assay_name[1],

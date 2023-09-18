@@ -81,6 +81,7 @@
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
+#' @param assay.type alias for \code{assay_name}.
 #' @param tax_level character. The taxonomic or non taxonomic(rowData) level of interest. The input data
 #' can be analyzed at any taxonomic or rowData level without prior agglomeration.
 #' Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{rowData}, which
@@ -89,6 +90,7 @@
 #' Default is NULL, i.e., do not perform agglomeration, and the
 #' ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
+#' @param rank alias for \code{tax_level}.
 #' @param fix_formula the character string expresses how the microbial absolute
 #' abundances for each taxon depend on the fixed effects in metadata. When
 #' specifying the \code{fix_formula}, make sure to include the \code{group}
@@ -386,8 +388,9 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
-                    fix_formula, rand_formula = NULL,
+ancombc2 = function(data, assay.type = assay_name, assay_name = "counts",
+                    rank = tax_level, tax_level = NULL,
+                    fix_formula , rand_formula = NULL,
                     p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
                     prv_cut = 0.10, lib_cut = 0, s0_perc = 0.05,
                     group = NULL, struc_zero = FALSE, neg_lb = FALSE,
@@ -412,6 +415,15 @@ ancombc2 = function(data, assay_name = "counts", tax_level = NULL,
     }
 
     # 1. Data pre-processing
+    # Check for aliases
+    if (!is.null(assay.type)) {
+        assay_name = assay.type
+    }
+
+    if (!is.null(rank)) {
+        tax_level = rank
+    }
+
     # TSE data construction
     tse_obj = .tse_construct(data = data, assay_name = assay_name,
                              tax_level = tax_level, phyloseq = NULL)

@@ -7,7 +7,9 @@
 \usage{
 ancombc2(
   data,
+  assay.type = assay_name,
   assay_name = "counts",
+  rank = tax_level,
   tax_level = NULL,
   fix_formula,
   rand_formula = NULL,
@@ -47,10 +49,14 @@ feature table, and the row names of the taxonomy table match the taxon
 It is recommended to use low taxonomic levels, such as OTU or species level,
 as the estimation of sampling fractions requires a large number of taxa.}
 
+\item{assay.type}{alias for \code{assay_name}.}
+
 \item{assay_name}{character. Name of the count table in the data object
 (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
+
+\item{rank}{alias for \code{tax_level}.}
 
 \item{tax_level}{character. The taxonomic or non taxonomic(rowData) level of interest. The input data
 can be analyzed at any taxonomic or rowData level without prior agglomeration.

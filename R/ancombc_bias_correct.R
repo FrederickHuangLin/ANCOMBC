@@ -285,11 +285,16 @@
         # REML fits
         fits = lapply(seq_len(n_tax), function(i) {
             df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-            fit = try(suppressMessages(lmerTest::lmer(tformula,
-                                                      data = df,
-                                                      control = lme_control)),
-                         silent = TRUE)
-            if (inherits(fit, "try-error")) {fit = NA}
+            fit = tryCatch(
+                {
+                    suppressWarnings(suppressMessages(
+                        lmerTest::lmer(tformula, data = df, control = lme_control)
+                    ))
+                },
+                error = function(e) {
+                    NA
+                }
+            )
             return(fit)
         })
 
@@ -321,11 +326,18 @@
             # Updating beta
             fits = lapply(seq_len(n_tax), function(i) {
               df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-              fit = try(suppressMessages(lmerTest::lmer(tformula,
-                                                        data = df,
-                                                        control = lme_control)),
-                        silent = TRUE)
-              if (inherits(fit, "try-error")) {fit = NA}
+              fit = tryCatch(
+                  {
+                      suppressWarnings(suppressMessages(
+                          lmerTest::lmer(tformula,
+                                         data = df,
+                                         control = lme_control)
+                      ))
+                  },
+                  error = function(e) {
+                      NA
+                  }
+              )
               return(fit)
             })
 
@@ -412,11 +424,16 @@
         # REML fits
         fits = lapply(seq_len(n_tax), function(i) {
           df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-          fit = try(suppressMessages(lmerTest::lmer(tformula,
-                                                    data = df,
-                                                    control = lme_control)),
-                    silent = TRUE)
-          if (inherits(fit, "try-error")) {fit = NA}
+          fit = tryCatch(
+              {
+                  suppressWarnings(suppressMessages(
+                      lmerTest::lmer(tformula, data = df, control = lme_control)
+                  ))
+              },
+              error = function(e) {
+                  NA
+              }
+          )
           return(fit)
         })
 
