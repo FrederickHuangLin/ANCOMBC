@@ -312,7 +312,6 @@ ancombc = function(data = NULL, assay.type = NULL, assay_name = "counts",
     if (verbose) {
         message("Obtaining initial estimates ...")
     }
-
     para = .iter_mle(x = x, y = y, meta_data = meta_data,
                      formula = formula, theta = NULL, tol = tol,
                      max_iter = max_iter, verbose = FALSE)
