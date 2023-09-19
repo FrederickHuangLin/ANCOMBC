@@ -7,11 +7,15 @@
 \usage{
 ancombc2(
   data,
+  assay.type = assay_name,
   assay_name = "counts",
+  rank = tax_level,
   tax_level = NULL,
   fix_formula,
   rand_formula = NULL,
   p_adj_method = "holm",
+  pseudo = 0,
+  pseudo_sens = TRUE,
   prv_cut = 0.1,
   lib_cut = 0,
   s0_perc = 0.05,
@@ -45,18 +49,22 @@ feature table, and the row names of the taxonomy table match the taxon
 It is recommended to use low taxonomic levels, such as OTU or species level,
 as the estimation of sampling fractions requires a large number of taxa.}
 
+\item{assay.type}{alias for \code{assay_name}.}
+
 \item{assay_name}{character. Name of the count table in the data object
 (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
 
-\item{tax_level}{character. The taxonomic level of interest. The input data
-can be analyzed at any taxonomic level without prior agglomeration.
-Note that \code{tax_level} must be a value from \code{taxonomyRanks}, which
-includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" or "Species".
+\item{rank}{alias for \code{tax_level}.}
+
+\item{tax_level}{character. The taxonomic or non taxonomic(rowData) level of interest. The input data
+can be analyzed at any taxonomic or rowData level without prior agglomeration.
+Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{rowData}, which
+includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
 See \code{?mia::taxonomyRanks} for more details.
 Default is NULL, i.e., do not perform agglomeration, and the
-ANCOM-BC2 anlysis will be performed at the lowest taxonomic level of the
+ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
 input \code{data}.}
 
 \item{fix_formula}{the character string expresses how the microbial absolute
@@ -72,6 +80,18 @@ follows the \code{lmerTest} package in formulating the random effects. See
 \item{p_adj_method}{character. method to adjust p-values. Default is "holm".
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
+
+\item{pseudo}{numeric. Add pseudo-counts to the data.
+Please note that this option is now deprecated in ANCOM-BC2. The software
+will utilize the complete data (nonzero counts) as its default analysis
+input. Specifying a pseudo-count will not affect the analysis or its results.}
+
+\item{pseudo_sens}{logical. Whether to perform the sensitivity analysis to
+the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes
+complete data (nonzero counts) by default for its analysis, a comprehensive
+evaluation of result robustness is performed by assessing how pseudo-count
+addition to zeros may affect the outcomes. For a detailed discussion on this
+sensitivity analysis, refer to the \code{Details} section.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
 (the proportion of samples in which the taxon is present)
@@ -345,6 +365,8 @@ tax_tab = matrix(sample(letters, 70, replace = TRUE),
 rownames(tax_tab) = rownames(otu_mat)
 colnames(tax_tab) = c("Kingdom", "Phylum", "Class", "Order",
                       "Family", "Genus", "Species")
+# Can also contain non-taxonomic information, for instance
+# colnames(tax_tab) = c("G1", "G2", "G3", "G4", "G5", "G6", "G7")
 tax_tab = DataFrame(tax_tab)
 
 # create TSE
@@ -370,8 +392,8 @@ set.seed(123)
 # Use default or larger values for max_iter and B for better performance
 out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
                fix_formula = "nationality + timepoint + bmi_group",
-               rand_formula = "(timepoint | subject)",
-               p_adj_method = "holm",
+               rand_formula = NULL,
+               p_adj_method = "holm", pseudo_sens = TRUE,
                prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
                group = "bmi_group", struc_zero = TRUE, neg_lb = TRUE,
                alpha = 0.05, n_cl = 1, verbose = TRUE,

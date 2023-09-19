@@ -1,13 +1,13 @@
 # The function to extract off-diagonol elements
-odiag = function(x) x[col(x) != row(x)]
+.odiag = function(x) x[col(x) != row(x)]
 
 # The function to calculate the variance of difference
-var_diff = function(x) {
-    sum(diag(x)) - sum(odiag(x))
+.var_diff = function(x) {
+    sum(diag(x)) - sum(.odiag(x))
 }
 
 # The function of combination
-combn_fun = function(x, fun, sep) {
+.combn_fun = function(x, fun, sep) {
     y = c(x, utils::combn(x, 2, FUN = fun))
     combn_mat = utils::combn(names(x), 2)
     combn_name = paste(combn_mat[2, ], combn_mat[1, ], sep = sep)
@@ -15,7 +15,7 @@ combn_fun = function(x, fun, sep) {
     return(y)
 }
 
-combn_fun2 = function(x, fun, sep) {
+.combn_fun2 = function(x, fun, sep) {
     combn_mat = utils::combn(colnames(x), 2)
     y = vector(mode = "numeric")
     for (i in seq(ncol(combn_mat))) {
@@ -29,40 +29,40 @@ combn_fun2 = function(x, fun, sep) {
 }
 
 # The mdFDR correction
-mdfdr = function(global_test = c("pairwise", "dunnet"),
-                 W, dof, fwer_ctrl_method, ...) {
+.mdfdr = function(global_test = c("pairwise", "dunnet"),
+                  W, dof, fwer_ctrl_method, ...) {
 
     input_list = list(...)
 
     # The total number of null hypotheses rejected in the global test
     if (global_test == "pairwise") {
       if (is.null(input_list$rand_formula)) {
-        res_screen = ancombc_global_F(x = input_list$x,
-                                      group = input_list$group,
-                                      beta_hat = input_list$beta_hat,
-                                      vcov_hat = input_list$vcov_hat,
-                                      dof = dof,
-                                      p_adj_method = "BH",
-                                      alpha = input_list$alpha)
+        res_screen = .ancombc_global_F(x = input_list$x,
+                                       group = input_list$group,
+                                       beta_hat = input_list$beta_hat,
+                                       vcov_hat = input_list$vcov_hat,
+                                       dof = dof,
+                                       p_adj_method = "BH",
+                                       alpha = input_list$alpha)
       } else {
-        res_screen = ancombc_global_LRT(full_model = input_list$full_model,
-                                        fix_formula = input_list$fix_formula,
-                                        rand_formula = input_list$rand_formula,
-                                        control = input_list$control,
-                                        x = input_list$x,
-                                        group = input_list$group,
-                                        y = input_list$y,
-                                        meta_data = input_list$meta_data,
-                                        p_adj_method = "BH",
-                                        alpha = input_list$alpha)
+        res_screen = .ancombc_global_LRT(full_model = input_list$full_model,
+                                         fix_formula = input_list$fix_formula,
+                                         rand_formula = input_list$rand_formula,
+                                         control = input_list$control,
+                                         x = input_list$x,
+                                         group = input_list$group,
+                                         y = input_list$y,
+                                         meta_data = input_list$meta_data,
+                                         p_adj_method = "BH",
+                                         alpha = input_list$alpha)
       }
     } else {
-        res_screen = dunn_global(x = input_list$x, group = input_list$group,
-                                 W = W,
-                                 B = input_list$B,
-                                 dof = dof,
-                                 p_adj_method = "BH",
-                                 alpha = input_list$alpha)
+        res_screen = .dunn_global(x = input_list$x, group = input_list$group,
+                                  W = W,
+                                  B = input_list$B,
+                                  dof = dof,
+                                  p_adj_method = "BH",
+                                  alpha = input_list$alpha)
     }
     R = sum(res_screen$diff_abn)
 
@@ -85,7 +85,7 @@ mdfdr = function(global_test = c("pairwise", "dunnet"),
 }
 
 # Estimate coefficients under constraints
-constrain_est = function(beta_hat, vcov_hat, contrast, solver) {
+.constrain_est = function(beta_hat, vcov_hat, contrast, solver) {
     beta_opt = CVXR::Variable(rows = length(beta_hat), cols = 1, name = "beta")
     obj = CVXR::Minimize(CVXR::matrix_frac(beta_opt - beta_hat, vcov_hat))
     cons = suppressMessages(contrast %*% beta_opt >= 0)
@@ -103,7 +103,7 @@ constrain_est = function(beta_hat, vcov_hat, contrast, solver) {
 }
 
 # Compute the l_infty norm for a pattern
-l_infty = function(beta_opt, node) {
+.l_infty = function(beta_opt, node) {
     l = max(abs(beta_opt[node]),
             abs(beta_opt[node] - beta_opt[length(beta_opt)]),
             na.rm = TRUE)
@@ -111,7 +111,7 @@ l_infty = function(beta_opt, node) {
 }
 
 # Generate random variables from the poisson log-normal distribution
-rplnm = function(mu, sigma, n, N) {
+.rplnm = function(mu, sigma, n, N) {
     d = length(mu)
     y = MASS::mvrnorm(n = n, mu = mu, Sigma = sigma)
     x = N * exp(y)
@@ -120,7 +120,7 @@ rplnm = function(mu, sigma, n, N) {
 }
 
 # Get the p-values for the sensitivity analysis
-get_p = function(y, data, formula, group, n_levels, pairwise, global, trend) {
+.get_p = function(y, data, formula, group, n_levels, pairwise, global, trend) {
   tformula = paste0("y ~ ", formula)
   df = data.frame(y = y, data)
   lm_fit = stats::lm(formula(tformula), data = df)
@@ -149,6 +149,20 @@ get_p = function(y, data, formula, group, n_levels, pairwise, global, trend) {
   }
 
   return(p_val)
+}
+
+# Internal wrappers for mia::agglomerateByRank/mergeRows
+.merge_features = function(x, merge.by, ...) {
+    # Check if merge.by parameter belongs to taxonomyRanks
+    if (is.character(merge.by) && length(merge.by) == 1 && merge.by %in% mia::taxonomyRanks(x)) {
+        # Merge using agglomerateByRank
+        x = mia::agglomerateByRank(x, rank = merge.by, ...)
+    } else {
+        # Merge using mia::mergeRows
+        f = factor(SummarizedExperiment::rowData(x)[, merge.by])
+        x = mia::mergeRows(x, f = f, ...)
+    }
+    return(x)
 }
 
 

@@ -1,5 +1,5 @@
-version 2.2.xx (last update 2023-07-05)
-        + Modify ancombc2 function and the sensitivity analysis
+version 2.2.xx (last update 2023-09-18)
+        + Modify ancombc2 variance formula and the sensitivity analysis
 
 version 2.0.xx (last update 2022-12-17)
         + Add ancombc2 function

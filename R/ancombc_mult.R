@@ -1,6 +1,6 @@
 # ANCOM-BC global test
-ancombc_global_F = function(x, group, beta_hat, vcov_hat,
-                            dof = NULL, p_adj_method, alpha){
+.ancombc_global_F = function(x, group, beta_hat, vcov_hat,
+                             dof = NULL, p_adj_method, alpha){
     tax_id = rownames(beta_hat)
     n_tax = nrow(beta_hat)
     covariates = colnames(x)
@@ -80,9 +80,9 @@ ancombc_global_F = function(x, group, beta_hat, vcov_hat,
     return(output)
 }
 
-ancombc_global_LRT = function(full_model, fix_formula, rand_formula,
-                              control, x, group,
-                              y, meta_data, p_adj_method, alpha){
+.ancombc_global_LRT = function(full_model, fix_formula, rand_formula,
+                               control, x, group,
+                               y, meta_data, p_adj_method, alpha){
   tax_id = rownames(y)
   n_tax = nrow(y)
   covariates = colnames(x)
@@ -135,9 +135,9 @@ ancombc_global_LRT = function(full_model, fix_formula, rand_formula,
 }
 
 # ANCOM-BC multiple pairwise comparisons
-ancombc_pair = function(x, group, beta_hat, var_hat, vcov_hat, dof,
-                        fwer_ctrl_method, alpha, full_model,
-                        fix_formula, rand_formula, control, y, meta_data) {
+.ancombc_pair = function(x, group, beta_hat, var_hat, vcov_hat, dof,
+                         fwer_ctrl_method, alpha, full_model,
+                         fix_formula, rand_formula, control, y, meta_data) {
     covariates = colnames(x)
 
     # Subset the parameters of interest
@@ -150,29 +150,29 @@ ancombc_pair = function(x, group, beta_hat, var_hat, vcov_hat, dof,
 
     # Run the combination function to obtain pairwise comparison results
     beta_hat_pair = t(apply(beta_hat_sub, 1, function(x)
-        combn_fun(x, fun = base::diff, sep = "_")))
+        .combn_fun(x, fun = base::diff, sep = "_")))
     var_hat_pair = t(vapply(vcov_hat_sub, function(x)
-        combn_fun2(x, fun = var_diff, sep = "_"),
+        .combn_fun2(x, fun = .var_diff, sep = "_"),
         FUN.VALUE = double(ncol(beta_hat_pair))))
     rownames(var_hat_pair) = rownames(beta_hat_pair)
     se_hat_pair = sqrt(var_hat_pair)
     W_pair = beta_hat_pair/se_hat_pair
 
     # Obtain p-values and mdFDR adjusted p-values
-    p_q_pair = mdfdr(global_test = "pairwise",
-                     W = W_pair,
-                     dof = dof_group,
-                     fwer_ctrl_method = fwer_ctrl_method,
-                     x = x, group = group,
-                     beta_hat = beta_hat,
-                     vcov_hat = vcov_hat,
-                     alpha = alpha,
-                     full_model = full_model,
-                     fix_formula = fix_formula,
-                     rand_formula = rand_formula,
-                     control = control,
-                     y = y,
-                     meta_data = meta_data)
+    p_q_pair = .mdfdr(global_test = "pairwise",
+                      W = W_pair,
+                      dof = dof_group,
+                      fwer_ctrl_method = fwer_ctrl_method,
+                      x = x, group = group,
+                      beta_hat = beta_hat,
+                      vcov_hat = vcov_hat,
+                      alpha = alpha,
+                      full_model = full_model,
+                      fix_formula = fix_formula,
+                      rand_formula = rand_formula,
+                      control = control,
+                      y = y,
+                      meta_data = meta_data)
     p_hat_pair = p_q_pair$p_val
     q_hat_pair = p_q_pair$q_val
     diff_pair = ifelse(q_hat_pair <= alpha, TRUE, FALSE)
@@ -184,7 +184,7 @@ ancombc_pair = function(x, group, beta_hat, var_hat, vcov_hat, dof,
 }
 
 # ANCOM-BC Dunnet's type of test
-dunn_global = function(x, group, W, B, dof, p_adj_method, alpha) {
+.dunn_global = function(x, group, W, B, dof, p_adj_method, alpha) {
     covariates = colnames(x)
     group_ind = grepl(group, covariates)
     n_group = sum(group_ind)
@@ -198,7 +198,7 @@ dunn_global = function(x, group, W, B, dof, p_adj_method, alpha) {
 
     W_global_null = matrix(NA, nrow = n_tax, ncol = B)
     for (b in seq_len(B)) {
-        W_null_b = matrix(unlist(apply(dof, 1:2, function(df) rt(1, df = df))),
+        W_null_b = matrix(unlist(apply(dof, seq_len(2), function(df) rt(1, df = df))),
                           nrow = nrow(dof), ncol = ncol(dof))
         W_global_null_b = apply(W_null_b, 1, function(x)
             max(abs(x), na.rm = TRUE))
@@ -218,8 +218,8 @@ dunn_global = function(x, group, W, B, dof, p_adj_method, alpha) {
     return(output)
 }
 
-ancombc_dunn = function(x, group, beta_hat, var_hat, dof,
-                        B, fwer_ctrl_method, alpha) {
+.ancombc_dunn = function(x, group, beta_hat, var_hat, dof,
+                         B, fwer_ctrl_method, alpha) {
     covariates = colnames(x)
 
     # Subset the parameters of interest
@@ -231,9 +231,9 @@ ancombc_dunn = function(x, group, beta_hat, var_hat, dof,
     dof_dunn = dof[, group_ind]
 
     # Obtain p-values and mdFDR adjusted p-values
-    p_q_dunn = mdfdr(global_test = "dunnet", W = W_dunn, dof = dof_dunn,
-                     fwer_ctrl_method = fwer_ctrl_method,
-                     x = x, group = group, B = B, alpha = alpha)
+    p_q_dunn = .mdfdr(global_test = "dunnet", W = W_dunn, dof = dof_dunn,
+                      fwer_ctrl_method = fwer_ctrl_method,
+                      x = x, group = group, B = B, alpha = alpha)
     p_hat_dunn = p_q_dunn$p_val
     q_hat_dunn = p_q_dunn$q_val
     diff_dunn = ifelse(q_hat_dunn <= alpha, TRUE, FALSE)
@@ -245,12 +245,12 @@ ancombc_dunn = function(x, group, beta_hat, var_hat, dof,
 }
 
 # ANCOM-BC pattern analysis
-ancombc_trend = function(x, group, beta_hat, var_hat, vcov_hat,
-                         p_adj_method, alpha,
-                         trend_control = list(contrast = NULL,
-                                              node = NULL,
-                                              solver = "ECOS",
-                                              B = 100)){
+.ancombc_trend = function(x, group, beta_hat, var_hat, vcov_hat,
+                          p_adj_method, alpha,
+                          trend_control = list(contrast = NULL,
+                                               node = NULL,
+                                               solver = "ECOS",
+                                               B = 100)){
     tax_id = rownames(beta_hat)
     n_tax = nrow(beta_hat)
     covariates = colnames(x)
@@ -271,7 +271,7 @@ ancombc_trend = function(x, group, beta_hat, var_hat, vcov_hat,
     n_trend = length(contrast)
     trend_name = names(contrast)
 
-    fun_list = list(constrain_est, l_infty)
+    fun_list = list(.constrain_est, .l_infty)
 
     beta_hat_opt_all = foreach(i = seq_len(n_tax), .combine = rbind) %dorng% {
       beta_hat_opt = unlist(lapply(X = contrast,

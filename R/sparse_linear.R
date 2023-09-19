@@ -1,5 +1,5 @@
-sparse_linear = function(mat, wins_quant, method, soft, thresh_len,
-                         n_cv, thresh_hard, max_p) {
+.sparse_linear = function(mat, wins_quant, method, soft, thresh_len,
+                          n_cv, thresh_hard, max_p) {
     # Thresholding
     mat_thresh = function(mat, th, soft){
         mat_sign = sign(mat)

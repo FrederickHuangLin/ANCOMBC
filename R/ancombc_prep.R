@@ -1,5 +1,5 @@
 # Construct TSE object
-tse_construct = function(data, assay_name, tax_level, phyloseq) {
+.tse_construct = function(data, assay_name, tax_level, phyloseq) {
     if (!is.null(data)) {
         # Check data types
         if (!inherits(data, c("phyloseq", "SummarizedExperiment",
@@ -30,18 +30,10 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
 
         # Check if agglomeration should be performed
         if (is.null(tax_level)) {
-            tax_levels = mia::taxonomyRanks(tse)
-            txt = sprintf(paste0("`tax_level` is not specified \n",
-                                 "No agglomeration will be performed",
-                                 "\n",
-                                 "Otherwise, please specify `tax_level` ",
-                                 "by one of the following: \n",
-                                 paste(tax_levels, collapse = ", ")))
-            message(txt)
             tax_level = "ASV"
             tse_alt = tse
         } else {
-            tse_alt = mia::agglomerateByRank(tse, tax_level)
+            tse_alt = .merge_features(tse, tax_level)
         }
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else if (!is.null(phyloseq)) {
@@ -57,18 +49,10 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
         }
 
         if (is.null(tax_level)) {
-            tax_levels = mia::taxonomyRanks(tse)
-            txt = sprintf(paste0("`tax_level` is not speficified \n",
-                                 "No agglomeration will be performed",
-                                 "\n",
-                                 "Otherwise, please speficy `tax_level` ",
-                                 "by one of the following: \n",
-                                 paste(tax_levels, collapse = ", ")))
-            message(txt)
             tax_level = "ASV"
             tse_alt = tse
         } else {
-            tse_alt = mia::agglomerateByRank(tse, tax_level)
+            tse_alt = .merge_features(tse, tax_level)
         }
         SingleCellExperiment::altExp(tse, tax_level) = tse_alt
     } else {
@@ -84,9 +68,9 @@ tse_construct = function(data, assay_name, tax_level, phyloseq) {
 }
 
 # Filter data by prevalence and library size
-data_core = function(tse = tse, tax_level, assay_name = assay_name,
-                     alt = FALSE, prv_cut, lib_cut,
-                     tax_keep = NULL, samp_keep = NULL) {
+.data_core = function(tse = tse, tax_level, assay_name = assay_name,
+                      alt = FALSE, prv_cut, lib_cut,
+                      tax_keep = NULL, samp_keep = NULL) {
     if (alt) {
         tse_alt = SingleCellExperiment::altExp(tse, tax_level)
         feature_table = SummarizedExperiment::assay(tse_alt, assay_name)
@@ -137,12 +121,21 @@ data_core = function(tse = tse, tax_level, assay_name = assay_name,
 }
 
 # Metadata and arguments check
-data_qc = function(meta_data, group, struc_zero,
-                   global, pairwise, dunnet,
-                   mdfdr_control, trend, trend_control) {
+.data_qc = function(meta_data, formula, group, struc_zero,
+                    global, pairwise, dunnet,
+                    mdfdr_control, trend, trend_control) {
     # Drop unused levels
     meta_data[] = lapply(meta_data, function(x)
         if(is.factor(x)) factor(x) else x)
+
+    # Check if all covariates specified in the formula are columns in meta_data
+    vars = unlist(strsplit(formula, split = "\\s*\\+\\s*"))
+    missing_vars = vars[!vars %in% colnames(meta_data)]
+    if(length(missing_vars) > 0) {
+        stop("The following variables specified are not in the meta data: ",
+             paste(missing_vars, collapse = ", "))
+    }
+
     # Check the group variable
     if (is.null(group)) {
         if (any(c(global, pairwise, dunnet, trend))) {
@@ -250,8 +243,8 @@ data_qc = function(meta_data, group, struc_zero,
 }
 
 # Identify structural zeros
-get_struc_zero = function(tse, tax_level, assay_name,
-                          alt = FALSE, group, neg_lb) {
+.get_struc_zero = function(tse, tax_level, assay_name,
+                           alt = FALSE, group, neg_lb) {
     if (alt) {
         tse_alt = SingleCellExperiment::altExp(tse, tax_level)
         feature_table = SummarizedExperiment::assay(tse_alt, assay_name)

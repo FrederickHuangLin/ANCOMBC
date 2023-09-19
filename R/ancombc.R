@@ -41,11 +41,13 @@
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
+#' @param assay.type alias for \code{assay_name}.
 #' @param tax_level character. The taxonomic level of interest. The input data
 #' can be agglomerated at different taxonomic levels based on your research
 #' interest. Default is NULL, i.e., do not perform agglomeration, and the
 #' ANCOM-BC anlysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
+#' @param rank alias for \code{tax_level}.
 #' @param phyloseq a \code{phyloseq} object. Will be deprecated.
 #' @param formula the character string expresses how microbial absolute
 #' abundances for each taxon depend on the variables in metadata. When
@@ -224,8 +226,8 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancombc = function(data = NULL, assay_name = "counts",
-                   tax_level = NULL, phyloseq = NULL,
+ancombc = function(data = NULL, assay.type = NULL, assay_name = "counts",
+                   rank = NULL, tax_level = NULL, phyloseq = NULL,
                    formula, p_adj_method = "holm", prv_cut = 0.10,
                    lib_cut = 0, group = NULL, struc_zero = FALSE,
                    neg_lb = FALSE, tol = 1e-05, max_iter = 100,
@@ -242,17 +244,26 @@ ancombc = function(data = NULL, assay_name = "counts",
     }
 
     # 1. Data pre-processing
+    # Check for aliases
+    if (!is.null(assay.type)) {
+        assay_name = assay.type
+    }
+
+    if (!is.null(rank)) {
+        tax_level = rank
+    }
+
     # TSE data construction
-    tse_obj = tse_construct(data = data, assay_name = assay_name,
-                            tax_level = tax_level, phyloseq = phyloseq)
+    tse_obj = .tse_construct(data = data, assay_name = assay_name,
+                             tax_level = tax_level, phyloseq = phyloseq)
     tse = tse_obj$tse
     assay_name = tse_obj$assay_name
     tax_level = tse_obj$tax_level
 
     # Filter data by prevalence and library size
-    core = data_core(tse = tse, tax_level = tax_level, assay_name = assay_name,
-                     alt = TRUE, prv_cut = prv_cut, lib_cut = lib_cut,
-                     tax_keep = NULL, samp_keep = NULL)
+    core = .data_core(tse = tse, tax_level = tax_level, assay_name = assay_name,
+                      alt = TRUE, prv_cut = prv_cut, lib_cut = lib_cut,
+                      tax_keep = NULL, samp_keep = NULL)
     feature_table = core$feature_table
     meta_data = core$meta_data
     tax_keep = core$tax_keep
@@ -266,9 +277,11 @@ ancombc = function(data = NULL, assay_name = "counts",
     }
 
     # Metadata and arguments check
-    qc = data_qc(meta_data = meta_data, group = group, struc_zero = struc_zero,
-                 global = global, pairwise = FALSE, dunnet = FALSE,
-                 mdfdr_control = NULL, trend = FALSE, trend_control = NULL)
+    qc = .data_qc(meta_data = meta_data,
+                  formula = formula, group = group,
+                  struc_zero = struc_zero, global = global,
+                  pairwise = FALSE, dunnet = FALSE,
+                  mdfdr_control = NULL, trend = FALSE, trend_control = NULL)
     meta_data = qc$meta_data
     global = qc$global
 
@@ -288,9 +301,9 @@ ancombc = function(data = NULL, assay_name = "counts",
                              "Otherwise, set struc_zero = FALSE to proceed")
             stop(stop_txt, call. = FALSE)
         }
-        zero_ind = get_struc_zero(tse = tse, tax_level = tax_level,
-                                  assay_name = assay_name,
-                                  alt = TRUE, group = group, neg_lb = neg_lb)
+        zero_ind = .get_struc_zero(tse = tse, tax_level = tax_level,
+                                   assay_name = assay_name,
+                                   alt = TRUE, group = group, neg_lb = neg_lb)
         zero_ind = zero_ind[tax_keep, ]
         rownames(zero_ind) = NULL
     }else{ zero_ind = NULL }
@@ -300,9 +313,9 @@ ancombc = function(data = NULL, assay_name = "counts",
         message("Obtaining initial estimates ...")
     }
 
-    para = iter_mle(x = x, y = y, meta_data = meta_data,
-                    formula = formula, theta = NULL, tol = tol,
-                    max_iter = max_iter, verbose = FALSE)
+    para = .iter_mle(x = x, y = y, meta_data = meta_data,
+                     formula = formula, theta = NULL, tol = tol,
+                     max_iter = max_iter, verbose = FALSE)
     beta = para$beta
     vcov_hat = para$vcov_hat
     var_hat = para$var_hat
@@ -311,7 +324,7 @@ ancombc = function(data = NULL, assay_name = "counts",
     if (verbose) {
         message("Estimating sample-specific biases ...")
     }
-    fun_list = list(bias_em)
+    fun_list = list(.bias_em)
     bias = foreach(i = seq_len(ncol(beta)), .combine = rbind) %dorng% {
         output = fun_list[[1]](beta = beta[, i],
                                var_hat = var_hat[, i],
@@ -385,11 +398,11 @@ ancombc = function(data = NULL, assay_name = "counts",
         if (verbose) {
             message("ANCOM-BC global test ...")
         }
-        res_global = ancombc_global_F(x = x, group = group,
-                                      beta_hat = beta_hat,
-                                      vcov_hat = vcov_hat,
-                                      p_adj_method = p_adj_method,
-                                      alpha = alpha)
+        res_global = .ancombc_global_F(x = x, group = group,
+                                       beta_hat = beta_hat,
+                                       vcov_hat = vcov_hat,
+                                       p_adj_method = p_adj_method,
+                                       alpha = alpha)
     } else { res_global = NULL }
 
     # 8. Combine the information of structural zeros

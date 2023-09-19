@@ -39,11 +39,13 @@
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
+#' @param assay.type alias for \code{assay_name}.
 #' @param tax_level character. The taxonomic level of interest. The input data
 #' can be agglomerated at different taxonomic levels based on your research
 #' interest. Default is NULL, i.e., do not perform agglomeration, and the
 #' ANCOM anlysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
+#' @param rank alias for \code{tax_level}
 #' @param phyloseq a \code{phyloseq} object. Will be deprecated.
 #' @param p_adj_method character. method to adjust p-values. Default is "holm".
 #' Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
@@ -160,7 +162,8 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
+ancom = function(data = NULL, assay.type = NULL, assay_name = "counts",
+                 rank = NULL, tax_level = NULL,
                  phyloseq = NULL, p_adj_method = "holm", prv_cut = 0.10,
                  lib_cut = 0, main_var, adj_formula = NULL, rand_formula = NULL,
                  lme_control = lme4::lmerControl(), struc_zero = FALSE,
@@ -169,17 +172,26 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
             "Explore the enhanced capabilities of our refined method!")
 
     # 1. Data pre-processing
+    # Check for aliases
+    if (!is.null(assay.type)) {
+        assay_name = assay.type
+    }
+
+    if (!is.null(rank)) {
+        tax_level = rank
+    }
+
     # TSE data construction
-    tse_obj = tse_construct(data = data, assay_name = assay_name,
-                            tax_level = tax_level, phyloseq = phyloseq)
+    tse_obj = .tse_construct(data = data, assay_name = assay_name,
+                             tax_level = tax_level, phyloseq = phyloseq)
     tse = tse_obj$tse
     assay_name = tse_obj$assay_name
     tax_level = tse_obj$tax_level
 
     # Filter data by prevalence and library size
-    core = data_core(tse = tse, tax_level = tax_level, assay_name = assay_name,
-                     alt = TRUE, prv_cut = prv_cut, lib_cut = lib_cut,
-                     tax_keep = NULL, samp_keep = NULL)
+    core = .data_core(tse = tse, tax_level = tax_level, assay_name = assay_name,
+                      alt = TRUE, prv_cut = prv_cut, lib_cut = lib_cut,
+                      tax_keep = NULL, samp_keep = NULL)
     feature_table = core$feature_table
     tax_keep = core$tax_keep
     tax_name = rownames(feature_table)
@@ -246,10 +258,10 @@ ancom = function(data = NULL, assay_name = "counts", tax_level = NULL,
                                      "Otherwise, set struc_zero = FALSE to proceed"))
             stop(stop_txt, call. = FALSE)
         }
-        zero_ind = get_struc_zero(tse = tse, tax_level = tax_level,
-                                  assay_name = assay_name,
-                                  alt = TRUE, group = main_var,
-                                  neg_lb = neg_lb)
+        zero_ind = .get_struc_zero(tse = tse, tax_level = tax_level,
+                                   assay_name = assay_name,
+                                   alt = TRUE, group = main_var,
+                                   neg_lb = neg_lb)
         zero_ind = zero_ind[tax_keep, ]
         rownames(zero_ind) = NULL
         num_struc_zero = apply(zero_ind[, -1], 1, sum)
