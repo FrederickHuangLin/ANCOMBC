@@ -17,12 +17,16 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA,
                       fig.width = 6.25, fig.height = 5)
 library(ANCOMBC)
 library(tidyverse)
-library(caret)
 library(DT)
 options(DT.options = list(
   initComplete = JS("function(settings, json) {",
   "$(this.api().table().header()).css({'background-color': 
   '#000', 'color': '#fff'});","}")))
+
+# It appears to be a package compatibility issue between the release version of 
+# phyloseq and lme4, a fresh installation of phyloseq might be needed
+# See this post: https://github.com/lme4/lme4/issues/743
+# remotes::install_github("joey711/phyloseq", force = TRUE)
 ```
 
 # 1. Introduction
@@ -46,16 +50,23 @@ distribution of standard errors for each fixed effect as the regularization
 factor. 
 
 3. **Sensitivity analysis for the pseudo-count addition**: Like other 
-differential abundance analysis methods, ANCOM-BC2 log transforms
-the observed counts. However, to deal with zero counts, a pseudo-count is
-added before the log transformation. Several studies have shown that
-differential abundance results could be sensitive to the choice of
-pseudo-count [@costea2014fair; @paulson2014reply],
-resulting in an inflated false positive rate. To avoid such false positives,
-we conduct a sensitivity analysis and provide a sensitivity score for
-each taxon to determine if a particular taxon is sensitive to the choice of
-pseudo-count. The larger the score, the more likely the significant
-result is a false positive.
+differential abundance analysis methods, ANCOM-BC2 applies a log transformation 
+to the observed counts. However, the presence of zero counts poses a challenge, 
+and researchers often consider adding a pseudo-count before the log 
+transformation. However, it has been shown that the choice of pseudo-count can 
+impact the results and lead to an inflated false positive 
+rate [@costea2014fair; @paulson2014reply]. To address this issue, 
+we conduct a sensitivity analysis to assess the impact of different 
+pseudo-counts on zero counts for each taxon. This analysis involves adding a 
+series of pseudo-counts (ranging from 0.01 to 0.5 in increments of 0.01) to 
+the zero counts of each taxon. Linear regression models are then performed on 
+the bias-corrected log abundance table using the different pseudo-counts. The 
+sensitivity score for each taxon is calculated as the proportion of times 
+that the p-value exceeds the specified significance level (alpha). If all 
+p-values consistently show significance or nonsignificance across different 
+pseudo-counts and are consistent with the results obtained without adding 
+pseudo-counts to zero counts (using the complete data), then the taxon is 
+considered not sensitive to the pseudo-count addition. 
 
 4. **Multi-group comparisons and repeated measurements**: The ANCOM-BC2 
 methodology extends ANCOM-BC for multiple groups and repeated measurements 
@@ -97,7 +108,7 @@ in g2 and g3, then taxon A will be considered to contain structural zeros in g1.
 In this example, taxon A is declared to be differentially abundant between 
 g1 and g2, g1 and g3, and consequently, it is globally differentially abundant 
 with respect to this group variable. Such taxa are not further analyzed using 
-ANCOM-BC2, but the results are summarized in the overall summary. 
+ANCOM-BC2, but the results are summarized in a separate table. 
 
 # 2. Installation
 
@@ -143,12 +154,12 @@ Project (QMP) data [@vandeputte2017quantitative]. This dataset contains
 quantitative microbiome count data of 106 samples and 91 OTUs.
 
 ```{r}
-data(QMP)
-set.seed(12345)
+data(QMP, package = "ANCOMBC")
+set.seed(123)
 n = 150
 d = ncol(QMP)
 diff_prop = 0.1
-lfc_cont = -1
+lfc_cont = 1
 lfc_cat2_vs_1 = -2
 lfc_cat3_vs_1 = 1
 
@@ -168,7 +179,8 @@ smd = data.frame(samp_frac = log(c(runif(n/3, min = 1e-4, max = 1e-3),
                  cat_cov = as.factor(rep(seq_len(3), each = n/3)))
 rownames(smd) = paste0("S", seq_len(n))
                       
-fmd = data.frame(seq_eff = log(runif(d, min = 0.1, max = 1)),
+fmd = data.frame(taxon = paste0("T", seq_len(d)),
+                 seq_eff = log(runif(d, min = 0.1, max = 1)),
                  lfc_cont = sample(c(0, lfc_cont), 
                                    size = d,
                                    replace = TRUE,
@@ -182,15 +194,12 @@ fmd = data.frame(seq_eff = log(runif(d, min = 0.1, max = 1)),
                                         replace = TRUE,
                                         prob = c(1 - diff_prop, diff_prop))) %>%
     mutate(lfc_cat3_vs_2 = lfc_cat3_vs_1 - lfc_cat2_vs_1)
-rownames(fmd) = paste0("T", seq_len(d))
 
 # Add effect sizes of covariates to the true abundances
-dmy = caret::dummyVars(" ~ cat_cov", data = smd)
-smd_dmy = data.frame(predict(dmy, newdata = smd))
-
-log_abn_data = log_abn_data + outer(fmd$lfc_cont, smd$cont_cov)
-log_abn_data = log_abn_data + outer(fmd$lfc_cat2_vs_1, smd_dmy$cat_cov.2)
-log_abn_data = log_abn_data + outer(fmd$lfc_cat3_vs_1, smd_dmy$cat_cov.3)
+smd_dmy = model.matrix(~ 0 + cont_cov + cat_cov, data = smd)
+log_abn_data = log_abn_data + outer(fmd$lfc_cont, smd_dmy[, "cont_cov"] )
+log_abn_data = log_abn_data + outer(fmd$lfc_cat2_vs_1, smd_dmy[, "cat_cov2"])
+log_abn_data = log_abn_data + outer(fmd$lfc_cat3_vs_1, smd_dmy[, "cat_cov3"])
 
 # Add sample- and taxon-specific biases
 log_otu_data = t(t(log_abn_data) + smd$samp_frac)
@@ -209,151 +218,162 @@ tse = TreeSummarizedExperiment::TreeSummarizedExperiment(assays = assays, colDat
 set.seed(123)
 output = ancombc2(data = tse, assay_name = "counts", tax_level = NULL,
                   fix_formula = "cont_cov + cat_cov", rand_formula = NULL,
-                  p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
+                  p_adj_method = "holm", pseudo_sens = TRUE,
                   prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
                   group = "cat_cov", struc_zero = FALSE, neg_lb = FALSE,
                   alpha = 0.05, n_cl = 2, verbose = TRUE,
-                  global = FALSE, pairwise = FALSE, 
+                  global = FALSE, pairwise = TRUE, 
                   dunnet = FALSE, trend = FALSE,
                   iter_control = list(tol = 1e-5, max_iter = 20, 
                                       verbose = FALSE),
                   em_control = list(tol = 1e-5, max_iter = 100),
-                  lme_control = NULL, mdfdr_control = NULL, 
+                  lme_control = NULL, 
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
                   trend_control = NULL)
 
 res_prim = output$res
-tab_sens = output$pseudo_sens_tab
+res_pair = output$res_pair
 ```
 
-## 3.3 Sensitivity scores for "cat_cov"
-
-1. Extreme values (>4) of the sensitivity score are observed. 
-
-2. Significant taxa with extreme sensitivity scores are likely false positives.
-
-3. We empirically set the threshold for the sensitivity score as 5. 
-Taxa with sensitivity scores larger than the specified threshold will be 
-considered nonsignificant.
-
-```{r, fig.width=10}
-sens_cat = tab_sens %>%
-    transmute(taxon, sens_cat = cat_cov2) %>%
-    dplyr::left_join(res_prim %>%
-                       transmute(taxon, diff_cat = diff_cat_cov2), 
-                     by = "taxon") %>%
-    mutate(group = "Cat2 vs. Cat1") %>%
-    bind_rows(
-        tab_sens %>%
-            transmute(taxon, sens_cat = cat_cov3) %>%
-            dplyr::left_join(res_prim %>%
-                               transmute(taxon, diff_cat = diff_cat_cov3), 
-                             by = "taxon") %>%
-            mutate(group = "Cat3 vs. Cat1")
-    )
-sens_cat$diff_cat = recode(sens_cat$diff_cat * 1, 
-                           `1` = "Significant",
-                           `0` = "Nonsignificant")
-
-fig_sens_cat = sens_cat %>%
-    ggplot(aes(x = taxon, y = sens_cat, color = diff_cat)) +
-    geom_point() +
-    scale_color_brewer(palette = "Dark2", name = NULL) +
-    facet_grid(rows = vars(group), scales = "free") +
-    labs(x = NULL, y = "Sensitivity Score") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 60, vjust = 0.5))
-fig_sens_cat
-
-sens_cut1 = 4
-sens_cut2 = 4
-```
-
-## 3.4 Power and FDR
+## 3.3 Power and FDR
 
 ```{r}
-# Not considering the effect of pseudo-count addition
-lfc = res_prim %>%
-    dplyr::select(starts_with("lfc"))
-diff = res_prim %>%
-    dplyr::select(starts_with("diff"))
-res_merge = (lfc * diff) %>%
-    mutate(taxon = res_prim$taxon) %>%
-    dplyr::left_join(fmd %>%
-                  rownames_to_column("taxon"), 
-              by = "taxon") %>%
-    transmute(
-        taxon = taxon,
-        est_cov2 = case_when(
-            lfc_cat_cov2 > 0 ~ 1,
-            lfc_cat_cov2 < 0 ~ -1,
-            TRUE ~ 0),
-        est_cov3 = case_when(
-            lfc_cat_cov3 > 0 ~ 1,
-            lfc_cat_cov3 < 0 ~ -1,
-            TRUE ~ 0),
-        true_cat2 = case_when(
-            lfc_cat2_vs_1 > 0 ~ 1,
-            lfc_cat2_vs_1 < 0 ~ -1,
-            TRUE ~ 0),
-        true_cat3 = case_when(
-            lfc_cat3_vs_1 > 0 ~ 1,
-            lfc_cat3_vs_1 < 0 ~ -1,
-            TRUE ~ 0)
-        )
+res_merge1 = res_pair %>%
+  dplyr::transmute(taxon, 
+                   lfc_est1 = lfc_cat_cov2 * diff_cat_cov2,
+                   lfc_est2 = lfc_cat_cov3 * diff_cat_cov3,
+                   lfc_est3 = lfc_cat_cov3_cat_cov2 * diff_cat_cov3_cat_cov2) %>%
+  dplyr::left_join(fmd %>%
+                     dplyr::transmute(taxon, 
+                                      lfc_true1 = lfc_cat2_vs_1,
+                                      lfc_true2 = lfc_cat3_vs_1,
+                                      lfc_true3 = lfc_cat3_vs_2),
+                   by = "taxon") %>%
+  dplyr::transmute(taxon, 
+                   lfc_est1 = case_when(lfc_est1 > 0 ~ 1,
+                                        lfc_est1 < 0 ~ -1,
+                                        TRUE ~ 0),
+                   lfc_est2 = case_when(lfc_est2 > 0 ~ 1,
+                                        lfc_est2 < 0 ~ -1,
+                                        TRUE ~ 0),
+                   lfc_est3 = case_when(lfc_est3 > 0 ~ 1,
+                                        lfc_est3 < 0 ~ -1,
+                                        TRUE ~ 0),
+                   lfc_true1 = case_when(lfc_true1 > 0 ~ 1,
+                                         lfc_true1 < 0 ~ -1,
+                                         TRUE ~ 0),
+                   lfc_true2 = case_when(lfc_true2 > 0 ~ 1,
+                                         lfc_true2 < 0 ~ -1,
+                                         TRUE ~ 0),
+                   lfc_true3 = case_when(lfc_true3 > 0 ~ 1,
+                                         lfc_true3 < 0 ~ -1,
+                                         TRUE ~ 0))
+lfc_est1 = res_merge1$lfc_est1
+lfc_true1 = res_merge1$lfc_true1
+lfc_est2 = res_merge1$lfc_est2
+lfc_true2 = res_merge1$lfc_true2
+lfc_est3 = res_merge1$lfc_est3
+lfc_true3 = res_merge1$lfc_true3
 
-# Cat 2 vs Cat 1
-lfc_est = res_merge$est_cov2
-lfc_true = res_merge$true_cat2
-tp = sum(lfc_true != 0 & lfc_est != 0)
-fp = sum(lfc_true == 0 & lfc_est != 0)
-fn = sum(lfc_true != 0 & lfc_est == 0)
-power1_nosens = tp/(tp + fn)
-fdr1_nosens = fp/(tp + fp)
+tp1 = sum(lfc_true1 == 1 & lfc_est1 == 1) +
+  sum(lfc_true1 == -1 & lfc_est1 == -1)
+fp1 = sum(lfc_true1 == 0 & lfc_est1 != 0) +
+  sum(lfc_true1 == 1 & lfc_est1 == -1) +
+  sum(lfc_true1 == -1 & lfc_est1 == 1)
+fn1 = sum(lfc_true1 != 0 & lfc_est1 == 0)
 
-# Cat 3 vs Cat 1
-lfc_est = res_merge$est_cov3
-lfc_true = res_merge$true_cat3
-tp = sum(lfc_true != 0 & lfc_est != 0)
-fp = sum(lfc_true == 0 & lfc_est != 0)
-fn = sum(lfc_true != 0 & lfc_est == 0)
-power2_nosens = tp/(tp + fn)
-fdr2_nosens = fp/(tp + fp)
+tp2 = sum(lfc_true2 == 1 & lfc_est2 == 1) +
+  sum(lfc_true2 == -1 & lfc_est2 == -1)
+fp2 = sum(lfc_true2 == 0 & lfc_est2 != 0) +
+  sum(lfc_true2 == 1 & lfc_est2 == -1) +
+  sum(lfc_true2 == -1 & lfc_est2 == 1)
+fn2 = sum(lfc_true2 != 0 & lfc_est2 == 0)
 
-# Considering the effect of pseudo-count addition
-res_merge2 = res_merge %>%
-    dplyr::left_join(tab_sens, by = "taxon")
+tp3 = sum(lfc_true3 == 1 & lfc_est3 == 1) +
+  sum(lfc_true3 == -1 & lfc_est3 == -1)
+fp3 = sum(lfc_true3 == 0 & lfc_est3 != 0) +
+  sum(lfc_true3 == 1 & lfc_est3 == -1) +
+  sum(lfc_true3 == -1 & lfc_est3 == 1)
+fn3 = sum(lfc_true3 != 0 & lfc_est3 == 0)
 
-# Cat 2 vs Cat 1
-lfc_est = res_merge2$est_cov2 * (res_merge2$cat_cov2 < sens_cut1)
-lfc_true = res_merge2$true_cat2
-tp = sum(lfc_true != 0 & lfc_est != 0)
-fp = sum(lfc_true == 0 & lfc_est != 0)
-fn = sum(lfc_true != 0 & lfc_est == 0)
-power1_sens = tp/(tp + fn)
-fdr1_sens = fp/(tp + fp)
+tp = tp1 + tp2 + tp3
+fp = fp1 + fp2 + fp3
+fn = fn1 + fn2 + fn3
 
-# Cat 3 vs Cat 1
-lfc_est = res_merge2$est_cov3 * (res_merge2$cat_cov3 < sens_cut2)
-lfc_true = res_merge2$true_cat3
-tp = sum(lfc_true != 0 & lfc_est != 0)
-fp = sum(lfc_true == 0 & lfc_est != 0)
-fn = sum(lfc_true != 0 & lfc_est == 0)
-power2_sens = tp/(tp + fn)
-fdr2_sens = fp/(tp + fp)
+power1 = tp/(tp + fn)
+fdr1 = fp/(tp + fp)
 
-tab_summ1 = data.frame(Comparison = c("Not considering the effect of pseudo-count addition", 
-                                      "Considering the effect of pseudo-count addition"),
-                       Power = round(c(power1_nosens, power1_sens), 2),
-                       FDR = round(c(fdr1_nosens, fdr1_sens), 2))
+res_merge2 = res_pair %>%
+  dplyr::transmute(taxon, 
+                   lfc_est1 = lfc_cat_cov2 * diff_cat_cov2 * passed_ss_cat_cov2,
+                   lfc_est2 = lfc_cat_cov3 * diff_cat_cov3 * passed_ss_cat_cov3,
+                   lfc_est3 = lfc_cat_cov3_cat_cov2 * diff_cat_cov3_cat_cov2* passed_ss_cat_cov3_cat_cov2) %>%
+  dplyr::left_join(fmd %>%
+                     dplyr::transmute(taxon, 
+                                      lfc_true1 = lfc_cat2_vs_1,
+                                      lfc_true2 = lfc_cat3_vs_1,
+                                      lfc_true3 = lfc_cat3_vs_2),
+                   by = "taxon") %>%
+  dplyr::transmute(taxon, 
+                   lfc_est1 = case_when(lfc_est1 > 0 ~ 1,
+                                        lfc_est1 < 0 ~ -1,
+                                        TRUE ~ 0),
+                   lfc_est2 = case_when(lfc_est2 > 0 ~ 1,
+                                        lfc_est2 < 0 ~ -1,
+                                        TRUE ~ 0),
+                   lfc_est3 = case_when(lfc_est3 > 0 ~ 1,
+                                        lfc_est3 < 0 ~ -1,
+                                        TRUE ~ 0),
+                   lfc_true1 = case_when(lfc_true1 > 0 ~ 1,
+                                         lfc_true1 < 0 ~ -1,
+                                         TRUE ~ 0),
+                   lfc_true2 = case_when(lfc_true2 > 0 ~ 1,
+                                         lfc_true2 < 0 ~ -1,
+                                         TRUE ~ 0),
+                   lfc_true3 = case_when(lfc_true3 > 0 ~ 1,
+                                         lfc_true3 < 0 ~ -1,
+                                         TRUE ~ 0))
+lfc_est1 = res_merge2$lfc_est1
+lfc_true1 = res_merge2$lfc_true1
+lfc_est2 = res_merge2$lfc_est2
+lfc_true2 = res_merge2$lfc_true2
+lfc_est3 = res_merge2$lfc_est3
+lfc_true3 = res_merge2$lfc_true3
 
-tab_summ2 = data.frame(Comparison = c("Not considering the effect of pseudo-count addition", 
-                                      "Considering the effect of pseudo-count addition"),
-                       Power = round(c(power2_nosens, power2_sens), 2),
-                       FDR = round(c(fdr2_nosens, fdr2_sens), 2))
-tab_summ1 %>%
-    datatable(caption = "Cat 2 vs Cat 1")
-tab_summ2 %>%
-    datatable(caption = "Cat 3 vs Cat 1")
+tp1 = sum(lfc_true1 == 1 & lfc_est1 == 1) +
+  sum(lfc_true1 == -1 & lfc_est1 == -1)
+fp1 = sum(lfc_true1 == 0 & lfc_est1 != 0) +
+  sum(lfc_true1 == 1 & lfc_est1 == -1) +
+  sum(lfc_true1 == -1 & lfc_est1 == 1)
+fn1 = sum(lfc_true1 != 0 & lfc_est1 == 0)
+
+tp2 = sum(lfc_true2 == 1 & lfc_est2 == 1) +
+  sum(lfc_true2 == -1 & lfc_est2 == -1)
+fp2 = sum(lfc_true2 == 0 & lfc_est2 != 0) +
+  sum(lfc_true2 == 1 & lfc_est2 == -1) +
+  sum(lfc_true2 == -1 & lfc_est2 == 1)
+fn2 = sum(lfc_true2 != 0 & lfc_est2 == 0)
+
+tp3 = sum(lfc_true3 == 1 & lfc_est3 == 1) +
+  sum(lfc_true3 == -1 & lfc_est3 == -1)
+fp3 = sum(lfc_true3 == 0 & lfc_est3 != 0) +
+  sum(lfc_true3 == 1 & lfc_est3 == -1) +
+  sum(lfc_true3 == -1 & lfc_est3 == 1)
+fn3 = sum(lfc_true3 != 0 & lfc_est3 == 0)
+
+tp = tp1 + tp2 + tp3
+fp = fp1 + fp2 + fp3
+fn = fn1 + fn2 + fn3
+
+power2 = tp/(tp + fn)
+fdr2 = fp/(tp + fp)
+
+tab_summ = data.frame(Comparison = c("Without sensitivity score filter", 
+                                     "With sensitivity score filter"),
+                      Power = round(c(power1, power2), 2),
+                      FDR = round(c(fdr1, fdr2), 2))
+tab_summ %>%
+    datatable(caption = "Power/FDR Comparison")
 ```
 
 # 4. Run ANCOM-BC2 on a real cross-sectional dataset
@@ -414,6 +434,14 @@ print(tse)
     
 ## 4.2 Run ancombc2 function
 
+To control the FDR arising from multiple testing, we opt for the Holm-Bonferroni 
+method over the Benjamini-Hochberg (BH) procedure, especially when dealing with 
+large sample sizes where statistical power isn't the primary concern. The 
+Holm-Bonferroni method, accommodating any dependence structure among p-values, 
+is known to be robust against inaccuracies in p-values, an issue often seen in 
+DA analysis. Figures below display only results significant after the 
+Holm-Bonferroni adjustment.
+
 ```{r}
 set.seed(123)
 # It should be noted that we have set the number of bootstrap samples (B) equal 
@@ -422,7 +450,7 @@ set.seed(123)
 # which is 100, or larger values for optimal performance.
 output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                   fix_formula = "age + region + bmi", rand_formula = NULL,
-                  p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
+                  p_adj_method = "holm", pseudo_sens = TRUE,
                   prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
                   group = "bmi", struc_zero = TRUE, neg_lb = TRUE,
                   alpha = 0.05, n_cl = 2, verbose = TRUE,
@@ -437,13 +465,16 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                                               byrow = TRUE),
                                                        matrix(c(-1, 0, 1, -1),
                                                               nrow = 2, 
+                                                              byrow = TRUE),
+                                                       matrix(c(1, 0, 1, -1),
+                                                              nrow = 2, 
                                                               byrow = TRUE)),
-                                       node = list(2, 2),
+                                       node = list(2, 2, 1),
                                        solver = "ECOS",
                                        B = 10))
 ```
 
-## 4.3 Structural zeros
+## 4.3 Structural zeros (taxon presence/absence)
 
 ```{r}
 tab_zero = output$zero_ind
@@ -451,38 +482,33 @@ tab_zero %>%
     datatable(caption = "The detection of structural zeros")
 ```
 
-## 4.4 Sensitivity scores
+## 4.4 ANCOM-BC2 primary analysis {.tabset}
 
-```{r}
-tab_sens = output$pseudo_sens_tab
-tab_sens %>%
-    datatable(caption = "Sensitivity Scores") %>%
-    formatRound(colnames(tab_sens)[-1], digits = 2)
-```
-
-## 4.5 ANCOM-BC2 primary analysis
-
-Result from the ANCOM-BC2 methodology to determine taxa that are 
-differentially abundant according to the covariate of interest. Results contain: 
+The primary output of the ANCOM-BC2 methodology identifies taxa with 
+differential abundance based on the chosen covariate. The results include: 
 1) log fold changes, 2) standard errors, 3) test statistics, 4) p-values, 
-5) adjusted p-values, 6) indicators of whether the taxon is differentially 
-abundant (TRUE) or not (FALSE).
+5) adjusted p-values, 6) indicators denoting whether the taxon is differentially 
+abundant (TRUE) or not (FALSE), and 7) indicators denoting whether the taxon 
+passed the sensitivity analysis (TRUE) or not (FALSE).
 
 ```{r}
 res_prim = output$res
 ```
 
-### Results for age {.tabset}
+### Results for age 
 
-#### Original results
+In the subsequent waterfall plot, each bar represents a log fold-change 
+(in natural log) value. Any taxon highlighted in green indicates its successful 
+passage through the sensitivity analysis for pseudo-count addition.
 
 ```{r}
 df_age = res_prim %>%
     dplyr::select(taxon, ends_with("age")) 
 df_fig_age = df_age %>%
-    filter(diff_age == 1) %>% 
-    arrange(desc(lfc_age)) %>%
-    mutate(direct = ifelse(lfc_age > 0, "Positive LFC", "Negative LFC"))
+    dplyr::filter(diff_age == 1) %>% 
+    dplyr::arrange(desc(lfc_age)) %>%
+    dplyr::mutate(direct = ifelse(lfc_age > 0, "Positive LFC", "Negative LFC"),
+                  color = ifelse(passed_ss_age == 1, "aquamarine3", "black"))
 df_fig_age$taxon = factor(df_fig_age$taxon, levels = df_fig_age$taxon)
 df_fig_age$direct = factor(df_fig_age$direct, 
                            levels = c("Positive LFC", "Negative LFC"))
@@ -500,52 +526,51 @@ fig_age = df_fig_age %>%
     theme_bw() + 
     theme(plot.title = element_text(hjust = 0.5),
           panel.grid.minor.y = element_blank(),
-          axis.text.x = element_text(angle = 60, hjust = 1))
+          axis.text.x = element_text(angle = 60, hjust = 1,
+                                     color = df_fig_age$color))
 fig_age
 ```
 
-#### Pseudo-count sensitivity analysis for age
+### Results for bmi
 
-For the covariate of age, no outlying sensitivity scores are observed. 
-All significant taxa have low sensitivity scores.
-
-```{r}
-sens_age = tab_sens %>%
-    transmute(taxon, sens_age = age) %>%
-    dplyr::left_join(df_age, by = "taxon")
-sens_age$diff_age = recode(sens_age$diff_age * 1, 
-                           `1` = "Significant",
-                           `0` = "Nonsignificant")
-
-fig_sens_age = sens_age %>%
-    ggplot(aes(x = taxon, y = sens_age, color = diff_age)) +
-    geom_point() +
-    scale_color_brewer(palette = "Dark2", name = NULL) +
-    labs(x = NULL, y = "Sensitivity Score") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 60, vjust = 0.5))
-fig_sens_age
-```
-
-### Results for bmi {.tabset}
-
-#### Original results
+In the subsequent heatmap, each cell represents a log fold-change 
+(in natural log) value. Entries highlighted in green have successfully passed 
+the sensitivity analysis for pseudo-count addition.
 
 ```{r}
 df_bmi = res_prim %>%
     dplyr::select(taxon, contains("bmi")) 
-df_fig_bmi = df_bmi %>%
-    filter(diff_bmilean == 1 | diff_bmioverweight == 1) %>%
-    mutate(lfc_overweight = ifelse(diff_bmioverweight == 1, 
-                                   lfc_bmioverweight, 0),
-           lfc_lean = ifelse(diff_bmilean == 1, 
-                             lfc_bmilean, 0)) %>%
-    transmute(taxon, 
-              `Overweight vs. Obese` = round(lfc_overweight, 2),
-              `Lean vs. Obese` = round(lfc_lean, 2)) %>%
-    pivot_longer(cols = `Overweight vs. Obese`:`Lean vs. Obese`, 
-                 names_to = "group", values_to = "value") %>%
-    arrange(taxon)
+df_fig_bmi1 = df_bmi %>%
+    dplyr::filter(diff_bmilean == 1 | 
+                    diff_bmioverweight == 1) %>%
+    dplyr::mutate(lfc1 = ifelse(diff_bmioverweight == 1, 
+                                round(lfc_bmioverweight, 2), 0),
+                  lfc2 = ifelse(diff_bmilean == 1, 
+                                round(lfc_bmilean, 2), 0)) %>%
+    tidyr::pivot_longer(cols = lfc1:lfc2, 
+                        names_to = "group", values_to = "value") %>%
+    dplyr::arrange(taxon)
+
+df_fig_bmi2 = df_bmi %>%
+    dplyr::filter(diff_bmilean == 1 | 
+                    diff_bmioverweight == 1) %>%
+    dplyr::mutate(lfc1 = ifelse(passed_ss_bmioverweight == 1 & diff_bmioverweight == 1, 
+                                "aquamarine3", "black"),
+                  lfc2 = ifelse(passed_ss_bmilean == 1 & diff_bmilean == 1, 
+                                "aquamarine3", "black")) %>%
+    tidyr::pivot_longer(cols = lfc1:lfc2, 
+                        names_to = "group", values_to = "color") %>%
+    dplyr::arrange(taxon)
+
+df_fig_bmi = df_fig_bmi1 %>%
+    dplyr::left_join(df_fig_bmi2, by = c("taxon", "group"))
+
+df_fig_bmi$group = recode(df_fig_bmi$group, 
+                          `lfc1` = "Overweight - Obese",
+                          `lfc2` = "Lean - Obese")
+df_fig_bmi$group = factor(df_fig_bmi$group, 
+                          levels = c("Overweight - Obese",
+                                     "Lean - Obese"))
   
 lo = floor(min(df_fig_bmi$value))
 up = ceiling(max(df_fig_bmi$value))
@@ -556,82 +581,55 @@ fig_bmi = df_fig_bmi %>%
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
+  geom_text(aes(group, taxon, label = value, color = color), size = 4) +
+  scale_color_identity(guide = FALSE) +
   labs(x = NULL, y = NULL, title = "Log fold changes as compared to obese subjects") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 fig_bmi
 ```
 
-#### Pseudo-count sensitivity analysis for bmi
+## 4.5 ANCOM-BC2 global test
 
-For the covariate of bmi, no outlying sensitivity scores are observed. 
-All significant taxa have low sensitivity scores.
+The primary goal of the ANCOM-BC2 global test is to discern taxa that 
+demonstrate differential abundance between a minimum of two groups when 
+analyzing three or more experimental groups.
 
-```{r}
-sens_bmi = tab_sens %>%
-    transmute(taxon, sens_bmi = bmilean) %>%
-    dplyr::left_join(df_bmi %>%
-                       transmute(taxon, diff_bmi = diff_bmilean),
-                     by = "taxon") %>%
-    mutate(group = "Lean vs. Obese") %>%
-    bind_rows(
-        tab_sens %>%
-            transmute(taxon, sens_bmi = bmioverweight) %>%
-            dplyr::left_join(df_bmi %>%
-                               transmute(taxon, diff_bmi = diff_bmioverweight), 
-                             by = "taxon") %>%
-            mutate(group = "Overweight vs. Obese")
-    )
-sens_bmi$diff_bmi = recode(sens_bmi$diff_bmi * 1, 
-                           `1` = "Significant",
-                           `0` = "Nonsignificant")
+To illustrate, in our current example, the objective is to pinpoint taxa with 
+differential abundance across the "lean", "overweight", and "obese" categories. 
+The results encompass: 1) test statistics, 2) p-values, 3) adjusted p-values, 
+4) indicators denoting whether the taxon is differentially abundant (TRUE) or 
+not (FALSE), and 5) indicators denoting whether the taxon passed the sensitivity 
+analysis (TRUE) or not (FALSE).
 
-fig_sens_bmi = sens_bmi %>%
-    ggplot(aes(x = taxon, y = sens_bmi, color = diff_bmi)) +
-    geom_point() +
-    scale_color_brewer(palette = "Dark2", name = NULL) +
-    facet_grid(rows = vars(group), scales = "free") +
-    labs(x = NULL, y = "Sensitivity Score") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 60, vjust = 0.5))
-fig_sens_bmi
-```
-
-## 4.6 ANCOM-BC2 global test {.tabset}
-
-ANCOM-BC2 global test aims to determine taxa that are differentially abundant 
-between at least two groups across three or more experimental groups.
-
-In this example, we want to identify taxa that are differentially abundant 
-between at least two groups across "lean", "overweight", and "obese".
-The result contains: 1) test statistics, 2) p-values, 3) adjusted p-values, 
-4) indicators of whether the taxon is differentially abundant (TRUE) or not 
-(FALSE).
+In the subsequent heatmap, each cell represents a log fold-change (in natural 
+log) value. Taxa marked in green have successfully passed the sensitivity 
+analysis for pseudo-count addition.
 
 ```{r}
 res_global = output$res_global
-```
-
-### Results for BMI
-
-```{r}
 df_bmi = res_prim %>%
     dplyr::select(taxon, contains("bmi")) 
 df_fig_global = df_bmi %>%
     dplyr::left_join(res_global %>%
-                  transmute(taxon, diff_bmi = diff_abn)) %>%
+                       dplyr::transmute(taxon, 
+                                        diff_bmi = diff_abn, 
+                                        passed_ss = passed_ss)) %>%
     dplyr::filter(diff_bmi == 1) %>%
-    mutate(lfc_lean = ifelse(diff_bmilean == 1, 
-                             lfc_bmilean, 0),
-           lfc_overweight = ifelse(diff_bmioverweight == 1, 
-                                   lfc_bmioverweight, 0)) %>%
-    transmute(taxon, 
-              `Lean vs. Obese` = round(lfc_lean, 2), 
-              `Overweight vs. Obese` = round(lfc_overweight, 2)) %>%
-    pivot_longer(cols = `Lean vs. Obese`:`Overweight vs. Obese`, 
-                 names_to = "group", values_to = "value") %>%
-    arrange(taxon)
+    dplyr::mutate(lfc_overweight = lfc_bmioverweight,
+                  lfc_lean = lfc_bmilean,
+                  color = ifelse(passed_ss == 1, "aquamarine3", "black")) %>%
+    dplyr::transmute(taxon,
+                     `Overweight - Obese` = round(lfc_overweight, 2),
+                     `Lean - Obese` = round(lfc_lean, 2), 
+                     color = color) %>%
+    tidyr::pivot_longer(cols = `Overweight - Obese`:`Lean - Obese`, 
+                        names_to = "group", values_to = "value") %>%
+    dplyr::arrange(taxon)
+
+df_fig_global$group = factor(df_fig_global$group, 
+                             levels = c("Overweight - Obese",
+                                        "Lean - Obese"))
   
 lo = floor(min(df_fig_global$value))
 up = ceiling(max(df_fig_global$value))
@@ -645,177 +643,148 @@ fig_global = df_fig_global %>%
   geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
   labs(x = NULL, y = NULL, title = "Log fold changes for globally significant taxa") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.y = element_text(color = df_fig_global %>%
+                                       dplyr::distinct(taxon, color) %>%
+                                       .$color))
 fig_global
 ```
 
-### Pseudo-count sensitivity analysis for the global test
+## 4.6 ANCOM-BC2 multiple pairwise comparisons
 
-For the global test of bmi, no outlying sensitivity scores are observed. 
-All significant taxa have low sensitivity scores.
+The ANCOM-BC2 methodology for multiple pairwise comparisons is designed to 
+identify taxa that exhibit differential abundance between any two groups within 
+a set of three or more experimental groups, all while maintaining control over 
+the mdFDR.
 
-```{r}
-sens_global = tab_sens %>%
-    transmute(taxon, sens_global = global) %>%
-    dplyr::left_join(res_global %>%
-                       transmute(taxon, diff_global = diff_abn * 1), 
-                     by = "taxon") 
-sens_global$diff_global = recode(sens_global$diff_global, 
-                                 `1` = "Significant",
-                                 `0` = "Nonsignificant")
+For instance, in our analysis focusing on the categories "lean", "overweight", 
+and "obese", the output provides: 1) log fold changes, 2) standard errors, 
+3) test statistics, 4) p-values, 5) adjusted p-values, 6) indicators denoting 
+whether the taxon is differentially abundant (TRUE) or not (FALSE), and 
+7) indicators denoting whether the taxon passed the sensitivity analysis (TRUE) 
+or not (FALSE).
 
-fig_sens_global = sens_global %>%
-    ggplot(aes(x = taxon, y = sens_global, color = diff_global)) +
-    geom_point() +
-    scale_color_brewer(palette = "Dark2", name = NULL) +
-    labs(x = NULL, y = "Sensitivity Score") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 60, vjust = 0.5))
-fig_sens_global
-```
-
-## 4.7 ANCOM-BC2 multiple pairwise comparisons {.tabset}
-
-ANCOM-BC2 multiple pairwise comparisons aim to determine taxa that are 
-differentially abundant between any pair of two groups across three or more 
-experimental groups, while controlling the mdFDR.
-
-In this example, we want to identify taxa that are differentially abundant 
-between any pair of two groups across "lean", "overweight", and "obese".
-The result contains: 1) log fold changes, 2) standard errors, 3) test 
-statistics, 4) p-values, 5) adjusted p-values, 6) indicators of whether the 
-taxon is differentially abundant (TRUE) or not (FALSE).
+In the subsequent heatmap, each cell represents a log fold-change 
+(in natural log) value. Entries highlighted in green have successfully passed 
+the sensitivity analysis for pseudo-count addition.
 
 ```{r}
 res_pair = output$res_pair
-```
 
-### Results for BMI
+df_fig_pair1 = res_pair %>%
+    dplyr::filter(diff_bmioverweight == 1 |
+                      diff_bmilean == 1 | 
+                      diff_bmilean_bmioverweight == 1) %>%
+    dplyr::mutate(lfc1 = ifelse(diff_bmioverweight == 1, 
+                                round(lfc_bmioverweight, 2), 0),
+                  lfc2 = ifelse(diff_bmilean == 1, 
+                                round(lfc_bmilean, 2), 0),
+                  lfc3 = ifelse(diff_bmilean_bmioverweight == 1, 
+                                round(lfc_bmilean_bmioverweight, 2), 0)) %>%
+    tidyr::pivot_longer(cols = lfc1:lfc3, 
+                        names_to = "group", values_to = "value") %>%
+    dplyr::arrange(taxon)
 
-```{r}
-df_fig_pair = res_pair %>%
-    filter(diff_bmilean == 1 | diff_bmioverweight == 1 |
-               diff_bmilean_bmioverweight == 1) %>%
-    mutate(lfc_lean = ifelse(diff_bmilean == 1, 
-                             lfc_bmilean, 0),
-           lfc_overweight = ifelse(diff_bmioverweight == 1, 
-                                   lfc_bmioverweight, 0),
-           lfc_lean_overweight = ifelse(diff_bmilean_bmioverweight == 1, 
-                                        lfc_bmilean_bmioverweight, 0)) %>%
-    transmute(taxon, 
-              `Lean vs. Obese` = round(lfc_lean, 2), 
-              `Overweight vs. Obese` = round(lfc_overweight, 2),
-              `Lean vs. Overweight` = round(lfc_lean_overweight, 2)
-              ) %>%
-    pivot_longer(cols = `Lean vs. Obese`:`Lean vs. Overweight`, 
-                 names_to = "group", values_to = "value") %>%
-    arrange(taxon)
+df_fig_pair2 = res_pair %>%
+    dplyr::filter(diff_bmioverweight == 1 |
+                      diff_bmilean == 1 | 
+                      diff_bmilean_bmioverweight == 1) %>%
+    dplyr::mutate(lfc1 = ifelse(passed_ss_bmioverweight == 1 & diff_bmioverweight == 1, 
+                                "aquamarine3", "black"),
+                  lfc2 = ifelse(passed_ss_bmilean == 1 & diff_bmilean == 1, 
+                                "aquamarine3", "black"),
+                  lfc3 = ifelse(passed_ss_bmilean_bmioverweight == 1 & diff_bmilean_bmioverweight == 1, 
+                                "aquamarine3", "black")) %>%
+    tidyr::pivot_longer(cols = lfc1:lfc3, 
+                        names_to = "group", values_to = "color") %>%
+    dplyr::arrange(taxon)
+
+df_fig_pair = df_fig_pair1 %>%
+    dplyr::left_join(df_fig_pair2, by = c("taxon", "group"))
+
+df_fig_pair$group = recode(df_fig_pair$group, 
+                          `lfc1` = "Overweight - Obese",
+                          `lfc2` = "Lean - Obese",
+                          `lfc3` = "Lean - Overweight")
 df_fig_pair$group = factor(df_fig_pair$group, 
-                           levels = c("Lean vs. Obese",
-                                      "Overweight vs. Obese",
-                                      "Lean vs. Overweight"))
-  
+                          levels = c("Overweight - Obese",
+                                     "Lean - Obese", 
+                                     "Lean - Overweight"))
+
 lo = floor(min(df_fig_pair$value))
 up = ceiling(max(df_fig_pair$value))
 mid = (lo + up)/2
 fig_pair = df_fig_pair %>%
-  ggplot(aes(x = group, y = taxon, fill = value)) + 
-  geom_tile(color = "black") +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-                       na.value = "white", midpoint = mid, limit = c(lo, up),
-                       name = NULL) +
-  geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
-  labs(x = NULL, y = NULL, title = "Log fold change of pairwise comparisons") +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))
+    ggplot(aes(x = group, y = taxon, fill = value)) + 
+    geom_tile(color = "black") +
+    scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                         na.value = "white", midpoint = mid, limit = c(lo, up),
+                         name = NULL) +
+    geom_text(aes(group, taxon, label = value, color = color), size = 4) +
+    scale_color_identity(guide = FALSE) +
+    labs(x = NULL, y = NULL, title = "Log fold changes as compared to obese subjects") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5))
 fig_pair
 ```
 
-### Pseudo-count sensitivity analysis for bmi
-
-For the pairwise analysis of bmi, no outlying sensitivity scores are observed. 
-All significant taxa have low sensitivity scores.
-
-```{r, fig.height=8}
-sens_pair = tab_sens %>%
-    transmute(taxon, sens_pair = `obese - lean`) %>%
-    dplyr::left_join(res_pair %>%
-                       transmute(taxon, 
-                                 diff_pair = diff_bmilean), 
-                     by = "taxon") %>%
-    mutate(group = "Lean vs. Obese") %>%
-    bind_rows(
-        tab_sens %>%
-            transmute(taxon, sens_pair = `obese - overweight`) %>%
-            dplyr::left_join(res_pair %>%
-                               transmute(taxon, 
-                                         diff_pair = diff_bmioverweight), 
-                             by = "taxon") %>%
-            mutate(group = "Overweight vs. Obese")
-    ) %>%
-    bind_rows(
-        tab_sens %>%
-            transmute(taxon, sens_pair = `overweight - lean`) %>%
-            dplyr::left_join(res_pair %>%
-                               transmute(taxon, 
-                                         diff_pair = diff_bmilean_bmioverweight), 
-                             by = "taxon") %>%
-            mutate(group = "Lean vs. Overweight")
-    )
-sens_pair$diff_pair = recode(sens_pair$diff_pair * 1, 
-                             `1` = "Significant",
-                             `0` = "Nonsignificant")
-sens_pair$group = factor(sens_pair$group, 
-                         levels = c("Lean vs. Obese",
-                                    "Overweight vs. Obese",
-                                    "Lean vs. Overweight"))
-
-fig_sens_pair = sens_pair %>%
-    ggplot(aes(x = taxon, y = sens_pair, color = diff_pair)) +
-    geom_point() +
-    scale_color_brewer(palette = "Dark2", name = NULL) +
-    facet_grid(rows = vars(group), scales = "free") +
-    labs(x = NULL, y = "Sensitivity Score") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 60, vjust = 0.5))
-fig_sens_pair
-```
-
-## 4.8 ANCOM-BC2 multiple pairwise comparisons against a pre-specified group (Dunnett's type of test) {.tabset}
+## 4.7 ANCOM-BC2 multiple pairwise comparisons against a pre-specified group (Dunnett's type of test)
 
 The Dunnett’s test [@dunnett1955multiple; @dunnett1991step; @dunnett1992step] 
-is designed for making comparisons of several experimental groups with the 
-control or the reference group. ANCOM-BC2 Dunnett's type of test adopts the 
-framework of Dunnett's test while controlling the mdFDR. Of note is that the
-ANCOM-BC2 primary results do not control the mdFDR for the comparison of 
-multiple groups.
+is tailored for comparing multiple experimental groups against a control or 
+reference group. ANCOM-BC2 Dunnett's type of test applies this framework but 
+also controls the mdFDR. It's essential to highlight that ANCOM-BC2's primary 
+results control for multiple testing across taxa but not for multiple 
+comparisons between groups. As such, unlike the ANCOM-BC2 Dunnett's test, the 
+primary output doesn't control the mdFDR.
 
-In this example, we want to identify taxa that are differentially abundant 
-between "lean", "overweight", and the reference group "obese".
-The result contains: 1) log fold changes, 2) standard errors, 3) test 
-statistics, 4) p-values, 5) adjusted p-values, 6) indicators of whether the 
-taxon is differentially abundant (TRUE) or not (FALSE).
+In this illustration, our objective is to pinpoint taxa with differential 
+abundance between "lean", "overweight", and the reference group "obese". The 
+results encompass: 1) log fold changes, 2) standard errors, 3) test 
+statistics, 4) p-values, 5) adjusted p-values, 6) indicators denoting 
+whether the taxon is differentially abundant (TRUE) or not (FALSE), and 
+7) indicators denoting whether the taxon passed the sensitivity analysis (TRUE) 
+or not (FALSE).
+
+In the subsequent heatmap, each cell represents a log fold-change 
+(in natural log) value. Entries highlighted in green have successfully passed 
+the sensitivity analysis for pseudo-count addition.
 
 ```{r}
 res_dunn = output$res_dunn
-```
 
-### Results for BMI
+df_fig_dunn1 = res_dunn %>%
+    dplyr::filter(diff_bmioverweight == 1 | 
+                      diff_bmilean == 1) %>%
+    dplyr::mutate(lfc1 = ifelse(diff_bmioverweight == 1, 
+                                round(lfc_bmioverweight, 2), 0),
+                  lfc2 = ifelse(diff_bmilean == 1, 
+                                round(lfc_bmilean, 2), 0)) %>%
+    tidyr::pivot_longer(cols = lfc1:lfc2, 
+                        names_to = "group", values_to = "value") %>%
+    dplyr::arrange(taxon)
 
-```{r}
-df_fig_dunn = res_dunn %>%
-    dplyr::filter(diff_bmilean == 1 | diff_bmioverweight == 1) %>%
-    mutate(lfc_lean = ifelse(diff_bmilean == 1, 
-                             lfc_bmilean, 0),
-           lfc_overweight = ifelse(diff_bmioverweight == 1, 
-                                   lfc_bmioverweight, 0)) %>%
-    transmute(taxon, 
-              `Lean vs. Obese` = round(lfc_lean, 2), 
-              `Overweight vs. Obese` = round(lfc_overweight, 2)) %>%
-    pivot_longer(cols = `Lean vs. Obese`:`Overweight vs. Obese`, 
-                 names_to = "group", values_to = "value") %>%
-    arrange(taxon)
-  
+df_fig_dunn2 = res_dunn %>%
+    dplyr::filter(diff_bmioverweight == 1 | 
+                      diff_bmilean == 1) %>%
+    dplyr::mutate(lfc1 = ifelse(passed_ss_bmioverweight == 1 & diff_bmioverweight == 1, 
+                                "aquamarine3", "black"),
+                  lfc2 = ifelse(passed_ss_bmilean == 1 & diff_bmilean == 1, 
+                                "aquamarine3", "black")) %>%
+    tidyr::pivot_longer(cols = lfc1:lfc2, 
+                        names_to = "group", values_to = "color") %>%
+    dplyr::arrange(taxon)
+
+df_fig_dunn = df_fig_dunn1 %>%
+    dplyr::left_join(df_fig_dunn2, by = c("taxon", "group"))
+
+df_fig_dunn$group = recode(df_fig_dunn$group, 
+                          `lfc1` = "Overweight - Obese",
+                          `lfc2` = "Lean - Obese")
+df_fig_dunn$group = factor(df_fig_dunn$group, 
+                          levels = c("Overweight - Obese",
+                                     "Lean - Obese"))
+
 lo = floor(min(df_fig_dunn$value))
 up = ceiling(max(df_fig_dunn$value))
 mid = (lo + up)/2
@@ -825,56 +794,23 @@ fig_dunn = df_fig_dunn %>%
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
+  geom_text(aes(group, taxon, label = value, color = color), size = 4) +
+    scale_color_identity(guide = FALSE) +
   labs(x = NULL, y = NULL, title = "Log fold changes as compared to obese subjects") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 fig_dunn
 ```
 
-### Pseudo-count sensitivity analysis for bmi
+## 4.8 ANCOM-BC2 pattern analysis {.tabset}
 
-For the covariate of bmi, no outlying sensitivity scores are observed. 
-All significant taxa have low sensitivity scores.
+In certain experiments, groups inherently follow an order, such as in 
+dose-response studies. In these cases, we're interested in discerning if 
+microbial abundances align with specific patterns. Such patterns might manifest 
+as monotonically increasing, monotonically decreasing, or an umbrella shape.
 
-```{r}
-sens_dunn = tab_sens %>%
-    transmute(taxon, sens_bmi = bmilean) %>%
-    dplyr::left_join(res_dunn %>%
-                       transmute(taxon, diff_bmi = diff_bmilean), 
-                     by = "taxon") %>%
-    mutate(group = "Lean vs. Obese") %>%
-    bind_rows(
-        tab_sens %>%
-            transmute(taxon, sens_bmi = bmioverweight) %>%
-            dplyr::left_join(res_dunn %>%
-                               transmute(taxon, diff_bmi = diff_bmioverweight), 
-                             by = "taxon") %>%
-            mutate(group = "Overweight vs. Obese")
-    )
-sens_dunn$diff_bmi = recode(sens_dunn$diff_bmi * 1, 
-                            `1` = "Significant",
-                            `0` = "Nonsignificant")
-
-fig_sens_dunn = sens_dunn %>%
-    ggplot(aes(x = taxon, y = sens_bmi, color = diff_bmi)) +
-    geom_point() +
-    scale_color_brewer(palette = "Dark2", name = NULL) +
-    facet_grid(rows = vars(group), scales = "free") +
-    labs(x = NULL, y = "Sensitivity Score") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 60, vjust = 0.5))
-fig_sens_dunn
-```
-
-## 4.9 ANCOM-BC2 pattern analysis {.tabset}
-
-Sometimes the experimental groups are intrinsically ordered (e.g., in a 
-dose-response study), and we would like to see if the microbial abundances
-show some patterns accordingly. Examples of patterns include: monotonically
-increasing, monotonically decreasing, and umbrella shape.
-
-ANCOM-BC2 is able to identify potential patterns by testing the contrast:
+ANCOM-BC2 pattern analysis is able to identify potential patterns by testing the 
+contrast: 
 $$Ax \ge 0$$
 where $A$ is the contrast matrix and $x$ is the vector of parameters.
 
@@ -886,125 +822,86 @@ $$x = (\text{overweight - obese}, \text{lean - obese})^T$$
 To test the monotonically increasing trend:
 $$H_0: \text{obese} = \text{overweight} = \text{lean} \\
 H_1: \text{obese} \le \text{overweight} \le \text{lean} \quad \text{with at least one strict inequality}$$
-We shall specify the contrast matrix $A$ as
+
+We are essentially testing:
+$$H_0: 0 = \text{overweight - obese} = \text{lean - obese} \\
+H_1: 0 \le \text{overweight - obese} \le \text{lean - obese} \quad \text{with at least one strict inequality}$$
+
+Thus, we shall specify the contrast matrix $A$ as
 $$A = \begin{bmatrix} 1 & 0 \\ -1 & 1 \end{bmatrix}$$
+The first row of $A$ matrix, $(1, 0)$, indicates that $\text{"overweight - obese"} \ge 0$, and the second row, $(-1, 1)$ represents $\text{"lean - obese"} - \text{"overweight - obese"} \ge 0$.
+
 Similarly, to test for the monotonically decreasing trend:
 $$H_0: \text{obese} = \text{overweight} = \text{lean} \\
 H_1: \text{obese} \ge \text{overweight} \ge \text{lean} \quad \text{with at least one strict inequality}$$
 We shall specify the contrast matrix $A$ as
 $$A = \begin{bmatrix} -1 & 0 \\ 1 & -1 \end{bmatrix}$$
-To test for monotonic trend (increasing or decreasing), one should specify the 
-`node` parameter in `trend_control` as the last position of `x`.
-In this example, the vector of parameters $x$ is of length 2, thus, the last 
-position is 2. For testing umbrella shape, for instance, in this example:
+Lastly, to test for an umbrella trend:
 $$H_0: \text{obese} = \text{overweight} = \text{lean} \\
 H_1: \text{obese} \le \text{overweight} \ge \text{lean} \quad \text{with at least one strict inequality}$$
-one should set `node` as the position of the turning point of `x`. 
+We shall specify the contrast matrix $A$ as
+$$A = \begin{bmatrix} 1 & 0 \\ 1 & -1 \end{bmatrix}$$
+
+For testing monotonic trend (increasing or decreasing), one should specify the 
+`node` parameter in `trend_control` as the last position of `x`.
+In this example, the vector of parameters $x$ is of length 2, thus, the last 
+position is 2. For testing umbrella shape, such as in the above umbrella shape 
+example, one should set `node` as the position of the turning point of `x`. 
 In this example, the turning position is `overweight`, thus, `node = 1`.
 
-We will test both the monotonically increasing and decreasing trends in this 
-example. The result contains: 
+We will test the monotonically increasing and decreasing trends, as well as the 
+umbrella trend in this example. The result contains: 
 1) log fold changes, 2) standard errors, 3) test  statistics, 
-4) p-values, 5) adjusted p-values, 6) indicators of whether the taxon 
-is differentially abundant (TRUE) or not (FALSE).
+4) p-values, 5) adjusted p-values, 6) indicators denoting 
+whether the taxon is differentially abundant (TRUE) or not (FALSE), and 
+7) indicators denoting whether the taxon passed the sensitivity analysis (TRUE) 
+or not (FALSE).
+
+In the subsequent heatmap, each cell represents a log fold-change (in natural 
+log) value. Taxa marked in green have successfully passed the sensitivity 
+analysis for pseudo-count addition.
 
 ```{r}
 res_trend = output$res_trend
-```
 
-### Results for BMI
-
-Note that the LFC and SE for the reference group ("obese" in this example) will
-set to be 0s.
-
-```{r, fig.width=10}
 df_fig_trend = res_trend %>%
-    dplyr::filter(diff_abn) %>%
-    transmute(taxon,
-              lfc = lfc_bmioverweight,
-              se = se_bmioverweight,
-              q_val,
-              group = "Overweight - Obese") %>%
-    bind_rows(
-        res_trend %>%
-            dplyr::filter(diff_abn) %>%
-            transmute(taxon,
-                      lfc = lfc_bmilean,
-                      se = se_bmilean,
-                      q_val,
-                      group = "Lean - Obese")
-    )
-    
+    dplyr::filter(diff_abn == 1) %>%
+    dplyr::mutate(lfc1 = round(lfc_bmioverweight, 2),
+                  lfc2 = round(lfc_bmilean, 2),
+                  color = ifelse(passed_ss == 1, "aquamarine3", "black")) %>%
+    tidyr::pivot_longer(cols = lfc1:lfc2, 
+                        names_to = "group", values_to = "value") %>%
+    dplyr::arrange(taxon)
+
+df_fig_trend$group = recode(df_fig_trend$group, 
+                          `lfc1` = "Overweight - Obese",
+                          `lfc2` = "Lean - Obese")
 df_fig_trend$group = factor(df_fig_trend$group, 
-                           levels = c("Overweight - Obese", "Lean - Obese"))
-  
+                          levels = c("Overweight - Obese", 
+                                     "Lean - Obese"))
+
+lo = floor(min(df_fig_trend$value))
+up = ceiling(max(df_fig_trend$value))
+mid = (lo + up)/2
 fig_trend = df_fig_trend %>%
-  ggplot(aes(x = group, y = lfc, fill = group)) + 
-  geom_bar(stat = "identity", position = position_dodge(), color = "black") +
-  geom_errorbar(aes(ymin = lfc - se, ymax = lfc + se), width = .2,
-                position = position_dodge(.9)) +
-  facet_wrap(vars(taxon), nrow = 2, scales = "free") +
-  labs(x = NULL, y = NULL, title = "Log fold change as compared to obese subjects") +
-  scale_fill_brewer(palette = "Set2", name = NULL) +
-  theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        legend.position = c(0.92, 0.2))
+    ggplot(aes(x = group, y = taxon, fill = value)) + 
+    geom_tile(color = "black") +
+    scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                         na.value = "white", midpoint = mid, limit = c(lo, up),
+                         name = NULL) +
+    geom_text(aes(group, taxon, label = value), color = "black", size = 4) +
+    labs(x = NULL, y = NULL, title = "Log fold changes as compared to obese subjects") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text.y = element_text(color = df_fig_trend %>%
+                                         dplyr::distinct(taxon, color) %>%
+                                         .$color))
 fig_trend
-```
-
-### Pseudo-count sensitivity analysis for bmi
-
-For the covariate of bmi, no outlying sensitivity scores are observed. 
-All significant taxa have low sensitivity scores.
-
-```{r, fig.height=8}
-sens_trend = tab_sens %>%
-    transmute(taxon, sens_bmi = `obese - lean`) %>%
-    dplyr::left_join(res_trend %>%
-                       transmute(taxon, diff_bmi = diff_abn),
-                     by = "taxon") %>%
-    mutate(group = "Lean vs. Obese") %>%
-    bind_rows(
-        tab_sens %>%
-            transmute(taxon, sens_bmi = `obese - overweight`) %>%
-            dplyr::left_join(res_trend %>%
-                               transmute(taxon, diff_bmi = diff_abn), 
-                             by = "taxon") %>%
-            mutate(group = "Overweight vs. Obese")
-    ) %>%
-    bind_rows(
-        tab_sens %>%
-            transmute(taxon, sens_bmi = `overweight - lean`) %>%
-            dplyr::left_join(res_trend %>%
-                               transmute(taxon, diff_bmi = diff_abn), 
-                             by = "taxon") %>%
-            mutate(group = "Lean vs. Overweight")
-    )
-sens_trend$diff_bmi = recode(sens_trend$diff_bmi * 1, 
-                            `1` = "Significant",
-                            `0` = "Nonsignificant")
-
-sens_trend$group = factor(sens_trend$group, 
-                          levels = c("Lean vs. Obese",
-                                     "Overweight vs. Obese",
-                                     "Lean vs. Overweight"))
-
-fig_sens_trend = sens_trend %>%
-    ggplot(aes(x = taxon, y = sens_bmi, color = diff_bmi)) +
-    geom_point() +
-    scale_color_brewer(palette = "Dark2", name = NULL) +
-    facet_grid(rows = vars(group), scales = "free") +
-    labs(x = NULL, y = "Sensitivity Score") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 60, vjust = 0.5))
-fig_sens_trend
 ```
 
 # 5. Run ANCOM-BC2 on a real longitudinal dataset {.tabset}
 
-## 5. 1 Import example data
+## 5.1 Import example data
 
 A two-week diet swap study between western (USA) and traditional (rural Africa) 
 diets [@lahti2014tipping]. The dataset is available via the 
@@ -1050,7 +947,7 @@ set.seed(123)
 output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                   fix_formula = "nationality + timepoint + group",
                   rand_formula = "(timepoint | subject)",
-                  p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
+                  p_adj_method = "holm", pseudo_sens = TRUE,
                   prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
                   group = "group", struc_zero = TRUE, neg_lb = TRUE,
                   alpha = 0.05, n_cl = 2, verbose = TRUE,
@@ -1066,40 +963,77 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                        node = list(2),
                                        solver = "ECOS",
                                        B = 10))
-
-res_prim = output$res %>%
-    mutate_if(is.numeric, function(x) round(x, 2))
-res_prim %>%
-    datatable(caption = "ANCOM-BC2 Primary Results")
 ```
 
-# 6. Bias-corrected abundances
-
-To obtain bias-corrected abundances, the following steps can be taken:
-
-Step 1: Calculate the estimated sample-specific sampling fractions, 
-in log scale.
-
-Step 2: Correct the log observed abundances by subtracting the estimated 
-sampling fraction from the log observed abundances of each sample.
-
-It is important to note that we can only estimate sampling fractions up to an 
-additive constant, meaning that only the difference between bias-corrected 
-abundances is meaningful. Additionally, taxon-specific biases are not taken into 
-account in the calculation of bias-corrected abundances, as it is assumed that 
-these biases vary across taxa but remain constant across samples within a taxon.
+## 5.3 ANCOM-BC2 primary analysis
 
 ```{r}
-samp_frac = output$samp_frac
-# Replace NA with 0
-samp_frac[is.na(samp_frac)] = 0 
-# Add pesudo-count (1) to avoid taking the log of 0
-log_obs_abn = log(output$feature_table + 1)
-# Adjust the log observed abundances
-log_corr_abn = t(t(log_obs_abn) - samp_frac)
+res_prim = output$res %>%
+    mutate_if(is.numeric, function(x) round(x, 2))
+res_prim[1:6, ] %>%
+    datatable(caption = "ANCOM-BC2 Primary Analysis")
+```
+
+## 5.4 ANCOM-BC2 global test
+
+```{r}
+res_global = output$res_global %>%
+    mutate_if(is.numeric, function(x) round(x, 2))
+res_global[1:6, ] %>%
+    datatable(caption = "ANCOM-BC2 Global Test")
+```
+
+## 5.5 ANCOM-BC2 multiple pairwise comparisons
+
+```{r}
+res_pair = output$res_pair %>%
+    mutate_if(is.numeric, function(x) round(x, 2))
+res_pair[1:6, ] %>%
+    datatable(caption = "ANCOM-BC2 Multiple Pairwise Comparisons")
+```
+
+## 5.6 ANCOM-BC2 Dunnett's type of test
+
+```{r}
+res_dunn = output$res_dunn %>%
+    mutate_if(is.numeric, function(x) round(x, 2))
+res_dunn[1:6, ] %>%
+    datatable(caption = "ANCOM-BC2 Dunnett's Type of Test")
+```
+
+## 5.7 ANCOM-BC2 pattern analysis
+
+```{r}
+res_trend = output$res_trend %>%
+    mutate_if(is.numeric, function(x) round(x, 2))
+res_trend[1:6, ] %>%
+    datatable(caption = "ANCOM-BC2 Pattern Analysis")
+```
+
+# 6. Bias-corrected log abundances
+
+It is important to acknowledge that the estimation of sampling fractions in 
+ANCOM-BC2 is limited to an additive constant. This means that only the 
+difference between bias-corrected log abundances is meaningful, rather than the 
+absolute values themselves. 
+
+Moreover, within each taxon, the bias-corrected log abundances are centered 
+across samples. ANCOM-BC2 operates on the assumption that while these 
+taxon-specific biases differ between taxa, they stay consistent within a given 
+taxon across various samples. This assumption enables ANCOM-BC2 to accommodate 
+intra-taxon variations through the centering of the bias-corrected log 
+abundances.
+
+```{r}
+bias_correct_log_table = output$bias_correct_log_table
+# By default, ANCOM-BC2 does not add pseudo-counts to zero counts, which can 
+# result in NAs in the bias-corrected log abundances. Users have the option to 
+# either leave the NAs as they are or replace them with zeros. 
+# This replacement is equivalent to adding pseudo-counts of ones to the zero counts. 
+bias_correct_log_table[is.na(bias_correct_log_table)] = 0
 # Show the first 6 samples
-round(log_corr_abn[, 1:6], 2) %>% 
-  datatable(caption = "Bias-corrected log observed abundances")
+round(bias_correct_log_table[, 1:6], 2) %>% 
+  datatable(caption = "Bias-corrected log abundances")
 ```
 
 # Session information

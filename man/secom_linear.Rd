@@ -6,14 +6,16 @@
 \usage{
 secom_linear(
   data,
+  assay.type = assay_name,
   assay_name = "counts",
+  rank = tax_level,
   tax_level = NULL,
   pseudo = 0,
   prv_cut = 0.5,
   lib_cut = 1000,
   corr_cut = 0.5,
   wins_quant = c(0.05, 0.95),
-  method = c("pearson", "kendall", "spearman"),
+  method = c("pearson", "spearman"),
   soft = FALSE,
   thresh_len = 100,
   n_cv = 10,
@@ -23,27 +25,30 @@ secom_linear(
 )
 }
 \arguments{
-\item{data}{a list of the input data. Each element of the list can be a
-\code{phyloseq}, \code{SummarizedExperiment}, or
-\code{TreeSummarizedExperiment} object, which consists of
-a feature table (microbial count table), a sample metadata, a
-taxonomy table (optional), and a phylogenetic tree (optional). The row names
-of the metadata must match the sample names of the feature table, and the
-row names of the taxonomy table must match the taxon (feature) names of the
-feature table. See \code{?phyloseq::phyloseq},
-\code{?SummarizedExperiment::SummarizedExperiment}, or
-\code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.
-It is highly recommended that the input data
-are in low taxonomic levels, such as OTU or species level, as the estimation
-of sampling fractions requires a large number of taxa.
-For multiple ecosystems, simply stack the data. For example, for two
-ecosystems, such as gut and tongue, specify the list of input data as
+\item{data}{a list of the input data. The \code{data} parameter should be a
+list containing input data objects, which can be either \code{phyloseq}
+or \code{TreeSummarizedExperiment} objects. Each object within the list
+consists of a feature table (microbial count table), a sample metadata table,
+a taxonomy table (optional), and a phylogenetic tree (optional).
+Ensure that the row names of the metadata table match the sample names in the
+feature table, and the row names of the taxonomy table match the taxon
+(feature) names in the feature table. For detailed information, refer to
+\code{?phyloseq::phyloseq} or
+\code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
+It is recommended to use low taxonomic levels, such as OTU or species level,
+as the estimation of sampling fractions requires a large number of taxa.
+If working with multiple ecosystems, such as gut and tongue, stack the data
+by specifying the list of input data as
 \code{data = list(gut = tse1, tongue = tse2)}.}
 
-\item{assay_name}{character. Name of the count table in the data object
-(only applicable if data object is a \code{(Tree)SummarizedExperiment}).
+\item{assay.type}{alias for \code{assay_name}.}
+
+\item{assay_name}{character. Name of the feature table within the data object
+(only applicable if the data object is a \code{(Tree)SummarizedExperiment}).
 Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
+
+\item{rank}{alias for \code{tax_level}.}
 
 \item{tax_level}{character. The taxonomic level of interest. The input data
 can be agglomerated at different taxonomic levels based on your research
@@ -55,19 +60,21 @@ input \code{data}.}
 Default is 0 (no pseudo-counts).}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
-less than \code{prv_cut} will be excluded in the analysis. For instance,
-suppose there are 100 samples, if a taxon has nonzero counts presented in
-less than 10 samples, it will not be further analyzed. Default is 0.50.}
+(the proportion of samples in which the taxon is present)
+less than \code{prv_cut} will be excluded in the analysis. For example,
+if there are 100 samples, and a taxon has nonzero counts present in less than
+100*prv_cut samples, it will not be considered in the analysis.
+Default is 0.50.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
 excluded in the analysis. Default is 1000.}
 
-\item{corr_cut}{numeric. To prevent false positives due to taxa with
-small variances, taxa with Pearson correlation coefficients greater than
+\item{corr_cut}{numeric. To avoid false positives caused by taxa with small
+variances, taxa with Pearson correlation coefficients greater than
 \code{corr_cut} with the estimated sample-specific bias will be flagged.
-The pairwise correlation coefficient between flagged taxa will be set to 0s.
-Default is 0.5.}
+When taxa are flagged, the pairwise correlation coefficient between them will
+be set to 0s. Default is 0.5.}
 
 \item{wins_quant}{a numeric vector of probabilities with values between
 0 and 1. Replace extreme values in the abundance data with less
@@ -89,13 +96,13 @@ Default is 100.}
 \item{n_cv}{numeric. The fold number in cross validation.
 Default is 10 (10-fold cross validation).}
 
-\item{thresh_hard}{Numeric. Set a hard threshold for the correlation matrix.
-Pairwise correlation coefficient (in its absolute value) less than or equal
-to \code{thresh_hard} will be set to 0. Default is 0 (No ad-hoc hard thresholding).}
+\item{thresh_hard}{Numeric. Pairwise correlation coefficients
+(in their absolute value) that are less than or equal to \code{thresh_hard}
+will be set to 0. Default is 0.3.}
 
 \item{max_p}{numeric. Obtain the sparse correlation matrix by
-p-value filtering. Pairwise correlation coefficient with p-value greater than
-\code{max_p} will be set to 0. Default is 0.005.}
+p-value filtering. Pairwise correlation coefficients with p-value greater
+than \code{max_p} will be set to 0s. Default is 0.005.}
 
 \item{n_cl}{numeric. The number of nodes to be forked. For details, see
 \code{?parallel::makeCluster}. Default is 1 (no parallel computing).}

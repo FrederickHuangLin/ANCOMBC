@@ -8,45 +8,48 @@
 #' quantify any dependence, whether linear, monotonic, non-monotonic or
 #' nonlinear relationships.
 #'
-#' @param data a list of the input data. Each element of the list can be a
-#' \code{phyloseq}, \code{SummarizedExperiment}, or
-#' \code{TreeSummarizedExperiment} object, which consists of
-#' a feature table (microbial count table), a sample metadata, a
-#' taxonomy table (optional), and a phylogenetic tree (optional). The row names
-#' of the metadata must match the sample names of the feature table, and the
-#' row names of the taxonomy table must match the taxon (feature) names of the
-#' feature table. See \code{?phyloseq::phyloseq},
-#' \code{?SummarizedExperiment::SummarizedExperiment}, or
-#' \code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.
-#' It is highly recommended that the input data
-#' are in low taxonomic levels, such as OTU or species level, as the estimation
-#' of sampling fractions requires a large number of taxa.
-#' For multiple ecosystems, simply stack the data. For example, for two
-#' ecosystems, such as gut and tongue, specify the list of input data as
+#' @param data a list of the input data. The \code{data} parameter should be a
+#' list containing input data objects, which can be either \code{phyloseq}
+#' or \code{TreeSummarizedExperiment} objects. Each object within the list
+#' consists of a feature table (microbial count table), a sample metadata table,
+#' a taxonomy table (optional), and a phylogenetic tree (optional).
+#' Ensure that the row names of the metadata table match the sample names in the
+#' feature table, and the row names of the taxonomy table match the taxon
+#' (feature) names in the feature table. For detailed information, refer to
+#' \code{?phyloseq::phyloseq} or
+#' \code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
+#' It is recommended to use low taxonomic levels, such as OTU or species level,
+#' as the estimation of sampling fractions requires a large number of taxa.
+#' If working with multiple ecosystems, such as gut and tongue, stack the data
+#' by specifying the list of input data as
 #' \code{data = list(gut = tse1, tongue = tse2)}.
 #' @param assay_name character. Name of the count table in the data object
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
+#' @param assay.type alias for \code{assay_name}.
 #' @param tax_level character. The taxonomic level of interest. The input data
 #' can be agglomerated at different taxonomic levels based on your research
 #' interest. Default is NULL, i.e., do not perform agglomeration, and the
 #' SECOM anlysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
+#' @param rank alias for \code{tax_level}.
 #' @param pseudo numeric. Add pseudo-counts to the data.
 #' Default is 0 (no pseudo-counts).
 #' @param prv_cut a numerical fraction between 0 and 1. Taxa with prevalences
-#' less than \code{prv_cut} will be excluded in the analysis. For instance,
-#' suppose there are 100 samples, if a taxon has nonzero counts presented in
-#' less than 10 samples, it will not be further analyzed. Default is 0.50.
+#' (the proportion of samples in which the taxon is present)
+#' less than \code{prv_cut} will be excluded in the analysis. For example,
+#' if there are 100 samples, and a taxon has nonzero counts present in less than
+#' 100*prv_cut samples, it will not be considered in the analysis.
+#' Default is 0.50.
 #' @param lib_cut a numerical threshold for filtering samples based on library
 #' sizes. Samples with library sizes less than \code{lib_cut} will be
 #' excluded in the analysis. Default is 1000.
-#' @param corr_cut numeric. To prevent false positives due to taxa with
-#' small variances, taxa with Pearson correlation coefficients greater than
+#' @param corr_cut numeric. To avoid false positives caused by taxa with small
+#' variances, taxa with Pearson correlation coefficients greater than
 #' \code{corr_cut} with the estimated sample-specific bias will be flagged.
-#' The pairwise correlation coefficient between flagged taxa will be set to 0s.
-#' Default is 0.5.
+#' When taxa are flagged, the pairwise correlation coefficient between them will
+#' be set to 0s. Default is 0.5.
 #' @param wins_quant a numeric vector of probabilities with values between
 #' 0 and 1. Replace extreme values in the abundance data with less
 #' extreme values. Default is \code{c(0.05, 0.95)}. For details,
@@ -54,12 +57,12 @@
 #' @param R numeric. The number of replicates in calculating the p-value for
 #' distance correlation. For details, see \code{?energy::dcor.test}.
 #' Default is 1000.
-#' @param thresh_hard Numeric. Set a hard threshold for the correlation matrix.
-#' Pairwise distance correlation less than or equal to \code{thresh_hard}
-#' will be set to 0. Default is 0 (No ad-hoc hard thresholding).
+#' @param thresh_hard Numeric. Pairwise correlation coefficients
+#' (in their absolute value) that are less than or equal to \code{thresh_hard}
+#' will be set to 0. Default is 0.3.
 #' @param max_p numeric. Obtain the sparse correlation matrix by
-#' p-value filtering. Pairwise correlation coefficient with p-value greater than
-#' \code{max_p} will be set to 0. Default is 0.005.
+#' p-value filtering. Pairwise correlation coefficients with p-value greater
+#' than \code{max_p} will be set to 0s. Default is 0.005.
 #' @param n_cl numeric. The number of nodes to be forked. For details, see
 #' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
 #'
@@ -110,27 +113,33 @@
 #' @importFrom foreach foreach %dopar% registerDoSEQ
 #' @importFrom doParallel registerDoParallel
 #' @importFrom doRNG %dorng%
-#' @importFrom dplyr filter bind_rows left_join right_join
-#' @importFrom tidyr pivot_longer
-#' @importFrom tibble rownames_to_column
+#' @importFrom gtools smartbind
 #' @importFrom Hmisc rcorr
 #' @importFrom DescTools Winsorize
-#' @importFrom magrittr %>%
-#' @importFrom rlang .data
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-secom_dist = function(data, assay_name = "counts", tax_level = NULL,
+secom_dist = function(data, assay.type = assay_name, assay_name = "counts",
+                      rank = tax_level, tax_level = NULL,
                       pseudo = 0, prv_cut = 0.5, lib_cut = 1000,
                       corr_cut = 0.5, wins_quant = c(0.05, 0.95), R = 1000,
                       thresh_hard = 0, max_p = 0.005, n_cl = 1) {
+    # Check for aliases
+    if (!is.null(assay.type)) {
+        assay_name = assay.type
+    }
+
+    if (!is.null(rank)) {
+        tax_level = rank
+    }
+
     # ===========Sampling fraction and absolute abundance estimation============
     if (length(data) == 1) {
-        tse_obj = tse_construct(data = data[[1]], assay_name = assay_name[1],
-                                tax_level = tax_level[1], phyloseq = NULL)
-        abn_list = abn_est(tse = tse_obj$tse, tax_level = tse_obj$tax_level,
-                           assay_name = tse_obj$assay_name, pseudo = pseudo,
-                           prv_cut = prv_cut, lib_cut = lib_cut)
+        tse_obj = .tse_construct(data = data[[1]], assay_name = assay_name[1],
+                                 tax_level = tax_level[1], phyloseq = NULL)
+        abn_list = .abn_est(tse = tse_obj$tse, tax_level = tse_obj$tax_level,
+                            assay_name = tse_obj$assay_name, pseudo = pseudo,
+                            prv_cut = prv_cut, lib_cut = lib_cut)
         s_diff_hat = abn_list$s_diff_hat
         y_hat = abn_list$y_hat
     } else {
@@ -139,20 +148,20 @@ secom_dist = function(data, assay_name = "counts", tax_level = NULL,
         # Check common samples
         samp_names = lapply(data, function(x) colnames(x))
         samp_common = Reduce(intersect, samp_names)
-        samp_txt = sprintf(paste0("The number of samples in common ",
+        samp_txt = sprintf(paste0("Number of common samples ",
                                   "across datasets: ",
                                   length(samp_common)))
         message(samp_txt)
         if (length(samp_common) < 10) {
-            stop_txt = paste0("The number of common samples is too small. ",
-                              "Multi-dataset computation is not recommended.")
+            stop_txt = paste0("Insufficient common samples: ",
+                              "Multi-dataset computation not recommended")
             stop(stop_txt)
         }
 
         # Rename taxa
         tse_list = lapply(seq_along(data), function(i) {
-            tse_obj = tse_construct(data = data[[i]], assay_name = assay_name[i],
-                                    tax_level = tax_level[i], phyloseq = NULL)
+            tse_obj = .tse_construct(data = data[[i]], assay_name = assay_name[i],
+                                     tax_level = tax_level[i], phyloseq = NULL)
             return(tse_obj)
         })
 
@@ -166,15 +175,16 @@ secom_dist = function(data, assay_name = "counts", tax_level = NULL,
         }
 
         abn_list = lapply(seq_along(tse_list), function(i) {
-            abn_est(tse = tse_list[[i]]$tse,
-                    tax_level = tse_list[[i]]$tax_level,
-                    assay_name = assay_name[i], pseudo = pseudo,
-                    prv_cut = prv_cut, lib_cut = lib_cut)
+            .abn_est(tse = tse_list[[i]]$tse,
+                     tax_level = tse_list[[i]]$tax_level,
+                     assay_name = assay_name[i], pseudo = pseudo,
+                     prv_cut = prv_cut, lib_cut = lib_cut)
         })
         s_diff_hat = lapply(abn_list, function(x) x$s_diff_hat)
-        y_hat = dplyr::bind_rows(lapply(abn_list, function(x)
-            as.data.frame(x$y_hat)))
+        y_hat = do.call(gtools::smartbind, lapply(abn_list, function(x) as.data.frame(x$y_hat)))
+        y_hat_rownames = do.call(c, lapply(abn_list, function(x) rownames(x$y_hat)))
         y_hat = as.matrix(y_hat)
+        rownames(y_hat) = y_hat_rownames
     }
 
     # ================Sparse estimation on distance correlations================
@@ -185,7 +195,7 @@ secom_dist = function(data, assay_name = "counts", tax_level = NULL,
       foreach::registerDoSEQ()
     }
 
-    res_corr = sparse_dist(mat = t(y_hat), wins_quant, R, thresh_hard, max_p)
+    res_corr = .sparse_dist(mat = t(y_hat), wins_quant, R, thresh_hard, max_p)
 
     if (n_cl > 1) {
       parallel::stopCluster(cl)
@@ -204,13 +214,18 @@ secom_dist = function(data, assay_name = "counts", tax_level = NULL,
         res_corr$dcorr_p[fp_ind] = 1
     } else {
         for (i in seq_along(data)) {
-            df_s = data.frame(s = s_diff_hat[[i]]) %>%
-                tibble::rownames_to_column("sample_id")
-            df_y = as.data.frame(t(y_hat)) %>%
-                tibble::rownames_to_column("sample_id")
-            df_merge = df_s %>%
-                dplyr::right_join(df_y, by = "sample_id") %>%
-                dplyr::select(-.data$sample_id)
+            df_s = data.frame(sample_id = names(s_diff_hat[[i]]),
+                              s = s_diff_hat[[i]])
+            rownames(df_s) = NULL
+            df_y = data.frame(sample_id = rownames(t(y_hat)), t(y_hat),
+                              check.names = FALSE)
+            rownames(df_y) = NULL
+
+            df_merge = df_y
+            df_merge$s = df_s$s[match(df_y$sample_id, df_s$sample_id)]
+            df_merge$sample_id = NULL
+            df_merge = df_merge[c('s', setdiff(names(df_merge), 's'))]
+
             corr_s = cor(df_merge, use = "pairwise.complete.obs")[1, -1]
             fp_ind1 = replicate(nrow(y_hat), corr_s > corr_cut)
             fp_ind2 = t(replicate(nrow(y_hat), corr_s > corr_cut))

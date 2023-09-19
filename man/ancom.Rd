@@ -6,7 +6,9 @@
 \usage{
 ancom(
   data = NULL,
+  assay.type = NULL,
   assay_name = "counts",
+  rank = NULL,
   tax_level = NULL,
   phyloseq = NULL,
   p_adj_method = "holm",
@@ -23,21 +25,24 @@ ancom(
 )
 }
 \arguments{
-\item{data}{the input data. A
-\code{phyloseq}, \code{SummarizedExperiment}, or
-\code{TreeSummarizedExperiment} object, which consists of
-a feature table (microbial count table), a sample metadata, a
-taxonomy table (optional), and a phylogenetic tree (optional). The row names
-of the metadata must match the sample names of the feature table, and the
-row names of the taxonomy table must match the taxon (feature) names of the
-feature table. See \code{?phyloseq::phyloseq},
-\code{?SummarizedExperiment::SummarizedExperiment}, or
-\code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.}
+\item{data}{the input data. The \code{data} parameter should be either a
+\code{phyloseq} or a \code{TreeSummarizedExperiment} object, which
+consists of a feature table (microbial count table), a sample metadata table,
+a taxonomy table (optional), and a phylogenetic tree (optional).
+Ensure that the row names of the metadata table match the sample names in the
+feature table, and the row names of the taxonomy table match the taxon
+(feature) names in the feature table. For detailed information, refer to
+\code{?phyloseq::phyloseq} or
+\code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.}
+
+\item{assay.type}{alias for \code{assay_name}.}
 
 \item{assay_name}{character. Name of the count table in the data object
 (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
+
+\item{rank}{alias for \code{tax_level}}
 
 \item{tax_level}{character. The taxonomic level of interest. The input data
 can be agglomerated at different taxonomic levels based on your research
@@ -52,9 +57,11 @@ Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
-less than \code{prv_cut} will be excluded in the analysis. For instance,
-suppose there are 100 samples, if a taxon has nonzero counts presented in
-less than 10 samples, it will not be further analyzed. Default is 0.10.}
+(the proportion of samples in which the taxon is present)
+less than \code{prv_cut} will be excluded in the analysis. For example,
+if there are 100 samples, and a taxon has nonzero counts present in less than
+100*prv_cut samples, it will not be considered in the analysis.
+Default is 0.10.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
@@ -63,7 +70,8 @@ excluded in the analysis. Default is 0, i.e. do not discard any sample.}
 \item{main_var}{character. The name of the main variable of interest.}
 
 \item{adj_formula}{character string representing the formula for
-covariate adjustment. Default is \code{NULL}.}
+covariate adjustment. Please note that you should NOT include the
+\code{main_var} in the formula. Default is \code{NULL}.}
 
 \item{rand_formula}{the character string expresses how the microbial absolute
 abundances for each taxon depend on the random effects in metadata. ANCOM
@@ -132,7 +140,7 @@ then taxon A will be considered to contain structural zeros in g1.
 In this example, taxon A is declared to be differentially abundant between
 g1 and g2, g1 and g3, and consequently, it is globally differentially
 abundant with respect to this group variable.
-Such taxa are not further analyzed using ANCOM-BC, but the results are
+Such taxa are not further analyzed using ANCOM, but the results are
 summarized in the overall summary. For more details about the structural
 zeros, please go to the
 \href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II} paper.

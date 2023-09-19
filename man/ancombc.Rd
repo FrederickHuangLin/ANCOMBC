@@ -7,7 +7,9 @@
 \usage{
 ancombc(
   data = NULL,
+  assay.type = NULL,
   assay_name = "counts",
+  rank = NULL,
   tax_level = NULL,
   phyloseq = NULL,
   formula,
@@ -27,21 +29,24 @@ ancombc(
 )
 }
 \arguments{
-\item{data}{the input data. A
-\code{phyloseq}, \code{SummarizedExperiment}, or
-\code{TreeSummarizedExperiment} object, which consists of
-a feature table (microbial count table), a sample metadata, a
-taxonomy table (optional), and a phylogenetic tree (optional). The row names
-of the metadata must match the sample names of the feature table, and the
-row names of the taxonomy table must match the taxon (feature) names of the
-feature table. See \code{?phyloseq::phyloseq},
-\code{?SummarizedExperiment::SummarizedExperiment}, or
-\code{?TreeSummarizedExperiment::TreeSummarizedExperiment} for more details.}
+\item{data}{the input data. The \code{data} parameter should be either a
+\code{phyloseq} or a \code{TreeSummarizedExperiment} object, which
+consists of a feature table (microbial count table), a sample metadata table,
+a taxonomy table (optional), and a phylogenetic tree (optional).
+Ensure that the row names of the metadata table match the sample names in the
+feature table, and the row names of the taxonomy table match the taxon
+(feature) names in the feature table. For detailed information, refer to
+\code{?phyloseq::phyloseq} or
+\code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.}
+
+\item{assay.type}{alias for \code{assay_name}.}
 
 \item{assay_name}{character. Name of the count table in the data object
 (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
+
+\item{rank}{alias for \code{tax_level}.}
 
 \item{tax_level}{character. The taxonomic level of interest. The input data
 can be agglomerated at different taxonomic levels based on your research
@@ -52,26 +57,34 @@ input \code{data}.}
 \item{phyloseq}{a \code{phyloseq} object. Will be deprecated.}
 
 \item{formula}{the character string expresses how microbial absolute
-abundances for each taxon depend on the variables in metadata.}
+abundances for each taxon depend on the variables in metadata. When
+specifying the \code{formula}, make sure to include the \code{group} variable
+in the formula if it is not NULL.}
 
 \item{p_adj_method}{character. method to adjust p-values. Default is "holm".
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
-less than \code{prv_cut} will be excluded in the analysis. For instance,
-suppose there are 100 samples, if a taxon has nonzero counts presented in
-less than 10 samples, it will not be further analyzed. Default is 0.10.}
+(the proportion of samples in which the taxon is present)
+less than \code{prv_cut} will be excluded in the analysis. For example,
+if there are 100 samples, and a taxon has nonzero counts present in less than
+100*prv_cut samples, it will not be considered in the analysis.
+Default is 0.10.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
 excluded in the analysis. Default is 0, i.e. do not discard any sample.}
 
 \item{group}{character. the name of the group variable in metadata.
-\code{group} should be discrete. Specifying \code{group} is required for
-detecting structural zeros and performing global test.
-Default is NULL. If the \code{group} of interest contains only two
-categories, leave it as NULL.}
+The \code{group} parameter should be a character string representing the name
+of the group variable in the metadata. The \code{group} variable should be
+discrete, meaning it consists of categorical values. Specifying the
+\code{group} variable is required if you are interested in detecting
+structural zeros and performing global tests. However, if these analyses are
+not of interest to you, you can leave the \code{group} parameter as NULL.
+If the \code{group} variable of interest contains only two categories, you
+can also leave the \code{group} parameter as NULL. Default is NULL.}
 
 \item{struc_zero}{logical. whether to detect structural zeros based on
 \code{group}. Default is FALSE.}
