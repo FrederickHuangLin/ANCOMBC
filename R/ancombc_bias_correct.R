@@ -47,6 +47,9 @@
         # Degree of freedom
         dof = NULL
 
+        # Degree of freedom
+        dof = NULL
+
         # Coefficients
         empty_coef = rep(NA, n_fix_eff)
         names(empty_coef) = fix_eff
@@ -76,6 +79,7 @@
                 if (inherits(fit, "try-error")) {fit = NA}
                 return(fit)
             })
+
             beta_new = lapply(fits, function(i) {
                 beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
                 coef_i = if (inherits(i, "lm")) {
@@ -154,6 +158,16 @@
             if (inherits(fit, "try-error")) {fit = NA}
             return(fit)
         })
+
+        # Degree of freedom
+        dof = vapply(fits, function(i) {
+          if (inherits(i, "lm")) {
+            summary(i)$df[2]
+          } else {
+            999L
+          }
+        }, FUN.VALUE = integer(1))
+        dof = matrix(rep(dof, n_fix_eff), ncol = n_fix_eff, byrow = FALSE)
 
         # Degree of freedom
         dof = vapply(fits, function(i) {
@@ -309,9 +323,6 @@
             )
             return(fit)
         })
-
-        # Degree of freedom
-        dof = NULL
 
         # Degree of freedom
         dof = NULL
