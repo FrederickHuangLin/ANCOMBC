@@ -522,9 +522,10 @@
 
 # E-M algorithm
 .bias_em = function(beta, var_hat, tol, max_iter) {
-    beta = beta[!is.na(beta)]
     nu0 = var_hat
-    nu0 = nu0[!is.na(nu0)]
+    neither_na = !(is.na(beta) | is.na(nu0))
+    beta = beta[neither_na]
+    nu0 = nu0[neither_na]
 
     if (any(nu0 == 0)) {
         stop_txt = sprintf(paste("Zero variances have been detected for the following taxa:",
