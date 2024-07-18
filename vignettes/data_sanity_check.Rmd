@@ -1,0 +1,113 @@
+---
+title: "Data Input Tutorial"
+author: 
+  - Menglu Liang$^1$
+  - $^1$NIEHS, Research Triangle Park, NC 27709, USA
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: rmarkdown::html_vignette
+bibliography: bibliography.bib
+vignette: >
+  %\VignetteIndexEntry{Data Input Tutorial}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, message = FALSE, warning = FALSE, comment = NA}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA,
+                      fig.width = 6.25, fig.height = 5)
+library(ANCOMBC)
+library(tidyverse)
+```
+
+# 1. Introduction
+
+The package requires specific format of input data. For more details, please refer to the 
+[ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663) paper.
+
+# 2. Installation
+
+Download package. 
+
+```{r getPackage, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("ANCOMBC")
+```
+
+Load the package. 
+
+```{r load, eval=FALSE}
+library(ANCOMBC)
+```
+
+# 3. Example Data
+
+## 3.1 Import a phyloseq data
+
+The HITChip Atlas dataset contains genus-level microbiota profiling with 
+HITChip for 1006 western adults with no reported health complications, 
+reported in [@lahti2014tipping]. The dataset is available via the 
+microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+format. 
+```{r}
+data(atlas1006, package = "microbiome")
+dat<-data_sanity_check(atlas1006)
+class(dat)
+```
+
+## 3.2 Import a tse data
+
+We first build a TreeSummarizedExperiment Object then use it as a data example. 
+```{r}
+library(mia)
+# microbial count table
+otu_mat = matrix(sample(1:100, 100, replace = TRUE), nrow = 10, ncol = 10)
+rownames(otu_mat) = paste0("taxon", 1:nrow(otu_mat))
+colnames(otu_mat) = paste0("sample", 1:ncol(otu_mat))
+assays = SimpleList(counts = otu_mat)
+
+# sample metadata
+smd = data.frame(group = sample(LETTERS[1:4], size = 10, replace = TRUE),row.names = paste0("sample", 1:ncol(otu_mat)),stringsAsFactors = FALSE)
+smd = DataFrame(smd)
+ # taxonomy table
+tax_tab = matrix(sample(letters, 70, replace = TRUE),                nrow = nrow(otu_mat), ncol = 7)
+rownames(tax_tab) = rownames(otu_mat)
+colnames(tax_tab) = c("Kingdom", "Phylum", "Class", "Order","Family", "Genus", "Species")
+# Can also contain non-taxonomic information, for instance
+colnames(tax_tab) = c("G1", "G2", "G3", "G4", "G5", "G6", "G7")
+tax_tab = DataFrame(tax_tab)
+# create TSE
+tse = TreeSummarizedExperiment(assays = assays,
+                              colData = smd,
+                              rowData = tax_tab)
+
+dat<-data_sanity_check(tse)
+class(dat)
+```
+
+## 3.3 import a data frame
+The following R code loads the mtcars data set into our current R session. 
+```{r}
+data(mtcars)              # Load data frame
+dat<-data_sanity_check(mtcars)
+class(dat)
+```
+
+
+
+# Session information
+
+```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
+sessionInfo()
+```
+
+# References
+
+
+
+
+
+
+
+
+
