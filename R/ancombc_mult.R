@@ -9,7 +9,7 @@
     output$taxon = tax_id
 
     # Loop over the parameters of interest
-    group_ind = grepl(group, covariates)
+    group_ind = grepl(group, covariates) & !grepl(":", covariates)
     beta_hat_sub = beta_hat[, group_ind, drop = FALSE]
     vcov_hat_sub = lapply(vcov_hat, function(x) {
         x = x[group_ind, group_ind, drop = FALSE]
@@ -91,8 +91,9 @@
   output$taxon = tax_id
 
   # Perform LRT
-  reduce_fix_formula = gsub(pattern = paste0(" \\+ ", group),
-                            replacement = "", x = fix_formula)
+  reduce_fix_formula = gsub("\\*", "+", fix_formula)
+  reduce_fix_formula = gsub(pattern = paste0("\\+\\s*", group),
+                            replacement = "", x = reduce_fix_formula)
   reduce_formula = formula(paste0("y ~ ",
                                   reduce_fix_formula,
                                   "+ ", rand_formula))
@@ -141,7 +142,7 @@
     covariates = colnames(x)
 
     # Subset the parameters of interest
-    group_ind = grepl(group, covariates)
+    group_ind = grepl(group, covariates) & !grepl(":", covariates)
     beta_hat_sub = beta_hat[, group_ind, drop = FALSE]
     vcov_hat_sub = lapply(vcov_hat, function(x) {
         x[group_ind, group_ind, drop = FALSE]
@@ -186,7 +187,7 @@
 # ANCOM-BC Dunnet's type of test
 .dunn_global = function(x, group, W, B, dof, p_adj_method, alpha) {
     covariates = colnames(x)
-    group_ind = grepl(group, covariates)
+    group_ind = grepl(group, covariates) & !grepl(":", covariates)
     n_group = sum(group_ind)
     n_tax = nrow(W)
     tax_id = rownames(W)
@@ -223,7 +224,7 @@
     covariates = colnames(x)
 
     # Subset the parameters of interest
-    group_ind = grepl(group, covariates)
+    group_ind = grepl(group, covariates) & !grepl(":", covariates)
     beta_hat_dunn = beta_hat[, group_ind]
     var_hat_dunn = var_hat[, group_ind]
     se_hat_dunn = sqrt(var_hat_dunn)
@@ -255,7 +256,7 @@
     n_tax = nrow(beta_hat)
     covariates = colnames(x)
 
-    group_ind = grepl(group, covariates)
+    group_ind = grepl(group, covariates) & !grepl(":", covariates)
     n_group = sum(group_ind)
     beta_hat_sub = beta_hat[, group_ind, drop = FALSE]
     var_hat_sub = var_hat[, group_ind, drop = FALSE]

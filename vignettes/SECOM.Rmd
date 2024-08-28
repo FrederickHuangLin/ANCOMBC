@@ -2,7 +2,7 @@
 title: "SECOM Tutorial"
 author: 
   - Huang Lin$^1$
-  - $^1$NIEHS, Research Triangle Park, NC 27709, USA
+  - $^1$University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: rmarkdown::html_vignette
 bibliography: bibliography.bib

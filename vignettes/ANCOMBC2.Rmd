@@ -2,7 +2,7 @@
 title: "ANCOM-BC2 Tutorial"
 author: 
   - Huang Lin$^1$
-  - $^1$NIEHS, Research Triangle Park, NC 27709, USA
+  - $^1$University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: rmarkdown::html_vignette
 bibliography: bibliography.bib
@@ -13,7 +13,7 @@ vignette: >
 ---
 
 ```{r setup, message = FALSE, warning = FALSE, comment = NA}
-knitr::opts_chunk$set(message = FALSE, warning = FALSE, comment = NA, 
+knitr::opts_chunk$set(warning = FALSE, comment = NA, 
                       fig.width = 6.25, fig.height = 5)
 library(ANCOMBC)
 library(tidyverse)
@@ -205,18 +205,13 @@ log_abn_data = log_abn_data + outer(fmd$lfc_cat3_vs_1, smd_dmy[, "cat_cov3"])
 log_otu_data = t(t(log_abn_data) + smd$samp_frac)
 log_otu_data = log_otu_data + fmd$seq_eff
 otu_data = round(exp(log_otu_data))
-
-# Create the tse object
-assays = S4Vectors::SimpleList(counts = otu_data)
-smd = S4Vectors::DataFrame(smd)
-tse = TreeSummarizedExperiment::TreeSummarizedExperiment(assays = assays, colData = smd)
 ```
 
 ## 3.2 Run ancombc2 function
 
 ```{r}
 set.seed(123)
-output = ancombc2(data = tse, assay_name = "counts", tax_level = NULL,
+output = ancombc2(data = otu_data, meta_data = smd, 
                   fix_formula = "cont_cov + cat_cov", rand_formula = NULL,
                   p_adj_method = "holm", pseudo_sens = TRUE,
                   prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
@@ -383,7 +378,7 @@ tab_summ %>%
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
 HITChip for 1006 western adults with no reported health complications, 
 reported in [@lahti2014tipping]. The dataset is available via the 
-microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+`microbiome` R package [@lahti2017tools] in `phyloseq` [@mcmurdie2013phyloseq] 
 format. In this tutorial, we consider the following covariates:
 
 * Continuous covariates: "age"
@@ -398,41 +393,43 @@ format. In this tutorial, we consider the following covariates:
 
 ```{r}
 data(atlas1006, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
-# subset to baseline
-tse = tse[, tse$time == 0]
+# Subset to baseline
+pseq = phyloseq::subset_samples(atlas1006, time == 0)
 
 # Re-code the bmi group
-tse$bmi = recode(tse$bmi_group,
-                 obese = "obese",
-                 severeobese = "obese",
-                 morbidobese = "obese")
-# Subset to lean, overweight, and obese subjects
-tse = tse[, tse$bmi %in% c("lean", "overweight", "obese")]
+meta_data = microbiome::meta(pseq)
+meta_data$bmi = recode(meta_data$bmi_group,
+                       obese = "obese",
+                       severeobese = "obese",
+                       morbidobese = "obese")
 
 # Note that by default, levels of a categorical variable in R are sorted 
 # alphabetically. In this case, the reference level for `bmi` will be 
 # `lean`. To manually change the reference level, for instance, setting `obese`
 # as the reference level, use:
-tse$bmi = factor(tse$bmi, levels = c("obese", "overweight", "lean"))
+meta_data$bmi = factor(meta_data$bmi, levels = c("obese", "overweight", "lean"))
 # You can verify the change by checking:
-# levels(sample_data(tse)$bmi)
+# levels(meta_data$bmi)
 
 # Create the region variable
-tse$region = recode(as.character(tse$nationality),
-                    Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
-                    CentralEurope = "CE", EasternEurope = "EE",
-                    .missing = "unknown")
+meta_data$region = recode(as.character(meta_data$nationality),
+                          Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
+                          CentralEurope = "CE", EasternEurope = "EE",
+                          .missing = "unknown")
 
+phyloseq::sample_data(pseq) = meta_data
+
+# Subset to lean, overweight, and obese subjects
+pseq = phyloseq::subset_samples(pseq, bmi %in% c("lean", "overweight", "obese"))
 # Discard "EE" as it contains only 1 subject
 # Discard subjects with missing values of region
-tse = tse[, ! tse$region %in% c("EE", "unknown")]
+pseq = phyloseq::subset_samples(pseq, ! region %in% c("EE", "unknown"))
 
-print(tse)
+print(pseq)
 ```
     
-## 4.2 Run ancombc2 function
+## 4.2 Run `ancombc2` function using the `phyloseq` object
 
 To control the FDR arising from multiple testing, we opt for the Holm-Bonferroni 
 method over the Benjamini-Hochberg (BH) procedure, especially when dealing with 
@@ -448,8 +445,43 @@ set.seed(123)
 # to 10 in the 'trend_control' function for computational expediency. 
 # However, it is recommended that users utilize the default value of B, 
 # which is 100, or larger values for optimal performance.
-output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
+output = ancombc2(data = pseq, tax_level = "Family",
                   fix_formula = "age + region + bmi", rand_formula = NULL,
+                  p_adj_method = "holm", pseudo_sens = TRUE,
+                  prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+                  group = "bmi", struc_zero = TRUE, neg_lb = TRUE,
+                  alpha = 0.05, n_cl = 2, verbose = TRUE,
+                  global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
+                  iter_control = list(tol = 1e-2, max_iter = 20, 
+                                      verbose = TRUE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+                  trend_control = list(contrast = list(matrix(c(1, 0, -1, 1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE),
+                                                       matrix(c(-1, 0, 1, -1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE),
+                                                       matrix(c(1, 0, 1, -1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE)),
+                                       node = list(2, 2, 1),
+                                       solver = "ECOS",
+                                       B = 10))
+```
+
+Tests for interactions are supported by specifying the interactions in the `fix_formula`. 
+Please ensure that interactions between variables are included using the `*` operator, 
+as the `:` operator is not recognized by the `ancombc2` function and will result in an error.
+
+Additionally, when the `group` variable contains interaction terms, only the main effect 
+will be considered in multi-group comparisons.
+
+```{r, eval=FALSE}
+set.seed(123)
+output = ancombc2(data = pseq, tax_level = "Family",
+                  fix_formula = "age + region * bmi", rand_formula = NULL,
                   p_adj_method = "holm", pseudo_sens = TRUE,
                   prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
                   group = "bmi", struc_zero = TRUE, neg_lb = TRUE,
@@ -582,7 +614,7 @@ fig_bmi = df_fig_bmi %>%
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
   geom_text(aes(group, taxon, label = value, color = color), size = 4) +
-  scale_color_identity(guide = FALSE) +
+  scale_color_identity(guide = "none") +
   labs(x = NULL, y = NULL, title = "Log fold changes as compared to obese subjects") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
@@ -899,6 +931,93 @@ fig_trend = df_fig_trend %>%
 fig_trend
 ```
 
+## 4.9 Run `ancombc2` function using the `tse` object
+
+One can also run the `ancombc2` function using the `TreeSummarizedExperiment` object.
+
+```{r, eval=FALSE}
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
+tse = tse[, tse$time == 0]
+tse$bmi = recode(tse$bmi_group,
+                 obese = "obese",
+                 severeobese = "obese",
+                 morbidobese = "obese")
+tse = tse[, tse$bmi %in% c("lean", "overweight", "obese")]
+tse$bmi = factor(tse$bmi, levels = c("obese", "overweight", "lean"))
+tse$region = recode(as.character(tse$nationality),
+                    Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
+                    CentralEurope = "CE", EasternEurope = "EE",
+                    .missing = "unknown")
+tse = tse[, ! tse$region %in% c("EE", "unknown")]
+
+set.seed(123)
+output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
+                  fix_formula = "age + region + bmi", rand_formula = NULL,
+                  p_adj_method = "holm", pseudo_sens = TRUE,
+                  prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+                  group = "bmi", struc_zero = TRUE, neg_lb = TRUE,
+                  alpha = 0.05, n_cl = 2, verbose = TRUE,
+                  global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
+                  iter_control = list(tol = 1e-2, max_iter = 20, 
+                                      verbose = TRUE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+                  trend_control = list(contrast = list(matrix(c(1, 0, -1, 1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE),
+                                                       matrix(c(-1, 0, 1, -1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE),
+                                                       matrix(c(1, 0, 1, -1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE)),
+                                       node = list(2, 2, 1),
+                                       solver = "ECOS",
+                                       B = 10))
+```
+
+## 4.10 Run `ancombc2` function by directly providing the abundance and metadata
+
+Please ensure that you provide the following: 1) The abundance data at its lowest 
+possible taxonomic level. 2) The aggregated data at the desired taxonomic level; 
+if no aggregation is performed, it can be the same as the original abundance data.
+3) The sample metadata.
+
+```{r, eval=FALSE}
+abundance_data = microbiome::abundances(pseq)
+aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family"))
+meta_data = microbiome::meta(pseq)
+
+set.seed(123)
+output = ancombc2(data = abundance_data, 
+                  aggregate_data = aggregate_data,
+                  meta_data = meta_data,
+                  fix_formula = "age + region + bmi", rand_formula = NULL,
+                  p_adj_method = "holm", pseudo_sens = TRUE,
+                  prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+                  group = "bmi", struc_zero = TRUE, neg_lb = TRUE,
+                  alpha = 0.05, n_cl = 2, verbose = TRUE,
+                  global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
+                  iter_control = list(tol = 1e-2, max_iter = 20, 
+                                      verbose = TRUE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+                  trend_control = list(contrast = list(matrix(c(1, 0, -1, 1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE),
+                                                       matrix(c(-1, 0, 1, -1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE),
+                                                       matrix(c(1, 0, 1, -1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE)),
+                                       node = list(2, 2, 1),
+                                       solver = "ECOS",
+                                       B = 10))
+```
+
 # 5. Run ANCOM-BC2 on a real longitudinal dataset {.tabset}
 
 ## 5.1 Import example data
@@ -910,11 +1029,9 @@ format.
 
 ```{r}
 data(dietswap, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
-print(tse)
 ```
 
-## 5.2 Run ancombc2 function
+## 5.2 Run `ancombc2` function using the `phyloseq` object
 
 In this tutorial, we consider the following fixed effects:
 
@@ -944,8 +1061,38 @@ set.seed(123)
 # to 10 in the 'trend_control' function for computational expediency. 
 # However, it is recommended that users utilize the default value of B, 
 # which is 100, or larger values for optimal performance.
-output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
+output = ancombc2(data = dietswap, tax_level = "Family",
                   fix_formula = "nationality + timepoint + group",
+                  rand_formula = "(timepoint | subject)",
+                  p_adj_method = "holm", pseudo_sens = TRUE,
+                  prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+                  group = "group", struc_zero = TRUE, neg_lb = TRUE,
+                  alpha = 0.05, n_cl = 2, verbose = TRUE,
+                  global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
+                  iter_control = list(tol = 1e-2, max_iter = 20, 
+                                      verbose = TRUE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+                  trend_control = list(contrast = list(matrix(c(1, 0, -1, 1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE)),
+                                       node = list(2),
+                                       solver = "ECOS",
+                                       B = 10))
+```
+
+Again, tests for interactions are supported by specifying the interactions in the `fix_formula`. 
+Please ensure that interactions between variables are included using the `*` operator, 
+as the `:` operator is not recognized by the `ancombc2` function and will result in an error.
+
+Additionally, when the `group` variable contains interaction terms, only the main effect 
+will be considered in multi-group comparisons.
+
+```{r, eval=FALSE}
+set.seed(123)
+output = ancombc2(data = dietswap, tax_level = "Family",
+                  fix_formula = "nationality + timepoint * group",
                   rand_formula = "(timepoint | subject)",
                   p_adj_method = "holm", pseudo_sens = TRUE,
                   prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
@@ -1008,6 +1155,64 @@ res_trend = output$res_trend %>%
     mutate_if(is.numeric, function(x) round(x, 2))
 res_trend[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Pattern Analysis")
+```
+
+## 5.8 Run `ancombc2` function using the `tse` object
+
+```{r, eval=FALSE}
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
+
+set.seed(123)
+output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
+                  fix_formula = "nationality + timepoint + group",
+                  rand_formula = "(timepoint | subject)",
+                  p_adj_method = "holm", pseudo_sens = TRUE,
+                  prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+                  group = "group", struc_zero = TRUE, neg_lb = TRUE,
+                  alpha = 0.05, n_cl = 2, verbose = TRUE,
+                  global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
+                  iter_control = list(tol = 1e-2, max_iter = 20, 
+                                      verbose = TRUE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+                  trend_control = list(contrast = list(matrix(c(1, 0, -1, 1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE)),
+                                       node = list(2),
+                                       solver = "ECOS",
+                                       B = 10))
+```
+
+## 5.9 Run `ancombc2` function by directly providing the abundance and metadata
+
+```{r, eval=FALSE}
+abundance_data = microbiome::abundances(dietswap)
+aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(dietswap, "Family"))
+meta_data = microbiome::meta(dietswap)
+
+set.seed(123)
+output = ancombc2(data = abundance_data, 
+                  aggregate_data = aggregate_data,
+                  meta_data = meta_data,
+                  fix_formula = "nationality + timepoint + group",
+                  rand_formula = "(timepoint | subject)",
+                  p_adj_method = "holm", pseudo_sens = TRUE,
+                  prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+                  group = "group", struc_zero = TRUE, neg_lb = TRUE,
+                  alpha = 0.05, n_cl = 2, verbose = TRUE,
+                  global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
+                  iter_control = list(tol = 1e-2, max_iter = 20, 
+                                      verbose = TRUE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+                  trend_control = list(contrast = list(matrix(c(1, 0, -1, 1),
+                                                              nrow = 2, 
+                                                              byrow = TRUE)),
+                                       node = list(2),
+                                       solver = "ECOS",
+                                       B = 10))
 ```
 
 # 6. Bias-corrected log abundances

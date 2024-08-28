@@ -67,16 +67,21 @@
 #' \href{https://doi.org/10.1186/s12859-016-0937-5}{Grandhi, Guo, and Peddada (2016)}.
 #'
 #' @param data the input data. The \code{data} parameter should be either a
-#' \code{phyloseq} or a \code{TreeSummarizedExperiment} object, which
-#' consists of a feature table (microbial count table), a sample metadata table,
+#' \code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
+#' object. Both \code{phyloseq} and \code{TreeSummarizedExperiment} objects
+#' consist of a feature table (microbial count table), a sample metadata table,
 #' a taxonomy table (optional), and a phylogenetic tree (optional).
-#' Ensure that the row names of the metadata table match the sample names in the
-#' feature table, and the row names of the taxonomy table match the taxon
-#' (feature) names in the feature table. For detailed information, refer to
+#' If a \code{matrix} or \code{data.frame} is provided, ensure that the row
+#' names of the \code{metadata} match the sample names (column names if
+#' \code{taxa_are_rows} is TRUE, and row names otherwise) in \code{data}.
+#' if a \code{phyloseq} or a \code{TreeSummarizedExperiment} is used, this
+#' standard has already been enforced. For detailed information, refer to
 #' \code{?phyloseq::phyloseq} or
 #' \code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
 #' It is recommended to use low taxonomic levels, such as OTU or species level,
 #' as the estimation of sampling fractions requires a large number of taxa.
+#' @param taxa_are_rows logical. Whether taxa are positioned in the rows of the
+#' feature table. Default is TRUE.
 #' @param assay_name character. Name of the count table in the data object
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
@@ -91,6 +96,15 @@
 #' ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
 #' @param rank alias for \code{tax_level}.
+#' @param aggregate_data The abundance data that has been aggregated to the desired
+#' taxonomic level. This parameter is required only when the input data is in
+#' \code{matrix} or \code{data.frame} format. For \code{phyloseq} or \code{TreeSummarizedExperiment}
+#' data, aggregation is performed by specifying the \code{tax_level} parameter.
+#' @param meta_data a \code{data.frame} containing sample metadata.
+#' This parameter is mandatory when the input \code{data} is a generic
+#' \code{matrix} or \code{data.frame}. Ensure that the row names of the \code{metadata} match the
+#' sample names (column names if \code{taxa_are_rows} is TRUE, and row names
+#' otherwise) in \code{data}.
 #' @param fix_formula the character string expresses how the microbial absolute
 #' abundances for each taxon depend on the fixed effects in metadata. When
 #' specifying the \code{fix_formula}, make sure to include the \code{group}
@@ -280,53 +294,13 @@
 #' @seealso \code{\link{ancom}} \code{\link{ancombc}}
 #'
 #' @examples
-#' #===========Build a TreeSummarizedExperiment Object from Scratch=============
-#' library(mia)
-#'
-#' # microbial count table
-#' otu_mat = matrix(sample(1:100, 100, replace = TRUE), nrow = 10, ncol = 10)
-#' rownames(otu_mat) = paste0("taxon", 1:nrow(otu_mat))
-#' colnames(otu_mat) = paste0("sample", 1:ncol(otu_mat))
-#' assays = SimpleList(counts = otu_mat)
-#'
-#' # sample metadata
-#' smd = data.frame(group = sample(LETTERS[1:4], size = 10, replace = TRUE),
-#'                  row.names = paste0("sample", 1:ncol(otu_mat)),
-#'                  stringsAsFactors = FALSE)
-#' smd = DataFrame(smd)
-#'
-#' # taxonomy table
-#' tax_tab = matrix(sample(letters, 70, replace = TRUE),
-#'                  nrow = nrow(otu_mat), ncol = 7)
-#' rownames(tax_tab) = rownames(otu_mat)
-#' colnames(tax_tab) = c("Kingdom", "Phylum", "Class", "Order",
-#'                       "Family", "Genus", "Species")
-#' # Can also contain non-taxonomic information, for instance
-#' # colnames(tax_tab) = c("G1", "G2", "G3", "G4", "G5", "G6", "G7")
-#' tax_tab = DataFrame(tax_tab)
-#'
-#' # create TSE
-#' tse = TreeSummarizedExperiment(assays = assays,
-#'                                colData = smd,
-#'                                rowData = tax_tab)
-#'
-#' # convert TSE to phyloseq
-#' pseq = makePhyloseqFromTreeSummarizedExperiment(tse)
-#'
-#' #=======================Run ANCOMBC2 Using a Real Data=======================
 #' library(ANCOMBC)
 #' data(dietswap, package = "microbiome")
-#' tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
-#'
-#' colData(tse)$bmi_group = factor(colData(tse)$bmi_group,
-#'                                 levels = c("obese",
-#'                                            "overweight",
-#'                                            "lean"))
 #'
 #' set.seed(123)
 #' # Note that setting max_iter = 1 and B = 1 is only for the sake of speed
 #' # Use default or larger values for max_iter and B for better performance
-#' out = ancombc2(data = tse, assay_name = "counts", tax_level = "Phylum",
+#' out = ancombc2(data = dietswap, tax_level = "Phylum",
 #'                fix_formula = "nationality + timepoint + bmi_group",
 #'                rand_formula = NULL,
 #'                p_adj_method = "holm", pseudo_sens = TRUE,
@@ -370,11 +344,9 @@
 #'
 #' @rawNamespace import(stats, except = filter)
 #' @importFrom utils combn
-#' @importFrom mia makeTreeSummarizedExperimentFromPhyloseq taxonomyRanks agglomerateByRank
-#' @importFrom SingleCellExperiment altExp
+#' @importFrom microbiome abundances meta aggregate_taxa
 #' @importFrom SummarizedExperiment assay colData rowData
-#' @importFrom TreeSummarizedExperiment TreeSummarizedExperiment
-#' @importFrom S4Vectors DataFrame SimpleList
+#' @importFrom mia taxonomyRanks agglomerateByRank
 #' @importFrom lmerTest lmer
 #' @importFrom lme4 lmerControl
 #' @importFrom multcomp glht mcp adjusted
@@ -388,13 +360,15 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancombc2 = function(data, assay.type = assay_name, assay_name = "counts",
+ancombc2 = function(data, taxa_are_rows = TRUE,
+                    assay.type = assay_name, assay_name = "counts",
                     rank = tax_level, tax_level = NULL,
-                    fix_formula , rand_formula = NULL,
+                    aggregate_data = NULL, meta_data = NULL,
+                    fix_formula, rand_formula = NULL,
                     p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
                     prv_cut = 0.10, lib_cut = 0, s0_perc = 0.05,
                     group = NULL, struc_zero = FALSE, neg_lb = FALSE,
-                    alpha = 0.05, n_cl = 1, verbose = FALSE,
+                    alpha = 0.05, n_cl = 1, verbose = TRUE,
                     global = FALSE, pairwise = FALSE,
                     dunnet = FALSE, trend = FALSE,
                     iter_control = list(tol = 1e-2,
@@ -415,65 +389,63 @@ ancombc2 = function(data, assay.type = assay_name, assay_name = "counts",
     }
 
     # 1. Data pre-processing
-    # Check for aliases
-    if (!is.null(assay.type)) {
-        assay_name = assay.type
-    }
-
-    if (!is.null(rank)) {
-        tax_level = rank
-    }
-
-    # TSE data construction
-    tse_obj = .tse_construct(data = data, assay_name = assay_name,
-                             tax_level = tax_level, phyloseq = NULL)
-    tse = tse_obj$tse
-    assay_name = tse_obj$assay_name
-    tax_level = tse_obj$tax_level
-    tse_alt = tse_obj$tse_alt
+    # Data sanity check
+    check_results = data_sanity_check(data = data,
+                                      taxa_are_rows = taxa_are_rows,
+                                      assay.type = assay_name,
+                                      assay_name = assay_name,
+                                      rank = tax_level,
+                                      tax_level = tax_level,
+                                      aggregate_data = aggregate_data,
+                                      meta_data = meta_data,
+                                      fix_formula = fix_formula,
+                                      group = group,
+                                      struc_zero = struc_zero,
+                                      global = global,
+                                      pairwise = pairwise,
+                                      dunnet = dunnet,
+                                      mdfdr_control = mdfdr_control,
+                                      trend = trend,
+                                      trend_control = trend_control,
+                                      verbose = verbose)
+    feature_table = check_results$feature_table
+    feature_table_aggregate = check_results$feature_table_aggregate
+    meta_data = check_results$meta_data
+    global = check_results$global
+    pairwise = check_results$pairwise
+    dunnet = check_results$dunnet
+    trend = check_results$trend
+    trend_control = check_results$trend_control
 
     # Identify taxa with structural zeros
     if (struc_zero) {
-        zero_ind = .get_struc_zero(tse = tse, tax_level = tax_level,
-                                   assay_name = assay_name,
-                                   alt = TRUE, group = group, neg_lb = neg_lb)
+        zero_ind = .get_struc_zero(data = feature_table_aggregate,
+                                   meta_data = meta_data,
+                                   group = group, neg_lb = neg_lb)
         # Taxa with structural zeros will be removed from ANCOM-BC2 analyses
         tax_idx = apply(zero_ind[, -1], 1, function(x) all(x == FALSE))
         tax_keep = which(tax_idx)
     }else{
         zero_ind = NULL
         # Taxa with structural zeros will be removed from ANCOM-BC2 analyses
-        tax_keep = seq(nrow(tse_alt))}
+        tax_keep = seq(nrow(feature_table_aggregate))}
 
     # Filter data by prevalence and library size
-    core1 = .data_core(tse = tse, tax_level = tax_level,
-                       assay_name = assay_name, alt = FALSE,
+    core1 = .data_core(data = feature_table,
+                       meta_data = meta_data,
                        prv_cut = prv_cut, lib_cut = lib_cut,
                        tax_keep = NULL, samp_keep = NULL)
     O1 = core1$feature_table
     samp_keep = colnames(O1)
 
-    core2 = .data_core(tse = tse, tax_level = tax_level,
-                       assay_name = assay_name, alt = TRUE,
+    core2 = .data_core(data = feature_table_aggregate,
+                       meta_data = meta_data,
                        prv_cut = prv_cut, lib_cut = lib_cut,
                        tax_keep = tax_keep, samp_keep = samp_keep)
     O2 = core2$feature_table
+    meta_data = core2$meta_data
     n_tax = nrow(O2)
     tax_name = rownames(O2)
-
-    # Metadata and arguments check
-    qc = .data_qc(meta_data = core2$meta_data,
-                  formula = fix_formula, group = group,
-                  struc_zero = struc_zero, global = global,
-                  pairwise = pairwise, dunnet = dunnet,
-                  mdfdr_control = mdfdr_control,
-                  trend = trend, trend_control = trend_control)
-    meta_data = qc$meta_data
-    global = qc$global
-    pairwise = qc$pairwise
-    dunnet = qc$dunnet
-    trend = qc$trend
-    trend_control = qc$trend_control
 
     # 2. Estimation of the sample-specific biases
     options(na.action = "na.pass") # Keep NA's in rows of x
@@ -611,9 +583,6 @@ ancombc2 = function(data, assay.type = assay_name, assay_name = "counts",
             n_levels = NULL
         }
 
-        # The sensitivity score is calculated as the standard deviation of the
-        # negative log p-values derived from bias-corrected abundance regression
-        # analyses across different pseudo-count additions.
         pseudo = NULL
         ss_list = foreach(pseudo = pseudo_list) %dorng% {
             count1 = core2$feature_table
@@ -751,7 +720,7 @@ ancombc2 = function(data, assay.type = assay_name, assay_name = "counts",
                                          p_pair, q_pair, diff_pair))
         pair_col_name = gsub("lfc_", "", colnames(beta_pair))
         if (pseudo_sens) {
-            ss_flag_pair = ss_flag[grepl(group, colnames(ss_flag))]
+            ss_flag_pair = ss_flag[grepl(group, colnames(ss_flag)) & !grepl(":", colnames(ss_flag))]
             colnames(ss_flag_pair) = pair_col_name
             for (col in pair_col_name) {
                 ss_flag_pair[[col]] = with(ss_flag_pair,
