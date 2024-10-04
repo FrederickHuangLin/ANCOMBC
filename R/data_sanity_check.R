@@ -96,9 +96,6 @@
 #'
 #' @author Huang Lin
 #'
-#' @importFrom microbiome abundances meta aggregate_taxa
-#' @importFrom SummarizedExperiment assay colData
-#'
 #' @export
 data_sanity_check = function(data, taxa_are_rows = TRUE,
                              assay.type = assay_name, assay_name = "counts",
@@ -209,24 +206,26 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
         if(is.factor(x)) factor(x) else x)
 
     # Check if all covariates specified in the fix_formula are columns in metadata
-    fix_formula_non_interact = gsub("\\*", "+", fix_formula)
-    vars = unlist(strsplit(fix_formula_non_interact, split = "\\s*\\+\\s*")) # \\s* matches zero or more spaces
+    if (!is.null(fix_formula)) {
+        fix_formula_non_interact = gsub("\\*", "+", fix_formula)
+        vars = unlist(strsplit(fix_formula_non_interact, split = "\\s*\\+\\s*")) # \\s* matches zero or more spaces
 
-    if (verbose) {
-        message("The specified variables in the formula: ",
-                paste(vars, collapse = ", "))
-        message("The available variables in the sample metadata: ",
-                paste(colnames(meta_data), collapse = ", "))
-    }
+        if (verbose) {
+            message("The specified variables in the formula: ",
+                    paste(vars, collapse = ", "))
+            message("The available variables in the sample metadata: ",
+                    paste(colnames(meta_data), collapse = ", "))
+        }
 
-    missing_vars = vars[!vars %in% colnames(meta_data)]
-    if (length(missing_vars) > 0) {
-        stop("The following variables specified are not in the meta data: ",
-             paste(missing_vars, collapse = ", "))
-    }
+        missing_vars = vars[!vars %in% colnames(meta_data)]
+        if (length(missing_vars) > 0) {
+            stop("The following variables specified are not in the meta data: ",
+                 paste(missing_vars, collapse = ", "))
+        }
 
-    if (verbose) {
-        message("PASS")
+        if (verbose) {
+            message("PASS")
+        }
     }
 
     #=========== Check other arguments ===========

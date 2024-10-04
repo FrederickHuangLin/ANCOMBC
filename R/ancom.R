@@ -133,18 +133,23 @@
 #'
 #' @examples
 #' library(ANCOMBC)
-#' data(atlas1006, package = "microbiome")
-#' pseq = phyloseq::subset_samples(atlas1006, time == 0)
+#' if (requireNamespace("microbiome", quietly = TRUE)) {
+#'     data(atlas1006, package = "microbiome")
+#'     # subset to baseline
+#'     pseq = phyloseq::subset_samples(atlas1006, time == 0)
 #'
-#' # run ancom function
-#' set.seed(123)
-#' out = ancom(data = pseq, tax_level = "Family",
-#'             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#'             main_var = "bmi_group", adj_formula = "age + nationality",
-#'             rand_formula = NULL, lme_control = NULL,
-#'             struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
+#'     # run ancom function
+#'     set.seed(123)
+#'     out = ancom(data = pseq, tax_level = "Family",
+#'                 p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+#'                 main_var = "bmi_group", adj_formula = "age + nationality",
+#'                 rand_formula = NULL, lme_control = NULL,
+#'                 struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
 #'
-#' res = out$res
+#'     res = out$res
+#' } else {
+#'     message("The 'microbiome' package is not installed. Please install it to use this example.")
+#' }
 #'
 #' @author Huang Lin
 #'
@@ -154,8 +159,6 @@
 #' \insertRef{kaul2017analysis}{ANCOMBC}
 #'
 #' @rawNamespace import(stats, except = filter)
-#' @importFrom microbiome abundances meta aggregate_taxa
-#' @importFrom SummarizedExperiment assay colData
 #' @importFrom lmerTest lmer
 #' @importFrom lme4 lmerControl
 #' @importFrom parallel makeCluster stopCluster

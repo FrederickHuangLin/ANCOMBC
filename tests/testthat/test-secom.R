@@ -3,15 +3,14 @@ library(ANCOMBC)
 library(testthat)
 
 data(atlas1006, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
 # subset to baseline
-tse = tse[, tse$time == 0]
+pseq = phyloseq::subset_samples(atlas1006, time == 0)
 
 # test 1
 test_that("`secom_linear` function provides expected results", {
     set.seed(123)
-    res_linear = secom_linear(data = list(tse), assay_name = "counts",
+    res_linear = secom_linear(data = list(pseq),
                               tax_level = "Phylum", pseudo = 0,
                               prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5,
                               wins_quant = c(0.05, 0.95), method = "pearson",
@@ -25,7 +24,7 @@ test_that("`secom_linear` function provides expected results", {
 # test 2
 test_that("`secom_dist` function provides expected results", {
     set.seed(123)
-    res_dist = secom_dist(data = list(tse), assay_name = "counts",
+    res_dist = secom_dist(data = list(pseq),
                           tax_level = "Phylum", pseudo = 0,
                           prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5,
                           wins_quant = c(0.05, 0.95), R = 1000,

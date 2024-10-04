@@ -304,7 +304,6 @@
     b = NULL
     W_trend_null = foreach(b = seq_len(B), .combine = 'cbind') %dorng%
       {
-        set.seed(b)
         beta_null = matrix(rnorm(n_group * n_tax), nrow = n_tax)
         beta_null_opt = t(apply(beta_null, 1, function(x) {
           beta_null_opt_x = unlist(lapply(X = contrast,

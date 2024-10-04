@@ -156,36 +156,22 @@
 #'
 #' @examples
 #' library(ANCOMBC)
-#' data(atlas1006, package = "microbiome")
-#' tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
+#' if (requireNamespace("microbiome", quietly = TRUE)) {
+#'     data(atlas1006, package = "microbiome")
+#'     # subset to baseline
+#'     pseq = phyloseq::subset_samples(atlas1006, time == 0)
 #'
-#' # subset to baseline
-#' tse = tse[, tse$time == 0]
-#'
-#' # run ancombc function
-#' set.seed(123)
-#' out = ancombc(data = tse, assay_name = "counts",
-#'               tax_level = "Family", phyloseq = NULL,
-#'               formula = "age + nationality + bmi_group",
-#'               p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#'               group = "bmi_group", struc_zero = TRUE, neg_lb = FALSE,
-#'               tol = 1e-5, max_iter = 100, conserve = TRUE,
-#'               alpha = 0.05, global = TRUE, n_cl = 1, verbose = TRUE)
-#'
-#' res_prim = out$res
-#' res_global = out$res_global
-#'
-#' # to run ancombc using the phyloseq object
-#' tse_alt = agglomerateByRank(tse, "Family")
-#' pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
-#' set.seed(123)
-#' out = ancombc(data = NULL, assay_name = NULL,
-#'               tax_level = "Family", phyloseq = pseq,
-#'               formula = "age + nationality + bmi_group",
-#'               p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#'               group = "bmi_group", struc_zero = TRUE, neg_lb = FALSE,
-#'               tol = 1e-5, max_iter = 100, conserve = TRUE,
-#'               alpha = 0.05, global = TRUE, n_cl = 1, verbose = TRUE)
+#'     # run ancombc function
+#'     set.seed(123)
+#'     out = ancombc(data = pseq, tax_level = "Family",
+#'                   formula = "age + nationality + bmi_group",
+#'                   p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+#'                   group = "bmi_group", struc_zero = TRUE, neg_lb = FALSE,
+#'                   tol = 1e-5, max_iter = 100, conserve = TRUE,
+#'                   alpha = 0.05, global = TRUE, n_cl = 1, verbose = TRUE)
+#' } else {
+#'     message("The 'microbiome' package is not installed. Please install it to use this example.")
+#' }
 #'
 #' @author Huang Lin
 #'
@@ -195,10 +181,6 @@
 #' \insertRef{lin2020analysis}{ANCOMBC}
 #'
 #' @rawNamespace import(stats, except = filter)
-#' @importFrom microbiome abundances meta aggregate_taxa
-#' @importFrom SummarizedExperiment assay colData rowData
-#' @importFrom mia taxonomyRanks agglomerateByRank
-#' @importFrom S4Vectors DataFrame SimpleList
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom foreach foreach %dopar% registerDoSEQ
 #' @importFrom doParallel registerDoParallel
@@ -267,7 +249,7 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
     # Add pseudocount (1) and take logarithm.
     y = log(feature_table + 1)
     options(na.action = "na.pass") # Keep NA's in rows of x
-    x = model.matrix(formula(paste0("~", formula)), data = meta_data)
+    x = stats::model.matrix(formula(paste0("~", formula)), data = meta_data)
     options(na.action = "na.omit") # Switch it back
     covariates = colnames(x)
     n_covariates = length(covariates)

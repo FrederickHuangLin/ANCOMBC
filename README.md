@@ -1,6 +1,6 @@
 # ANCOMBC
 
-*Author & Maintainer: Huang Lin: <huanglinfrederick@gmail.com> \& <hlin1239@umd.edu>*
+*Author & Maintainer: Huang Lin: <hlin1239@umd.edu>*
 
 ANCOMBC is a package containing differential abundance (DA) and correlation 
 analyses for microbiome data. Specifically, the package includes 

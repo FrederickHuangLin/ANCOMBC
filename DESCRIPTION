@@ -2,7 +2,7 @@ Package: ANCOMBC
 Type: Package
 Title: Microbiome differential abudance and correlation analyses with bias 
     correction
-Version: 2.2.2
+Version: 2.6.1
 Description: ANCOMBC is a package containing differential abundance (DA) and 
     correlation analyses for microbiome data. Specifically, the package includes 
     Analysis of Compositions of Microbiomes with Bias Correction 2 (ANCOM-BC2),
@@ -14,7 +14,7 @@ Description: ANCOMBC is a package containing differential abundance (DA) and
     sequencing efficiencies (taxon-specific biases). Methodologies included in 
     the ANCOMBC package are designed to correct these biases and construct 
     statistically consistent estimators.
-Date: 2023-09-18
+Date: 2024-10-01
 Authors@R: c(
     person(given = "Huang", 
            family = "Lin", 
@@ -22,13 +22,13 @@ Authors@R: c(
            role = c("cre", "aut"),
            comment = c(ORCID = "0000-0002-4892-7871")))
 License: Artistic-2.0
-Imports: mia (>= 1.6.0), stats, 
-    CVXR, DescTools, Hmisc, MASS, Matrix, Rdpack, S4Vectors, 
-    SingleCellExperiment, SummarizedExperiment, TreeSummarizedExperiment, 
-    doParallel, doRNG, energy, foreach, gtools, lme4, lmerTest, multcomp, 
-    nloptr, parallel, utils
-Suggests: dplyr, knitr, rmarkdown, testthat, 
-    DT, tidyr, tidyverse, microbiome, magrittr
+Imports: stats, 
+    CVXR, DescTools, Hmisc, MASS, Matrix, Rdpack, doParallel, doRNG, energy, 
+    foreach, gtools, lme4, lmerTest, multcomp, nloptr, parallel, utils
+Suggests: mia (>= 1.6.0), 
+    DT, S4Vectors, SingleCellExperiment, SummarizedExperiment, 
+    TreeSummarizedExperiment, dplyr, knitr, magrittr, microbiome, 
+    phyloseq, rmarkdown, testthat, tidyr, tidyverse
 biocViews: 
     DifferentialExpression, 
     Microbiome, 

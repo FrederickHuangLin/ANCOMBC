@@ -295,35 +295,40 @@
 #'
 #' @examples
 #' library(ANCOMBC)
-#' data(dietswap, package = "microbiome")
+#' if (requireNamespace("microbiome", quietly = TRUE)) {
+#'     data(dietswap, package = "microbiome")
 #'
-#' set.seed(123)
-#' # Note that setting max_iter = 1 and B = 1 is only for the sake of speed
-#' # Use default or larger values for max_iter and B for better performance
-#' out = ancombc2(data = dietswap, tax_level = "Phylum",
-#'                fix_formula = "nationality + timepoint + bmi_group",
-#'                rand_formula = NULL,
-#'                p_adj_method = "holm", pseudo_sens = TRUE,
-#'                prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
-#'                group = "bmi_group", struc_zero = TRUE, neg_lb = TRUE,
-#'                alpha = 0.05, n_cl = 1, verbose = TRUE,
-#'                global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
-#'                iter_control = list(tol = 1e-2, max_iter = 1, verbose = TRUE),
-#'                em_control = list(tol = 1e-5, max_iter = 1),
-#'                lme_control = lme4::lmerControl(),
-#'                mdfdr_control = list(fwer_ctrl_method = "holm", B = 1),
-#'                trend_control = list(contrast =
-#'                                           list(matrix(c(1, 0, -1, 1),
-#'                                                       nrow = 2,
-#'                                                       byrow = TRUE)),
-#'                                       node = list(2),
-#'                                       solver = "ECOS",
-#'                                       B = 1))
-#' res_prim = out$res
-#' res_global = out$res_global
-#' res_pair = out$res_pair
-#' res_dunn = out$res_dunn
-#' res_trend = out$res_trend
+#'     # run ancombc2 function
+#'     set.seed(123)
+#'     # Note that setting max_iter = 1 and B = 1 is only for the sake of speed
+#'     # Use default or larger values for max_iter and B for better performance
+#'     out = ancombc2(data = dietswap, tax_level = "Family",
+#'                    fix_formula = "nationality + timepoint + bmi_group",
+#'                    rand_formula = NULL,
+#'                    p_adj_method = "holm", pseudo_sens = TRUE,
+#'                    prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+#'                    group = "bmi_group", struc_zero = TRUE, neg_lb = TRUE,
+#'                    alpha = 0.05, n_cl = 1, verbose = TRUE,
+#'                    global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
+#'                    iter_control = list(tol = 1e-2, max_iter = 1, verbose = TRUE),
+#'                    em_control = list(tol = 1e-5, max_iter = 1),
+#'                    lme_control = lme4::lmerControl(),
+#'                    mdfdr_control = list(fwer_ctrl_method = "holm", B = 1),
+#'                    trend_control = list(contrast =
+#'                                             list(matrix(c(1, 0, -1, 1),
+#'                                                         nrow = 2,
+#'                                                         byrow = TRUE)),
+#'                                         node = list(2),
+#'                                         solver = "ECOS",
+#'                                         B = 1))
+#'     res_prim = out$res
+#'     res_global = out$res_global
+#'     res_pair = out$res_pair
+#'     res_dunn = out$res_dunn
+#'     res_trend = out$res_trend
+#' } else {
+#'     message("The 'microbiome' package is not installed. Please install it to use this example.")
+#' }
 #'
 #' @author Huang Lin
 #'
@@ -344,9 +349,6 @@
 #'
 #' @rawNamespace import(stats, except = filter)
 #' @importFrom utils combn
-#' @importFrom microbiome abundances meta aggregate_taxa
-#' @importFrom SummarizedExperiment assay colData rowData
-#' @importFrom mia taxonomyRanks agglomerateByRank
 #' @importFrom lmerTest lmer
 #' @importFrom lme4 lmerControl
 #' @importFrom multcomp glht mcp adjusted
