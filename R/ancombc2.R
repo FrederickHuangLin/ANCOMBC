@@ -449,7 +449,7 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 
     # 2. Estimation of the sample-specific biases
     options(na.action = "na.pass") # Keep NA's in rows of x
-    x = model.matrix(formula(paste0("~", fix_formula)), data = meta_data)
+    x = stats::model.matrix(formula(paste0("~", fix_formula)), data = meta_data)
     options(na.action = "na.omit") # Switch it back
     fix_eff = colnames(x)
     n_fix_eff = length(fix_eff)
