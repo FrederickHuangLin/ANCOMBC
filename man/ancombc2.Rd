@@ -102,9 +102,9 @@ Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
 
 \item{pseudo}{numeric. Add pseudo-counts to the data.
-Please note that this option is now deprecated in ANCOM-BC2. The software
+Please note that this option is not recommended in ANCOM-BC2. The software
 will utilize the complete data (nonzero counts) as its default analysis
-input. Specifying a pseudo-count will not affect the analysis or its results.}
+input.}
 
 \item{pseudo_sens}{logical. Whether to perform the sensitivity analysis to
 the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes

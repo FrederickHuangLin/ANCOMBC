@@ -117,9 +117,9 @@
 #' Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 #' "fdr", "none". See \code{?stats::p.adjust} for more details.
 #' @param pseudo numeric. Add pseudo-counts to the data.
-#' Please note that this option is now deprecated in ANCOM-BC2. The software
+#' Please note that this option is not recommended in ANCOM-BC2. The software
 #' will utilize the complete data (nonzero counts) as its default analysis
-#' input. Specifying a pseudo-count will not affect the analysis or its results.
+#' input.
 #' @param pseudo_sens logical. Whether to perform the sensitivity analysis to
 #' the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes
 #' complete data (nonzero counts) by default for its analysis, a comprehensive
@@ -449,6 +449,18 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
     n_tax = nrow(O2)
     tax_name = rownames(O2)
 
+    if (pseudo != 0) {
+        warn_txt = paste("You have chosen to add pseudo-counts to your data.",
+                         "This is not recommended, as it may introduce artificial biases.",
+                         "A sensitivity analysis can be performed to assess the robustness of your results to pseudo-counts.",
+                         "Are you sure you want to proceed with adding pseudo-counts?",
+                         sep = "\n")
+        warning(warn_txt, call. = FALSE)
+
+        O1 = O1 + pseudo
+        O2 = O2 + pseudo
+    }
+
     # 2. Estimation of the sample-specific biases
     options(na.action = "na.pass") # Keep NA's in rows of x
     x = stats::model.matrix(formula(paste0("~", fix_formula)), data = meta_data)
@@ -571,10 +583,23 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
     })
 
     # 4. Sensitivity analysis for pseudo-count addition to 0s
+    if (!pseudo_sens) {
+        warn_txt = paste("Sensitivity analysis is currently turned off.",
+                         "Since sensitivity analysis is essential for reducing false positives,",
+                         "it is highly recommended to enable it unless your primary focus is power.",
+                         "Are you sure you want to proceed without it?", sep = "\n")
+        message(warn_txt)
+    }
+
     if (pseudo_sens) {
-        if (verbose) {
-            message("Sensitivity analysis for pseudo-count addition to 0s: ...")
-        }
+        message_txt = paste("Conducting sensitivity analysis for pseudo-count addition to 0s ...",
+                            "For taxa that are significant but do not pass the sensitivity analysis,",
+                            "please flag them and proceed with caution, as they are likely false positives.",
+                            "For detailed instructions on performing sensitivity analysis,",
+                            "please refer to the package vignette.",
+                            sep = "\n")
+        message(message_txt)
+
         pseudo_list = seq(0.01, 0.5, 0.01)
         fun_list = list(.get_p)
 
@@ -644,8 +669,8 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         ss_flag_prim = ss_flag[fix_eff]
         for (col in fix_eff) {
             ss_flag_prim[[col]] = with(ss_flag_prim,
-                                       (ss_flag_prim[[col]] == 0 & res[[paste0("diff_", col)]] == TRUE) |
-                                           (ss_flag_prim[[col]] == 1 & res[[paste0("diff_", col)]] == FALSE))
+                                       (ss_flag_prim[[col]] == 0 & res[[paste0("p_", col)]] <= alpha) |
+                                           (ss_flag_prim[[col]] == 1 & res[[paste0("p_", col)]] > alpha))
         }
         colnames(ss_flag_prim) = paste0("passed_ss_", colnames(ss_flag_prim))
         res = cbind(res, ss_flag_prim)
@@ -677,8 +702,8 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         }
         if (pseudo_sens) {
             ss_flag_global = ss_flag["global"]
-            ss_flag_global$global = (ss_flag_global$global == 0 & res_global$diff_abn == TRUE) |
-                (ss_flag_global$global == 1 & res_global$diff_abn == FALSE)
+            ss_flag_global$global = (ss_flag_global$global == 0 & res_global$p_val <= alpha) |
+                (ss_flag_global$global == 1 & res_global$p_val > alpha)
             colnames(ss_flag_global) = "passed_ss"
             res_global = cbind(res_global, ss_flag_global)
         }
@@ -726,8 +751,8 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
             colnames(ss_flag_pair) = pair_col_name
             for (col in pair_col_name) {
                 ss_flag_pair[[col]] = with(ss_flag_pair,
-                                           (ss_flag_pair[[col]] == 0 & res_pair[[paste0("diff_", col)]] == TRUE) |
-                                               (ss_flag_pair[[col]] == 1 & res_pair[[paste0("diff_", col)]] == FALSE))
+                                           (ss_flag_pair[[col]] == 0 & res_pair[[paste0("p_", col)]] <= alpha) |
+                                               (ss_flag_pair[[col]] == 1 & res_pair[[paste0("p_", col)]] > alpha))
             }
 
             colnames(ss_flag_pair) = paste0("passed_ss_", colnames(ss_flag_pair))
@@ -769,8 +794,8 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
             ss_flag_dunn = ss_flag[dunn_col_name]
             for (col in dunn_col_name) {
                 ss_flag_dunn[[col]] = with(ss_flag_dunn,
-                                           (ss_flag_dunn[[col]] == 0 & res_dunn[[paste0("diff_", col)]] == TRUE) |
-                                               (ss_flag_dunn[[col]] == 1 & res_dunn[[paste0("diff_", col)]] == FALSE))
+                                           (ss_flag_dunn[[col]] == 0 & res_dunn[[paste0("p_", col)]] <= alpha) |
+                                               (ss_flag_dunn[[col]] == 1 & res_dunn[[paste0("p_", col)]] > alpha))
             }
             colnames(ss_flag_dunn) = paste0("passed_ss_", colnames(ss_flag_dunn))
             res_dunn = cbind(res_dunn, ss_flag_dunn)
@@ -806,8 +831,8 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                                      q_val = q_trend, diff_abn = diff_trend))
         if (pseudo_sens) {
             ss_flag_trend = ss_flag["trend"]
-            ss_flag_trend$trend = (ss_flag_trend$trend == 0 & res_trend$diff_abn == TRUE) |
-                (ss_flag_trend$trend == 1 & res_trend$diff_abn == FALSE)
+            ss_flag_trend$trend = (ss_flag_trend$trend == 0 & res_trend$p_val <= alpha) |
+                (ss_flag_trend$trend == 1 & res_trend$p_val > alpha)
             colnames(ss_flag_trend) = "passed_ss"
             res_trend = cbind(res_trend, ss_flag_trend)
         }

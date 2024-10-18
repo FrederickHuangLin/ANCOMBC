@@ -14,7 +14,7 @@ Description: ANCOMBC is a package containing differential abundance (DA) and
     sequencing efficiencies (taxon-specific biases). Methodologies included in 
     the ANCOMBC package are designed to correct these biases and construct 
     statistically consistent estimators.
-Date: 2024-10-01
+Date: 2024-10-20
 Authors@R: c(
     person(given = "Huang", 
            family = "Lin", 

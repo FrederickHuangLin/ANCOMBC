@@ -371,8 +371,8 @@ tab_summ %>%
     datatable(caption = "Power/FDR Comparison")
 ```
 
-# 4. Run ANCOM-BC2 on a real cross-sectional dataset
-    
+# 4. Benchmark the performance of ANCOM-BC2 on a null dataset
+
 ## 4.1 Import example data
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
@@ -428,8 +428,89 @@ pseq = phyloseq::subset_samples(pseq, ! region %in% c("EE", "unknown"))
 
 print(pseq)
 ```
+
+## 4.2 Permute the `bmi` label
+
+After permutation, the data can be considered null for `bmi`, meaning that a DA method that effectively controls false positives should produce p-values that are roughly uniformly distributed.
+
+```{r}
+set.seed(123)
+
+pseq_perm = pseq
+meta_data_perm = microbiome::meta(pseq_perm)
+meta_data_perm$bmi = sample(meta_data_perm$bmi)
+
+phyloseq::sample_data(pseq_perm) = meta_data_perm
+```
+
+## 4.3 Run `ancombc2` function 
+
+```{r}
+set.seed(123)
+output = ancombc2(data = pseq_perm, tax_level = "Genus",
+                  fix_formula = "bmi", rand_formula = NULL,
+                  p_adj_method = "holm", pseudo_sens = TRUE,
+                  prv_cut = 0, lib_cut = 1000, s0_perc = 0.05,
+                  group = "bmi", struc_zero = TRUE, neg_lb = TRUE)
+```
+
+## 4.4 Visualization
+
+The p-values from ANCOM-BC2, both with and without sensitivity analysis, exhibit a nearly uniform distribution. 
+
+Notably, enabling sensitivity analysis significantly reduces the number of significant p-values, thereby decreasing the risk of false positives.
+
+We **strongly recommend** that users activate the sensitivity analysis and incorporate it into their final assessment of taxon significance.
+
+For researchers aiming to benchmark ANCOM-BC2 against new methods in terms of false positive control, it is **essential** to account for the sensitivity analysis feature to ensure a fair comparison.
+
+```{r}
+res_perm = output$res %>%
+    dplyr::transmute(taxon = taxon,
+                     p = p_bmioverweight,
+                     ss_pass = passed_ss_bmioverweight) %>%
+  rowwise() %>%
+  mutate(
+      p_update = case_when(
+          # For taxa with significant p-values that failed the sensitivity analysis,
+          # we assign a random value uniformly drawn from the range [0.05, 1].
+          p < 0.05 & ss_pass == FALSE ~ runif(1, min = 0.05, max = 1),
+    TRUE ~ p 
+  )) %>%
+  ungroup()
+
+df_p = res_perm %>%
+  dplyr::select(p, p_update) %>%
+  pivot_longer(cols = p:p_update, names_to = "type", values_to = "value") 
+df_p$type = recode(df_p$type, 
+                   `p` = "ANCOM-BC2 (Without Sensitivity Analysis)", 
+                   `p_update` = "ANCOM-BC2 (With Sensitivity Analysis)")
+
+num_bins = 30
+fig_p = df_p %>%
+  ggplot(aes(x = value, fill = type)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = num_bins) +
+  geom_hline(yintercept = phyloseq::ntaxa(pseq_perm)/num_bins, linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Distribution of P-values",
+       x = "P-value",
+       y = "Frequency",
+       fill = NULL,
+       color = NULL) +
+    theme_bw() + 
+    theme(plot.title = element_text(hjust = 0.5),
+          panel.grid.minor.y = element_blank(),
+          legend.position = "bottom")
+fig_p
+```
+
+# 5. Run ANCOM-BC2 on a real cross-sectional dataset
+
+## 5.1 Import example data
+
+We continue using the HITChip Atlas dataset as shown above.
     
-## 4.2 Run `ancombc2` function using the `phyloseq` object
+## 5.2 Run `ancombc2` function using the `phyloseq` object
 
 To control the FDR arising from multiple testing, we opt for the Holm-Bonferroni 
 method over the Benjamini-Hochberg (BH) procedure, especially when dealing with 
@@ -506,7 +587,7 @@ output = ancombc2(data = pseq, tax_level = "Family",
                                        B = 10))
 ```
 
-## 4.3 Structural zeros (taxon presence/absence)
+## 5.3 Structural zeros (taxon presence/absence)
 
 ```{r}
 tab_zero = output$zero_ind
@@ -514,7 +595,7 @@ tab_zero %>%
     datatable(caption = "The detection of structural zeros")
 ```
 
-## 4.4 ANCOM-BC2 primary analysis {.tabset}
+## 5.4 ANCOM-BC2 primary analysis {.tabset}
 
 The primary output of the ANCOM-BC2 methodology identifies taxa with 
 differential abundance based on the chosen covariate. The results include: 
@@ -621,7 +702,7 @@ fig_bmi = df_fig_bmi %>%
 fig_bmi
 ```
 
-## 4.5 ANCOM-BC2 global test
+## 5.5 ANCOM-BC2 global test
 
 The primary goal of the ANCOM-BC2 global test is to discern taxa that 
 demonstrate differential abundance between a minimum of two groups when 
@@ -682,7 +763,7 @@ fig_global = df_fig_global %>%
 fig_global
 ```
 
-## 4.6 ANCOM-BC2 multiple pairwise comparisons
+## 5.6 ANCOM-BC2 multiple pairwise comparisons
 
 The ANCOM-BC2 methodology for multiple pairwise comparisons is designed to 
 identify taxa that exhibit differential abundance between any two groups within 
@@ -760,7 +841,7 @@ fig_pair = df_fig_pair %>%
 fig_pair
 ```
 
-## 4.7 ANCOM-BC2 multiple pairwise comparisons against a pre-specified group (Dunnett's type of test)
+## 5.7 ANCOM-BC2 multiple pairwise comparisons against a pre-specified group (Dunnett's type of test)
 
 The Dunnett’s test [@dunnett1955multiple; @dunnett1991step; @dunnett1992step] 
 is tailored for comparing multiple experimental groups against a control or 
@@ -834,7 +915,7 @@ fig_dunn = df_fig_dunn %>%
 fig_dunn
 ```
 
-## 4.8 ANCOM-BC2 pattern analysis {.tabset}
+## 5.8 ANCOM-BC2 pattern analysis {.tabset}
 
 In certain experiments, groups inherently follow an order, such as in 
 dose-response studies. In these cases, we're interested in discerning if 
@@ -931,7 +1012,7 @@ fig_trend = df_fig_trend %>%
 fig_trend
 ```
 
-## 4.9 Run `ancombc2` function using the `tse` object
+## 5.9 Run `ancombc2` function using the `tse` object
 
 One can also run the `ancombc2` function using the `TreeSummarizedExperiment` object.
 
@@ -977,7 +1058,7 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                        B = 10))
 ```
 
-## 4.10 Run `ancombc2` function by directly providing the abundance and metadata
+## 5.10 Run `ancombc2` function by directly providing the abundance and metadata
 
 Please ensure that you provide the following: 1) The abundance data at its lowest 
 possible taxonomic level. 2) The aggregated data at the desired taxonomic level; 
@@ -1018,9 +1099,9 @@ output = ancombc2(data = abundance_data,
                                        B = 10))
 ```
 
-# 5. Run ANCOM-BC2 on a real longitudinal dataset {.tabset}
+# 6. Run ANCOM-BC2 on a real longitudinal dataset {.tabset}
 
-## 5.1 Import example data
+## 6.1 Import example data
 
 A two-week diet swap study between western (USA) and traditional (rural Africa) 
 diets [@lahti2014tipping]. The dataset is available via the 
@@ -1031,7 +1112,7 @@ format.
 data(dietswap, package = "microbiome")
 ```
 
-## 5.2 Run `ancombc2` function using the `phyloseq` object
+## 6.2 Run `ancombc2` function using the `phyloseq` object
 
 In this tutorial, we consider the following fixed effects:
 
@@ -1112,7 +1193,7 @@ output = ancombc2(data = dietswap, tax_level = "Family",
                                        B = 10))
 ```
 
-## 5.3 ANCOM-BC2 primary analysis
+## 6.3 ANCOM-BC2 primary analysis
 
 ```{r}
 res_prim = output$res %>%
@@ -1121,7 +1202,7 @@ res_prim[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Primary Analysis")
 ```
 
-## 5.4 ANCOM-BC2 global test
+## 6.4 ANCOM-BC2 global test
 
 ```{r}
 res_global = output$res_global %>%
@@ -1130,7 +1211,7 @@ res_global[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Global Test")
 ```
 
-## 5.5 ANCOM-BC2 multiple pairwise comparisons
+## 6.5 ANCOM-BC2 multiple pairwise comparisons
 
 ```{r}
 res_pair = output$res_pair %>%
@@ -1139,7 +1220,7 @@ res_pair[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Multiple Pairwise Comparisons")
 ```
 
-## 5.6 ANCOM-BC2 Dunnett's type of test
+## 6.6 ANCOM-BC2 Dunnett's type of test
 
 ```{r}
 res_dunn = output$res_dunn %>%
@@ -1148,7 +1229,7 @@ res_dunn[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Dunnett's Type of Test")
 ```
 
-## 5.7 ANCOM-BC2 pattern analysis
+## 6.7 ANCOM-BC2 pattern analysis
 
 ```{r}
 res_trend = output$res_trend %>%
@@ -1157,7 +1238,7 @@ res_trend[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Pattern Analysis")
 ```
 
-## 5.8 Run `ancombc2` function using the `tse` object
+## 6.8 Run `ancombc2` function using the `tse` object
 
 ```{r, eval=FALSE}
 tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
@@ -1184,7 +1265,7 @@ output = ancombc2(data = tse, assay_name = "counts", tax_level = "Family",
                                        B = 10))
 ```
 
-## 5.9 Run `ancombc2` function by directly providing the abundance and metadata
+## 6.9 Run `ancombc2` function by directly providing the abundance and metadata
 
 ```{r, eval=FALSE}
 abundance_data = microbiome::abundances(dietswap)
@@ -1215,7 +1296,7 @@ output = ancombc2(data = abundance_data,
                                        B = 10))
 ```
 
-# 6. Bias-corrected log abundances
+# 7. Bias-corrected log abundances
 
 It is important to acknowledge that the estimation of sampling fractions in 
 ANCOM-BC2 is limited to an additive constant. This means that only the 
