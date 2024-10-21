@@ -6,11 +6,13 @@
 \usage{
 ancom(
   data = NULL,
+  taxa_are_rows = TRUE,
   assay.type = NULL,
   assay_name = "counts",
   rank = NULL,
   tax_level = NULL,
-  phyloseq = NULL,
+  aggregate_data = NULL,
+  meta_data = NULL,
   p_adj_method = "holm",
   prv_cut = 0.1,
   lib_cut = 0,
@@ -21,19 +23,30 @@ ancom(
   struc_zero = FALSE,
   neg_lb = FALSE,
   alpha = 0.05,
-  n_cl = 1
+  n_cl = 1,
+  verbose = TRUE
 )
 }
 \arguments{
 \item{data}{the input data. The \code{data} parameter should be either a
-\code{phyloseq} or a \code{TreeSummarizedExperiment} object, which
-consists of a feature table (microbial count table), a sample metadata table,
+\code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
+object. Both \code{phyloseq} and \code{TreeSummarizedExperiment} objects
+consist of a feature table (microbial count table), a sample metadata table,
 a taxonomy table (optional), and a phylogenetic tree (optional).
-Ensure that the row names of the metadata table match the sample names in the
-feature table, and the row names of the taxonomy table match the taxon
-(feature) names in the feature table. For detailed information, refer to
+If a \code{matrix} or \code{data.frame} is provided, ensure that the row
+names of the \code{metadata} match the sample names (column names if
+\code{taxa_are_rows} is TRUE, and row names otherwise) in \code{data}.
+if a \code{phyloseq} or a \code{TreeSummarizedExperiment} is used, this
+standard has already been enforced. For detailed information, refer to
 \code{?phyloseq::phyloseq} or
-\code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.}
+\code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
+It is recommended to use low taxonomic levels, such as OTU or species level,
+as the estimation of sampling fractions requires a large number of taxa.}
+
+\item{taxa_are_rows}{logical. Whether taxa are positioned in the rows of the
+feature table. Default is TRUE.
+It is recommended to use low taxonomic levels, such as OTU or species level,
+as the estimation of sampling fractions requires a large number of taxa.}
 
 \item{assay.type}{alias for \code{assay_name}.}
 
@@ -42,15 +55,27 @@ feature table, and the row names of the taxonomy table match the taxon
 Default is "counts".
 See \code{?SummarizedExperiment::assay} for more details.}
 
-\item{rank}{alias for \code{tax_level}}
+\item{rank}{alias for \code{tax_level}.}
 
-\item{tax_level}{character. The taxonomic level of interest. The input data
-can be agglomerated at different taxonomic levels based on your research
-interest. Default is NULL, i.e., do not perform agglomeration, and the
-ANCOM anlysis will be performed at the lowest taxonomic level of the
+\item{tax_level}{character. The taxonomic or non taxonomic(rowData) level of interest. The input data
+can be analyzed at any taxonomic or rowData level without prior agglomeration.
+Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{rowData}, which
+includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
+See \code{?mia::taxonomyRanks} for more details.
+Default is NULL, i.e., do not perform agglomeration, and the
+ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
 input \code{data}.}
 
-\item{phyloseq}{a \code{phyloseq} object. Will be deprecated.}
+\item{aggregate_data}{The abundance data that has been aggregated to the desired
+taxonomic level. This parameter is required only when the input data is in
+\code{matrix} or \code{data.frame} format. For \code{phyloseq} or \code{TreeSummarizedExperiment}
+data, aggregation is performed by specifying the \code{tax_level} parameter.}
+
+\item{meta_data}{a \code{data.frame} containing sample metadata.
+This parameter is mandatory when the input \code{data} is a generic
+\code{data.frame}. Ensure that the row names of the \code{metadata} match the
+sample names (column names if \code{taxa_are_rows} is TRUE, and row names
+otherwise) in \code{data}.}
 
 \item{p_adj_method}{character. method to adjust p-values. Default is "holm".
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
@@ -91,6 +116,8 @@ its asymptotic lower bound. Default is FALSE.}
 
 \item{n_cl}{numeric. The number of nodes to be forked. For details, see
 \code{?parallel::makeCluster}. Default is 1 (no parallel computing).}
+
+\item{verbose}{logical. Whether to display detailed progress messages.}
 }
 \value{
 a \code{list} with components:
@@ -154,34 +181,23 @@ relatively large (e.g. > 30).
 }
 \examples{
 library(ANCOMBC)
-library(mia)
-data(atlas1006, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
+if (requireNamespace("microbiome", quietly = TRUE)) {
+    data(atlas1006, package = "microbiome")
+    # subset to baseline
+    pseq = phyloseq::subset_samples(atlas1006, time == 0)
 
-# subset to baseline
-tse = tse[, tse$time == 0]
+    # run ancom function
+    set.seed(123)
+    out = ancom(data = pseq, tax_level = "Family",
+                p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+                main_var = "bmi_group", adj_formula = "age + nationality",
+                rand_formula = NULL, lme_control = NULL,
+                struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
 
-# run ancom function
-set.seed(123)
-out = ancom(data = tse, assay_name = "counts",
-            tax_level = "Family", phyloseq = NULL,
-            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-            main_var = "bmi_group", adj_formula = "age + nationality",
-            rand_formula = NULL, lme_control = NULL,
-            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
-
-res = out$res
-
-# to run ancom using the phyloseq object
-tse_alt = agglomerateByRank(tse, "Family")
-pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
-set.seed(123)
-out = ancom(data = NULL, assay_name = NULL,
-            tax_level = "Family", phyloseq = pseq,
-            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-            main_var = "bmi_group", adj_formula = "age + nationality",
-            rand_formula = NULL, lme_control = NULL,
-            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
+    res = out$res
+} else {
+    message("The 'microbiome' package is not installed. Please install it to use this example.")
+}
 
 }
 \references{

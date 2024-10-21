@@ -142,7 +142,7 @@
 
   if (global | trend) {
     anova_fit = anova(lm_fit)
-    group_p_val = anova_fit$`Pr(>F)`[grepl(group, rownames(anova_fit))]
+    group_p_val = anova_fit$`Pr(>F)`[rownames(anova_fit) == group]
     if (group_p_val == 0) group_p_val = 2e-16
     if (global) p_val = c(p_val, global = group_p_val)
     if (trend) p_val = c(p_val, trend = group_p_val)

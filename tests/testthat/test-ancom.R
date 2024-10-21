@@ -3,16 +3,15 @@ library(ANCOMBC)
 library(testthat)
 
 data(atlas1006, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
 # subset to baseline
-tse = tse[, tse$time == 0]
+pseq = phyloseq::subset_samples(atlas1006, time == 0)
 
 # test
 test_that("`ancom` function provides expected results", {
     set.seed(123)
-    out = ancom(data = tse, assay_name = "counts",
-                tax_level = "Family", phyloseq = NULL,
+    out = ancom(data = pseq,
+                tax_level = "Family",
                 p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
                 main_var = "bmi_group", adj_formula = "age + nationality",
                 rand_formula = NULL, lme_control = NULL,

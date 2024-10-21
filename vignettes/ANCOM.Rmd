@@ -2,7 +2,7 @@
 title: "ANCOM Tutorial"
 author: 
   - Huang Lin$^1$
-  - $^1$NIEHS, Research Triangle Park, NC 27709, USA
+  - $^1$University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: rmarkdown::html_vignette
 bibliography: bibliography.bib
@@ -70,71 +70,61 @@ format. In this tutorial, we consider the following covariates:
 
 ```{r}
 data(atlas1006, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
 # Subset to baseline
-tse = tse[, tse$time == 0]
+pseq = phyloseq::subset_samples(atlas1006, time == 0)
 
 # Re-code the bmi group
-tse$bmi = recode(tse$bmi_group,
-                 obese = "obese",
-                 severeobese = "obese",
-                 morbidobese = "obese")
-# Subset to lean, overweight, and obese subjects
-tse = tse[, tse$bmi %in% c("lean", "overweight", "obese")]
+meta_data = microbiome::meta(pseq)
+meta_data$bmi = recode(meta_data$bmi_group,
+                       obese = "obese",
+                       severeobese = "obese",
+                       morbidobese = "obese")
 
 # Note that by default, levels of a categorical variable in R are sorted 
 # alphabetically. In this case, the reference level for `bmi` will be 
 # `lean`. To manually change the reference level, for instance, setting `obese`
 # as the reference level, use:
-tse$bmi = factor(tse$bmi, levels = c("obese", "overweight", "lean"))
+meta_data$bmi = factor(meta_data$bmi, levels = c("obese", "overweight", "lean"))
 # You can verify the change by checking:
-# levels(sample_data(tse)$bmi)
+# levels(meta_data$bmi)
 
 # Create the region variable
-tse$region = recode(as.character(tse$nationality),
-                    Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
-                    CentralEurope = "CE", EasternEurope = "EE",
-                    .missing = "unknown")
+meta_data$region = recode(as.character(meta_data$nationality),
+                          Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
+                          CentralEurope = "CE", EasternEurope = "EE",
+                          .missing = "unknown")
 
+phyloseq::sample_data(pseq) = meta_data
+
+# Subset to lean, overweight, and obese subjects
+pseq = phyloseq::subset_samples(pseq, bmi %in% c("lean", "overweight", "obese"))
 # Discard "EE" as it contains only 1 subject
 # Discard subjects with missing values of region
-tse = tse[, ! tse$region %in% c("EE", "unknown")]
+pseq = phyloseq::subset_samples(pseq, ! region %in% c("EE", "unknown"))
 
-print(tse)
+print(pseq)
 ```
 
-## 3.2 Run ancom function
+## 3.2 Run `ancom` function using `phyloseq` data
 
 ```{r}
 set.seed(123)
-out = ancom(data = tse, assay_name = "counts", 
-            tax_level = "Family", phyloseq = NULL, 
-            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
-            main_var = "bmi", adj_formula = "age + region", 
+out = ancom(data = pseq, tax_level = "Family", meta_data = NULL,
+            p_adj_method = "holm", prv_cut = 0.10,
+            lib_cut = 1000, main_var = "bmi", adj_formula = "age + region", 
             rand_formula = NULL, lme_control = NULL, struc_zero = TRUE,
-            neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+            neg_lb = TRUE, alpha = 0.05, n_cl = 2, verbose = TRUE)
 
 res = out$res
 
 # Similarly, if the main variable of interest is continuous, such as age, the
 # ancom model can be specified as
-# out = ancom(data = tse, assay_name = "counts",
-#             tax_level = "Family", phyloseq = NULL,
-#             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#             main_var = "age", adj_formula = "bmi + region",
+# out = ancom(data = pseq, tax_level = "Family", meta_data = NULL,
+#             p_adj_method = "holm", prv_cut = 0.10,
+#             lib_cut = 1000, main_var = "age", adj_formula = "bmi + region",
 #             rand_formula = NULL, lme_control = NULL, struc_zero = FALSE,
-#             neg_lb = FALSE, alpha = 0.05, n_cl = 2)
-
-# ancom also supports importing data in phyloseq format
-# tse_alt = agglomerateByRank(tse, "Family")
-# pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
-# out = ancom(data = NULL, assay_name = NULL,
-#             tax_level = "Family", phyloseq = pseq,
-#             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#             main_var = "bmi", adj_formula = "age + region",
-#             rand_formula = NULL, lme_control = NULL, struc_zero = TRUE,
-#             neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+#             neg_lb = FALSE, alpha = 0.05, n_cl = 2, verbose = TRUE)
 ```
 
 ## 3.3 Scatter plot for W statistics
@@ -184,6 +174,39 @@ p_w = df_fig_w %>%
 p_w
 ```
 
+## 3.4 Run `ancom` function using `tse` data
+
+```{r, eval=FALSE}
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(pseq)
+
+set.seed(123)
+out = ancom(data = tse, assay_name = "counts",
+            tax_level = "Family", meta_data = NULL,
+            p_adj_method = "holm", prv_cut = 0.10,
+            lib_cut = 1000, main_var = "bmi", adj_formula = "age + region", 
+            rand_formula = NULL, lme_control = NULL, struc_zero = TRUE,
+            neg_lb = TRUE, alpha = 0.05, n_cl = 2, verbose = TRUE)
+
+res = out$res
+```
+
+## 3.5 Run `ancom` function by directly providing the abundance and metadata
+
+```{r, eval=FALSE}
+abundance_data = microbiome::abundances(pseq)
+aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family"))
+meta_data = microbiome::meta(pseq)
+
+set.seed(123)
+out = ancom(data = abundance_data, aggregate_data = aggregate_data, 
+            meta_data = meta_data, p_adj_method = "holm", prv_cut = 0.10,
+            lib_cut = 1000, main_var = "bmi", adj_formula = "age + region", 
+            rand_formula = NULL, lme_control = NULL, struc_zero = TRUE,
+            neg_lb = TRUE, alpha = 0.05, n_cl = 2, verbose = TRUE)
+
+res = out$res
+```
+
 # 4. Run ANCOM on a real longitudinal dataset {.tabset}
 
 ## 4.1 Import example data
@@ -211,16 +234,14 @@ and the following random effects:
 
 ```{r}
 data(dietswap, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
-print(tse)
+print(dietswap)
 ```
 
-## 4.2 Run ancom function
+## 4.2 Run `ancom` function using `phyloseq` data
 
 ```{r}
 set.seed(123)
-out = ancom(data = tse, assay_name = "counts", 
-            tax_level = "Family", phyloseq = NULL, 
+out = ancom(data = dietswap, tax_level = "Family", 
             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
             main_var = "group",
             adj_formula = "nationality + timepoint", 
@@ -276,6 +297,42 @@ p_w = df_fig_w %>%
         axis.ticks.x = element_blank(),
         panel.grid.major = element_blank())
 p_w
+```
+
+## 4.4 Run `ancom` function using `tse` data
+
+```{r, eval=FALSE}
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
+
+set.seed(123)
+out = ancom(data = tse, assay_name = "counts", tax_level = "Family",
+            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
+            main_var = "group",
+            adj_formula = "nationality + timepoint", 
+            rand_formula = "(timepoint | subject)", 
+            lme_control = lme4::lmerControl(), 
+            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+
+res = out$res
+```
+
+## 4.5 Run `ancom` function by directly providing the abundance and metadata
+
+```{r, eval=FALSE}
+abundance_data = microbiome::abundances(dietswap)
+aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(dietswap, "Family"))
+meta_data = microbiome::meta(dietswap)
+
+set.seed(123)
+out = ancom(data = abundance_data, aggregate_data = aggregate_data,
+            meta_data = meta_data, p_adj_method = "holm", 
+            prv_cut = 0.10, lib_cut = 1000, main_var = "group",
+            adj_formula = "nationality + timepoint", 
+            rand_formula = "(timepoint | subject)", 
+            lme_control = lme4::lmerControl(), 
+            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
+
+res = out$res
 ```
 
 # Session information

@@ -27,26 +27,46 @@
 #' relatively large (e.g. > 30).
 #'
 #' @param data the input data. The \code{data} parameter should be either a
-#' \code{phyloseq} or a \code{TreeSummarizedExperiment} object, which
-#' consists of a feature table (microbial count table), a sample metadata table,
+#' \code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
+#' object. Both \code{phyloseq} and \code{TreeSummarizedExperiment} objects
+#' consist of a feature table (microbial count table), a sample metadata table,
 #' a taxonomy table (optional), and a phylogenetic tree (optional).
-#' Ensure that the row names of the metadata table match the sample names in the
-#' feature table, and the row names of the taxonomy table match the taxon
-#' (feature) names in the feature table. For detailed information, refer to
+#' If a \code{matrix} or \code{data.frame} is provided, ensure that the row
+#' names of the \code{metadata} match the sample names (column names if
+#' \code{taxa_are_rows} is TRUE, and row names otherwise) in \code{data}.
+#' if a \code{phyloseq} or a \code{TreeSummarizedExperiment} is used, this
+#' standard has already been enforced. For detailed information, refer to
 #' \code{?phyloseq::phyloseq} or
 #' \code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
+#' It is recommended to use low taxonomic levels, such as OTU or species level,
+#' as the estimation of sampling fractions requires a large number of taxa.
+#' @param taxa_are_rows logical. Whether taxa are positioned in the rows of the
+#' feature table. Default is TRUE.
+#' It is recommended to use low taxonomic levels, such as OTU or species level,
+#' as the estimation of sampling fractions requires a large number of taxa.
 #' @param assay_name character. Name of the count table in the data object
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
 #' See \code{?SummarizedExperiment::assay} for more details.
 #' @param assay.type alias for \code{assay_name}.
-#' @param tax_level character. The taxonomic level of interest. The input data
-#' can be agglomerated at different taxonomic levels based on your research
-#' interest. Default is NULL, i.e., do not perform agglomeration, and the
-#' ANCOM anlysis will be performed at the lowest taxonomic level of the
+#' @param tax_level character. The taxonomic or non taxonomic(rowData) level of interest. The input data
+#' can be analyzed at any taxonomic or rowData level without prior agglomeration.
+#' Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{rowData}, which
+#' includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
+#' See \code{?mia::taxonomyRanks} for more details.
+#' Default is NULL, i.e., do not perform agglomeration, and the
+#' ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
-#' @param rank alias for \code{tax_level}
-#' @param phyloseq a \code{phyloseq} object. Will be deprecated.
+#' @param rank alias for \code{tax_level}.
+#' @param aggregate_data The abundance data that has been aggregated to the desired
+#' taxonomic level. This parameter is required only when the input data is in
+#' \code{matrix} or \code{data.frame} format. For \code{phyloseq} or \code{TreeSummarizedExperiment}
+#' data, aggregation is performed by specifying the \code{tax_level} parameter.
+#' @param meta_data a \code{data.frame} containing sample metadata.
+#' This parameter is mandatory when the input \code{data} is a generic
+#' \code{data.frame}. Ensure that the row names of the \code{metadata} match the
+#' sample names (column names if \code{taxa_are_rows} is TRUE, and row names
+#' otherwise) in \code{data}.
 #' @param p_adj_method character. method to adjust p-values. Default is "holm".
 #' Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 #' "fdr", "none". See \code{?stats::p.adjust} for more details.
@@ -76,6 +96,7 @@
 #' @param alpha numeric. level of significance. Default is 0.05.
 #' @param n_cl numeric. The number of nodes to be forked. For details, see
 #' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
+#' @param verbose logical. Whether to display detailed progress messages.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -112,34 +133,23 @@
 #'
 #' @examples
 #' library(ANCOMBC)
-#' library(mia)
-#' data(atlas1006, package = "microbiome")
-#' tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
+#' if (requireNamespace("microbiome", quietly = TRUE)) {
+#'     data(atlas1006, package = "microbiome")
+#'     # subset to baseline
+#'     pseq = phyloseq::subset_samples(atlas1006, time == 0)
 #'
-#' # subset to baseline
-#' tse = tse[, tse$time == 0]
+#'     # run ancom function
+#'     set.seed(123)
+#'     out = ancom(data = pseq, tax_level = "Family",
+#'                 p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
+#'                 main_var = "bmi_group", adj_formula = "age + nationality",
+#'                 rand_formula = NULL, lme_control = NULL,
+#'                 struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
 #'
-#' # run ancom function
-#' set.seed(123)
-#' out = ancom(data = tse, assay_name = "counts",
-#'             tax_level = "Family", phyloseq = NULL,
-#'             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#'             main_var = "bmi_group", adj_formula = "age + nationality",
-#'             rand_formula = NULL, lme_control = NULL,
-#'             struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
-#'
-#' res = out$res
-#'
-#' # to run ancom using the phyloseq object
-#' tse_alt = agglomerateByRank(tse, "Family")
-#' pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
-#' set.seed(123)
-#' out = ancom(data = NULL, assay_name = NULL,
-#'             tax_level = "Family", phyloseq = pseq,
-#'             p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#'             main_var = "bmi_group", adj_formula = "age + nationality",
-#'             rand_formula = NULL, lme_control = NULL,
-#'             struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
+#'     res = out$res
+#' } else {
+#'     message("The 'microbiome' package is not installed. Please install it to use this example.")
+#' }
 #'
 #' @author Huang Lin
 #'
@@ -149,11 +159,6 @@
 #' \insertRef{kaul2017analysis}{ANCOMBC}
 #'
 #' @rawNamespace import(stats, except = filter)
-#' @importFrom mia makeTreeSummarizedExperimentFromPhyloseq taxonomyRanks agglomerateByRank
-#' @importFrom SingleCellExperiment altExp
-#' @importFrom SummarizedExperiment assay colData rowData
-#' @importFrom TreeSummarizedExperiment TreeSummarizedExperiment
-#' @importFrom S4Vectors DataFrame SimpleList
 #' @importFrom lmerTest lmer
 #' @importFrom lme4 lmerControl
 #' @importFrom parallel makeCluster stopCluster
@@ -162,35 +167,37 @@
 #' @importFrom Rdpack reprompt
 #'
 #' @export
-ancom = function(data = NULL, assay.type = NULL, assay_name = "counts",
+ancom = function(data = NULL, taxa_are_rows = TRUE,
+                 assay.type = NULL, assay_name = "counts",
                  rank = NULL, tax_level = NULL,
-                 phyloseq = NULL, p_adj_method = "holm", prv_cut = 0.10,
-                 lib_cut = 0, main_var, adj_formula = NULL, rand_formula = NULL,
-                 lme_control = lme4::lmerControl(), struc_zero = FALSE,
-                 neg_lb = FALSE, alpha = 0.05, n_cl = 1){
+                 aggregate_data = NULL, meta_data = NULL,
+                 p_adj_method = "holm", prv_cut = 0.10,
+                 lib_cut = 0, main_var, adj_formula = NULL,
+                 rand_formula = NULL, lme_control = lme4::lmerControl(),
+                 struc_zero = FALSE, neg_lb = FALSE,
+                 alpha = 0.05, n_cl = 1, verbose = TRUE){
     message("'ancom' has been fully evolved to 'ancombc2'. \n",
             "Explore the enhanced capabilities of our refined method!")
 
     # 1. Data pre-processing
-    # Check for aliases
-    if (!is.null(assay.type)) {
-        assay_name = assay.type
-    }
-
-    if (!is.null(rank)) {
-        tax_level = rank
-    }
-
-    # TSE data construction
-    tse_obj = .tse_construct(data = data, assay_name = assay_name,
-                             tax_level = tax_level, phyloseq = phyloseq)
-    tse = tse_obj$tse
-    assay_name = tse_obj$assay_name
-    tax_level = tse_obj$tax_level
+    # Data sanity check
+    check_results = data_sanity_check(data = data,
+                                      taxa_are_rows = taxa_are_rows,
+                                      assay.type = assay_name,
+                                      assay_name = assay_name,
+                                      rank = tax_level,
+                                      tax_level = tax_level,
+                                      aggregate_data = aggregate_data,
+                                      meta_data = meta_data,
+                                      fix_formula = paste(main_var, adj_formula, sep = " + "),
+                                      group = main_var,
+                                      struc_zero = struc_zero,
+                                      verbose = verbose)
 
     # Filter data by prevalence and library size
-    core = .data_core(tse = tse, tax_level = tax_level, assay_name = assay_name,
-                      alt = TRUE, prv_cut = prv_cut, lib_cut = lib_cut,
+    core = .data_core(data = check_results$feature_table_aggregate,
+                      meta_data = check_results$meta_data,
+                      prv_cut = prv_cut, lib_cut = lib_cut,
                       tax_keep = NULL, samp_keep = NULL)
     feature_table = core$feature_table
     tax_keep = core$tax_keep
@@ -198,6 +205,7 @@ ancom = function(data = NULL, assay.type = NULL, assay_name = "counts",
     meta_data = core$meta_data
     meta_data[] = lapply(meta_data, function(x)
         if(is.factor(x)) factor(x) else x)
+
     # Check the type of main variable
     main_val = meta_data[, main_var]
     main_class = class(main_val)
@@ -252,16 +260,18 @@ ancom = function(data = NULL, assay.type = NULL, assay_name = "counts",
     }
 
     # 2. Identify taxa with structural zeros
+    if (verbose) {
+        message("Identifing taxa with structural zeros ...")
+    }
     if (struc_zero) {
         if (! main_class %in% c("character", "factor")) {
             stop_txt = sprintf(paste("The main variable should be discrete for detecting structural zeros.",
                                      "Otherwise, set struc_zero = FALSE to proceed"))
             stop(stop_txt, call. = FALSE)
         }
-        zero_ind = .get_struc_zero(tse = tse, tax_level = tax_level,
-                                   assay_name = assay_name,
-                                   alt = TRUE, group = main_var,
-                                   neg_lb = neg_lb)
+        zero_ind = .get_struc_zero(data = check_results$feature_table_aggregate,
+                                   meta_data = check_results$meta_data,
+                                   group = main_var, neg_lb = neg_lb)
         zero_ind = zero_ind[tax_keep, ]
         rownames(zero_ind) = NULL
         num_struc_zero = apply(zero_ind[, -1], 1, sum)
@@ -277,7 +287,10 @@ ancom = function(data = NULL, assay.type = NULL, assay_name = "counts",
     taxon_id = rownames(comp_table)
     n_samp = dim(comp_table)[2]
 
-    # 3. Determine the type of statistical test and its formula.
+    # 3. Determine the type of statistical test and its formula
+    if (verbose) {
+        message("Determining the type of statistical test and its formula ...")
+    }
     if (is.null(rand_formula)) {
         # Model: linear model
         tfun = stats::lm
@@ -302,6 +315,9 @@ ancom = function(data = NULL, assay.type = NULL, assay_name = "counts",
     }
 
     # 4. Computing pairwise p-values and effect sizes
+    if (verbose) {
+        message("Computing pairwise p-values and effect sizes ...")
+    }
     comb = function(...) {
         mapply("rbind", ..., SIMPLIFY = FALSE)
     }
@@ -418,6 +434,9 @@ ancom = function(data = NULL, assay.type = NULL, assay_name = "counts",
     beta_data[is.na(beta_data)] = 0
 
     # 5. Primary results
+    if (verbose) {
+        message("Primary results ...")
+    }
     q_data = apply(p_data, 2, function(x) p.adjust(x, method = p_adj_method))
     W = apply(q_data, 2, function(x) sum(x <= alpha))
     res_comp = data.frame(taxon = taxon_id, W, row.names = NULL, check.names = FALSE)
