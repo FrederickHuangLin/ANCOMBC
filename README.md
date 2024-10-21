@@ -1,12 +1,10 @@
 # ANCOMBC
 
-*Author & Maintainer: Huang Lin: <huanglinfrederick@gmail.com>*
-
-**Cautionary Notice: Please exercise discretion while using ANCOM-BC2, as it is founded on a paper that is yet to be published. The manuscript underpinning ANCOM-BC2 is presently under peer review, and as such, the existing software version may exhibit instability. The expected timeline for ANCOM-BC2's publication is set for later this year.**
+*Author & Maintainer: Huang Lin: <hlin1239@umd.edu>*
 
 ANCOMBC is a package containing differential abundance (DA) and correlation 
 analyses for microbiome data. Specifically, the package includes 
-Analysis of Compositions of Microbiomes with Bias Correction 2 (ANCOM-BC2, submitted),
+Analysis of Compositions of Microbiomes with Bias Correction 2 ([ANCOM-BC2](https://doi.org/10.1038/s41592-023-02092-7)),
 Analysis of Compositions of Microbiomes with Bias Correction ([ANCOM-BC](https://doi.org/10.1038/s41467-020-17041-7)), and 
 Analysis of Composition of Microbiomes ([ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663)) for DA analysis, and Sparse 
 Estimation of Correlations among Microbiomes ([SECOM](https://doi.org/10.1038/s41467-022-32243-x)) for correlation 
@@ -34,6 +32,19 @@ library(ANCOMBC)
 ?secom_linear
 ?secom_dist
 ```
+
+## Highlight of the most recent update
+
+**1. We support the test for interactions now!**
+
+The new versions of `ancom`, `ancombc`, and `ancombc2` support the inclusion of interaction terms in the analysis. Check out the latest vignettes for detailed guidance.
+
+**2. The sensitivity analysis is essential!**
+
+For users: Unless the primary focus of your study is power, we highly recommend keeping the sensitivity analysis turned on (default setting), as it significantly reduces false positives.
+
+For researchers: We have noted some recent papers critiquing ANCOM-BC2 for not adequately controlling false positives. However, these critiques failed to account for our sensitivity analysis feature. Comparing ANCOM-BC2 without utilizing its embedded features, such as sensitivity analysis, is not a fair evaluation. We emphasize this point in our latest update.
+
 ## Commonly asked questions
 
 **1. Q: What are the differences between the `formula` and `group` arguments in `ancombc` and `ancombc2`?**
@@ -96,9 +107,7 @@ Therefore, while both the primary results and Dunnett's type of test provide inf
 
 **7. Q: Can the `ancombc` or `ancombc2` function handle interaction terms in the analysis?**
 
-A: Unfortunately, the inclusion of interaction terms in the `fix_formula` argument of `ancombc` or `ancombc2` can lead to complexities and potential confusion in the multi-group comparisons. To address this, it is recommended to manually create the interaction term of interest outside of the formula and perform the analysis accordingly.
-
-By manually creating the interaction term, you can ensure that the analysis accurately captures the interaction effect between variables. Once the interaction term is created, you can include it in the `fix_formula` argument or any other relevant part of the analysis, depending on your specific research question and design.
+A: Yes, the new versions of `ancom`, `ancombc`, and `ancombc2` support the inclusion of interaction terms in the analysis.
 
 **8. Q: Can the ANCOM-BC methodology be applied to other data types such as functional abundances, RNA-seq, or single-cell RNA data?**
 

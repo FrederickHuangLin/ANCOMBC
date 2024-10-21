@@ -26,10 +26,10 @@
 }
 
 # Bias-corrected abundance estimation
-.abn_est = function(tse, tax_level, assay_name, pseudo, prv_cut, lib_cut) {
+.abn_est = function(data, aggregate_data,
+                    meta_data, pseudo, prv_cut, lib_cut) {
     # Sampling fraction difference estimation
-    core1 = .data_core(tse = tse, tax_level = tax_level,
-                       assay_name = assay_name, alt = FALSE,
+    core1 = .data_core(data = data, meta_data = meta_data,
                        prv_cut = prv_cut, lib_cut = lib_cut,
                        tax_keep = NULL, samp_keep = NULL)
     O1 = core1$feature_table
@@ -37,10 +37,9 @@
 
     # Data pre-processing
     samp_keep = names(s_diff_hat)
-    core2 = .data_core(tse = tse, tax_level = tax_level,
-                       assay_name = assay_name, alt = TRUE,
+    core2 = .data_core(data = aggregate_data, meta_data = meta_data,
                        prv_cut = prv_cut, lib_cut = lib_cut,
-                       tax_keep = NULL, samp_keep = samp_keep)
+                       tax_keep = NULL, samp_keep = NULL)
     O2 = core2$feature_table
     O2 = O2 + pseudo
     o = log(O2)

@@ -6,10 +6,13 @@
 \usage{
 secom_linear(
   data,
+  taxa_are_rows = TRUE,
   assay.type = assay_name,
   assay_name = "counts",
   rank = tax_level,
   tax_level = NULL,
+  aggregate_data = NULL,
+  meta_data = NULL,
   pseudo = 0,
   prv_cut = 0.5,
   lib_cut = 1000,
@@ -21,25 +24,32 @@ secom_linear(
   n_cv = 10,
   thresh_hard = 0,
   max_p = 0.005,
-  n_cl = 1
+  n_cl = 1,
+  verbose = TRUE
 )
 }
 \arguments{
-\item{data}{a list of the input data. The \code{data} parameter should be a
-list containing input data objects, which can be either \code{phyloseq}
-or \code{TreeSummarizedExperiment} objects. Each object within the list
-consists of a feature table (microbial count table), a sample metadata table,
+\item{data}{a \code{list} of the input data.
+The \code{data} parameter should be either a
+\code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
+object. Both \code{phyloseq} and \code{TreeSummarizedExperiment} objects
+consist of a feature table (microbial count table), a sample metadata table,
 a taxonomy table (optional), and a phylogenetic tree (optional).
-Ensure that the row names of the metadata table match the sample names in the
-feature table, and the row names of the taxonomy table match the taxon
-(feature) names in the feature table. For detailed information, refer to
+If a \code{matrix} or \code{data.frame} is provided, ensure that the row
+names of the \code{metadata} match the sample names (column names if
+\code{taxa_are_rows} is TRUE, and row names otherwise) in \code{data}.
+if a \code{phyloseq} or a \code{TreeSummarizedExperiment} is used, this
+standard has already been enforced. For detailed information, refer to
 \code{?phyloseq::phyloseq} or
 \code{?TreeSummarizedExperiment::TreeSummarizedExperiment}.
 It is recommended to use low taxonomic levels, such as OTU or species level,
 as the estimation of sampling fractions requires a large number of taxa.
 If working with multiple ecosystems, such as gut and tongue, stack the data
 by specifying the list of input data as
-\code{data = list(gut = tse1, tongue = tse2)}.}
+\code{data = list(gut = pseq1, tongue = pseq2)}.}
+
+\item{taxa_are_rows}{logical. Whether taxa are positioned in the rows of the
+feature table. Default is TRUE.}
 
 \item{assay.type}{alias for \code{assay_name}.}
 
@@ -55,6 +65,17 @@ can be agglomerated at different taxonomic levels based on your research
 interest. Default is NULL, i.e., do not perform agglomeration, and the
 SECOM anlysis will be performed at the lowest taxonomic level of the
 input \code{data}.}
+
+\item{aggregate_data}{The abundance data that has been aggregated to the desired
+taxonomic level. This parameter is required only when the input data is in
+\code{matrix} or \code{data.frame} format. For \code{phyloseq} or \code{TreeSummarizedExperiment}
+data, aggregation is performed by specifying the \code{tax_level} parameter.}
+
+\item{meta_data}{a \code{data.frame} containing sample metadata.
+This parameter is mandatory when the input \code{data} is a generic
+\code{matrix} or \code{data.frame}. Ensure that the row names of the \code{metadata} match the
+sample names (column names if \code{taxa_are_rows} is TRUE, and row names
+otherwise) in \code{data}.}
 
 \item{pseudo}{numeric. Add pseudo-counts to the data.
 Default is 0 (no pseudo-counts).}
@@ -106,6 +127,8 @@ than \code{max_p} will be set to 0s. Default is 0.005.}
 
 \item{n_cl}{numeric. The number of nodes to be forked. For details, see
 \code{?parallel::makeCluster}. Default is 1 (no parallel computing).}
+
+\item{verbose}{logical. Whether to display detailed progress messages.}
 }
 \value{
 a \code{list} with components:
@@ -143,22 +166,26 @@ Kendall's \eqn{\tau}.
 }
 \examples{
 library(ANCOMBC)
-data(dietswap, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
+if (requireNamespace("microbiome", quietly = TRUE)) {
+    data(atlas1006, package = "microbiome")
+    # subset to baseline
+    pseq = phyloseq::subset_samples(atlas1006, time == 0)
 
-# subset to baseline
-tse = tse[, tse$timepoint == 1]
+    # run secom_linear function
+    set.seed(123)
+    res_linear = secom_linear(data = list(pseq), taxa_are_rows = TRUE,
+                              tax_level = "Phylum",
+                              aggregate_data = NULL, meta_data = NULL, pseudo = 0,
+                              prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5,
+                              wins_quant = c(0.05, 0.95), method = "pearson",
+                              soft = FALSE, thresh_len = 20, n_cv = 10,
+                              thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 
-set.seed(123)
-res_linear = secom_linear(data = list(tse), assay_name = "counts",
-                          tax_level = "Phylum", pseudo = 0,
-                          prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5,
-                          wins_quant = c(0.05, 0.95), method = "pearson",
-                          soft = FALSE, thresh_len = 20, n_cv = 10,
-                          thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
-
-corr_th = res_linear$corr_th
-corr_fl = res_linear$corr_fl
+    corr_th = res_linear$corr_th
+    corr_fl = res_linear$corr_fl
+} else {
+    message("The 'microbiome' package is not installed. Please install it to use this example.")
+}
 
 }
 \seealso{

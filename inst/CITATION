@@ -5,7 +5,7 @@ citEntry(
   title    = "Analysis of compositions of microbiomes with bias correction",
   author   = personList( as.person("Huang Lin"),
                          as.person("Shyamal Das Peddada")),
-  journal  = "Nature communications",
+  journal  = "Nature Communications",
   year     = 2020,
   volume   = "11",
   number   = "1",
@@ -13,7 +13,7 @@ citEntry(
   url      = "https://www.nature.com/articles/s41467-020-17041-7",
   textVersion = paste(
     "Lin, H., & Peddada, S. D. (2020). Analysis of compositions of microbiomes with bias correction.
-    Nature communications, 11(1), 1-11, https://doi.org/10.1038/s41467-020-17041-7"
+    Nature Communications, 11(1), 1-11, https://doi.org/10.1038/s41467-020-17041-7"
   )
 )
 
@@ -23,7 +23,7 @@ citEntry(
   author   = personList( as.person("Huang Lin"),
                          as.person("Merete Eggesbo"),
                          as.person("Shyamal Das Peddada")),
-  journal  = "Nature communications",
+  journal  = "Nature Communications",
   year     = 2022,
   volume   = "13",
   number   = "1",
@@ -31,6 +31,23 @@ citEntry(
   url      = "https://www.nature.com/articles/s41467-022-32243-x",
   textVersion = paste(
     "Lin, H., Eggesbo, M., & Peddada, S. D. (2022). Linear and nonlinear correlation estimators unveil undescribed taxa interactions in microbiome data.
-    Nature communications, 13(1), 1-16, https://doi.org/10.1038/s41467-022-32243-x"
+    Nature Communications, 13(1), 1-16, https://doi.org/10.1038/s41467-022-32243-x"
+  )
+)
+
+citEntry(
+  entry    = "Article",
+  title    = "Multigroup analysis of compositions of microbiomes with covariate adjustments and repeated measures",
+  author   = personList( as.person("Huang Lin"),
+                         as.person("Shyamal Das Peddada")),
+  journal  = "Nature Methods",
+  year     = 2024,
+  volume   = "21",
+  number   = "1",
+  pages    = "83-91",
+  url      = "https://www.nature.com/articles/s41592-023-02092-7",
+  textVersion = paste(
+    "Lin, H., & Peddada, S. D. (2024). Multigroup analysis of compositions of microbiomes with covariate adjustments and repeated measures.
+    Nature Methods, 21(1), 83-91, https://doi.org/10.1038/s41592-023-02092-7"
   )
 )

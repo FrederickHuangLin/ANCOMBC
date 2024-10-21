@@ -38,7 +38,7 @@
 
     # Winsorization
     mat = apply(mat, 2, function(x)
-        DescTools::Winsorize(x, probs = wins_quant, na.rm = TRUE))
+        DescTools::Winsorize(x, val = stats::quantile(x, probs = wins_quant, na.rm = TRUE)))
 
     # Co-occurrence matrix
     mat_occur = mat

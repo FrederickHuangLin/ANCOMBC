@@ -2,7 +2,7 @@
 title: "ANCOM-BC Tutorial"
 author: 
   - Huang Lin$^1$
-  - $^1$NIEHS, Research Triangle Park, NC 27709, USA
+  - $^1$University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: rmarkdown::html_vignette
 bibliography: bibliography.bib
@@ -71,47 +71,48 @@ format. In this tutorial, we consider the following covariates:
 
 ```{r}
 data(atlas1006, package = "microbiome")
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
 
-# subset to baseline
-tse = tse[, tse$time == 0]
+# Subset to baseline
+pseq = phyloseq::subset_samples(atlas1006, time == 0)
 
 # Re-code the bmi group
-tse$bmi = recode(tse$bmi_group,
-                 obese = "obese",
-                 severeobese = "obese",
-                 morbidobese = "obese")
-# Subset to lean, overweight, and obese subjects
-tse = tse[, tse$bmi %in% c("lean", "overweight", "obese")]
+meta_data = microbiome::meta(pseq)
+meta_data$bmi = recode(meta_data$bmi_group,
+                       obese = "obese",
+                       severeobese = "obese",
+                       morbidobese = "obese")
 
 # Note that by default, levels of a categorical variable in R are sorted 
 # alphabetically. In this case, the reference level for `bmi` will be 
 # `lean`. To manually change the reference level, for instance, setting `obese`
 # as the reference level, use:
-tse$bmi = factor(tse$bmi, levels = c("obese", "overweight", "lean"))
+meta_data$bmi = factor(meta_data$bmi, levels = c("obese", "overweight", "lean"))
 # You can verify the change by checking:
-# levels(sample_data(tse)$bmi)
+# levels(meta_data$bmi)
 
 # Create the region variable
-tse$region = recode(as.character(tse$nationality),
-                    Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
-                    CentralEurope = "CE", EasternEurope = "EE",
-                    .missing = "unknown")
+meta_data$region = recode(as.character(meta_data$nationality),
+                          Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
+                          CentralEurope = "CE", EasternEurope = "EE",
+                          .missing = "unknown")
 
+phyloseq::sample_data(pseq) = meta_data
+
+# Subset to lean, overweight, and obese subjects
+pseq = phyloseq::subset_samples(pseq, bmi %in% c("lean", "overweight", "obese"))
 # Discard "EE" as it contains only 1 subject
 # Discard subjects with missing values of region
-tse = tse[, ! tse$region %in% c("EE", "unknown")]
+pseq = phyloseq::subset_samples(pseq, ! region %in% c("EE", "unknown"))
 
-print(tse)
+print(pseq)
 ```
 
 # 4 ANCOM-BC Implementation
 
-## 4.1 Run ancombc function
+## 4.1 Run `ancombc` function using the `phyloseq` object
 
 ```{r}
-out = ancombc(data = tse, assay_name = "counts", 
-              tax_level = "Family", phyloseq = NULL, 
+out = ancombc(data = pseq, tax_level = "Family", 
               formula = "age + region + bmi", 
               p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
               group = "bmi", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
@@ -120,17 +121,25 @@ out = ancombc(data = tse, assay_name = "counts",
 
 res = out$res
 res_global = out$res_global
+```
 
-# ancombc also supports importing data in phyloseq format
-# tse_alt = agglomerateByRank(tse, "Family")
-# pseq = makePhyloseqFromTreeSummarizedExperiment(tse_alt)
-# out = ancombc(data = NULL, assay_name = NULL,
-#               tax_level = "Family", phyloseq = pseq,
-#               formula = "age + region + bmi",
-#               p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000,
-#               group = "region", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5,
-#               max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE,
-#               n_cl = 1, verbose = TRUE)
+Tests for interactions are supported by specifying the interactions in the `fix_formula`. 
+Please ensure that interactions between variables are included using the `*` operator, 
+as the `:` operator is not recognized by the `ancombc` function and will result in an error.
+
+Additionally, when the `group` variable contains interaction terms, only the main effect 
+will be considered in multi-group comparisons.
+
+```{r, eval=FALSE}
+out = ancombc(data = pseq, tax_level = "Family", 
+              formula = "age + region * bmi", 
+              p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
+              group = "bmi", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
+              max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE,
+              n_cl = 1, verbose = TRUE)
+
+res = out$res
+res_global = out$res_global
 ```
 
 ## 4.2 ANCOMBC primary result {.tabset}
@@ -373,6 +382,40 @@ p_heat = df_heat %>%
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 p_heat
+```
+
+## 4.4 Run `ancombc` function using the `tse` object
+
+```{r, eval=FALSE}
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(pseq)
+
+out = ancombc(data = tse, assay_name = "counts", tax_level = "Family", 
+              formula = "age + region + bmi", 
+              p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
+              group = "bmi", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
+              max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE,
+              n_cl = 1, verbose = TRUE)
+
+res = out$res
+res_global = out$res_global
+```
+
+## 4.5 Run `ancombc` function by directly providing the abundance and metadata
+
+```{r, eval=FALSE}
+abundance_data = microbiome::abundances(pseq)
+aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family"))
+meta_data = microbiome::meta(pseq)
+
+out = ancombc(data = abundance_data, aggregate_data = aggregate_data, 
+              meta_data = meta_data, formula = "age + region + bmi", 
+              p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
+              group = "bmi", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
+              max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE,
+              n_cl = 1, verbose = TRUE)
+
+res = out$res
+res_global = out$res_global
 ```
 
 # Session information

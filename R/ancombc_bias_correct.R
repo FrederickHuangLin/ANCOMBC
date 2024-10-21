@@ -44,12 +44,6 @@
         # Degree of freedom
         dof = NULL
 
-        # Degree of freedom
-        dof = NULL
-
-        # Degree of freedom
-        dof = NULL
-
         # Coefficients
         empty_coef = rep(NA, n_fix_eff)
         names(empty_coef) = fix_eff
@@ -158,26 +152,6 @@
             if (inherits(fit, "try-error")) {fit = NA}
             return(fit)
         })
-
-        # Degree of freedom
-        dof = vapply(fits, function(i) {
-          if (inherits(i, "lm")) {
-            summary(i)$df[2]
-          } else {
-            999L
-          }
-        }, FUN.VALUE = integer(1))
-        dof = matrix(rep(dof, n_fix_eff), ncol = n_fix_eff, byrow = FALSE)
-
-        # Degree of freedom
-        dof = vapply(fits, function(i) {
-          if (inherits(i, "lm")) {
-            summary(i)$df[2]
-          } else {
-            999L
-          }
-        }, FUN.VALUE = integer(1))
-        dof = matrix(rep(dof, n_fix_eff), ncol = n_fix_eff, byrow = FALSE)
 
         # Degree of freedom
         dof = vapply(fits, function(i) {
@@ -548,9 +522,10 @@
 
 # E-M algorithm
 .bias_em = function(beta, var_hat, tol, max_iter) {
-    beta = beta[!is.na(beta)]
     nu0 = var_hat
-    nu0 = nu0[!is.na(nu0)]
+    neither_na = !(is.na(beta) | is.na(nu0))
+    beta = beta[neither_na]
+    nu0 = nu0[neither_na]
 
     if (any(nu0 == 0)) {
         stop_txt = sprintf(paste("Zero variances have been detected for the following taxa:",

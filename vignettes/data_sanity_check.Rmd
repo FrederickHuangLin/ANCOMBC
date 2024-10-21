@@ -1,0 +1,177 @@
+---
+title: "Tutorial on Data Sanity and Integrity Checks"
+author: 
+  - Menglu Liang$^1$, Huang Lin$^1$
+  - $^1$University of Maryland, College Park, MD 20742 
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: rmarkdown::html_vignette
+bibliography: bibliography.bib
+vignette: >
+  %\VignetteIndexEntry{Tutorial on Data Sanity and Integrity Checks}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, message = FALSE, warning = FALSE, comment = NA}
+knitr::opts_chunk$set(warning = FALSE, comment = NA,
+                      fig.width = 6.25, fig.height = 5)
+library(ANCOMBC)
+library(tidyverse)
+```
+
+# 1. Introduction
+
+The `data_sanity_check` function performs essential validations on the input data to ensure its integrity before further processing. It verifies data types, confirms the structure of the input data, and checks for consistency between sample names in the metadata and the feature table, safeguarding against common data input errors.
+
+# 2. Installation
+
+Download package. 
+
+```{r getPackage, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("ANCOMBC")
+```
+
+Load the package. 
+
+```{r load, eval=FALSE}
+library(ANCOMBC)
+```
+
+# 3. Examples
+
+## 3.1 Import a `phyloseq` object
+
+The HITChip Atlas dataset contains genus-level microbiota profiling with 
+HITChip for 1006 western adults with no reported health complications, 
+reported in [@lahti2014tipping]. The dataset is available via the 
+microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+format. 
+
+```{r}
+data(atlas1006, package = "microbiome")
+
+atlas1006
+```
+
+List the taxonomic levels available for data aggregation.
+
+```{r}
+phyloseq::rank_names(atlas1006)
+```
+
+List the variables available in the sample metadata.
+
+```{r}
+colnames(microbiome::meta(atlas1006))
+```
+
+Data sanity and integrity check.
+
+```{r}
+# With `group` variable
+check_results = data_sanity_check(data = atlas1006,
+                                  tax_level = "Family",
+                                  fix_formula = "age + sex + bmi_group",
+                                  group = "bmi_group",
+                                  struc_zero = TRUE,
+                                  global = TRUE,
+                                  verbose = TRUE)
+```
+
+```{r}
+# Without `group` variable
+check_results = data_sanity_check(data = atlas1006,
+                                  tax_level = "Family",
+                                  fix_formula = "age + sex + bmi_group",
+                                  group = NULL,
+                                  struc_zero = FALSE,
+                                  global = FALSE,
+                                  verbose = TRUE)
+```
+
+## 3.2 Import a `tse` object
+
+```{r}
+tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
+```
+
+List the taxonomic levels available for data aggregation.
+
+```{r}
+mia::taxonomyRanks(tse)
+```
+
+List the variables available in the sample metadata.
+
+```{r}
+colnames(SummarizedExperiment::colData(tse))
+```
+
+Data sanity and integrity check.
+
+```{r}
+check_results = data_sanity_check(data = tse,
+                                  assay_name = "counts",
+                                  tax_level = "Family",
+                                  fix_formula = "age + sex + bmi_group",
+                                  group = "bmi_group",
+                                  struc_zero = TRUE,
+                                  global = TRUE,
+                                  verbose = TRUE)
+```
+
+## 3.3 Import a `matrix` or `data.frame`
+
+Both abundance data and sample metadata are required for this import method.
+
+Note that aggregating taxa to higher taxonomic levels is not supported in this method. Ensure that the data is already aggregated to the desired taxonomic level before proceeding. If aggregation is needed, consider creating a `phyloseq` or `tse` object for importing.
+
+```{r}
+abundance_data = microbiome::abundances(atlas1006)
+meta_data = microbiome::meta(atlas1006)
+```
+
+Ensure that the `rownames` of the metadata correspond to the `colnames` of the abundance data.
+
+```{r}
+all(rownames(meta_data) %in% colnames(abundance_data))
+```
+
+List the variables available in the sample metadata.
+
+```{r}
+colnames(meta_data)
+```
+
+Data sanity and integrity check.
+
+```{r}
+check_results = data_sanity_check(data = abundance_data,
+                                  assay_name = "counts",
+                                  tax_level = "Family",
+                                  meta_data = meta_data,
+                                  fix_formula = "age + sex + bmi_group",
+                                  group = "bmi_group",
+                                  struc_zero = TRUE,
+                                  global = TRUE,
+                                  verbose = TRUE)
+```
+
+# Session information
+
+```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
+sessionInfo()
+```
+
+# References
+
+
+
+
+
+
+
+
+
