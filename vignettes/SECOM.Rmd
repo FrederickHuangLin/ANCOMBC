@@ -124,6 +124,21 @@ res_dist = secom_dist(data = list(pseq), taxa_are_rows = TRUE,
                       thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 ```
 
+Sparsity can be increased by adjusting the L1 penalty parameters in `alpha_grid`.
+
+```{r, eval=FALSE}
+set.seed(123)
+# Linear relationships
+res_linear2 = secom_linear(data = list(pseq), taxa_are_rows = TRUE,
+                           tax_level = "Phylum", 
+                           aggregate_data = NULL, meta_data = NULL, pseudo = 0, 
+                           prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
+                           wins_quant = c(0.05, 0.95), method = "pearson", 
+                           soft = FALSE, alpha_grid = 0.1,
+                           thresh_len = 20, n_cv = 10, 
+                           thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
+```
+
 ## 4.2 Visualizations {.tabset}
 
 ### Pearson correlation with thresholding
