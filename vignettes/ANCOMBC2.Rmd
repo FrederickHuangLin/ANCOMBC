@@ -559,32 +559,19 @@ as the `:` operator is not recognized by the `ancombc2` function and will result
 Additionally, when the `group` variable contains interaction terms, only the main effect 
 will be considered in multi-group comparisons.
 
-```{r, eval=FALSE}
+```{r}
 set.seed(123)
-output = ancombc2(data = pseq, tax_level = "Family",
-                  fix_formula = "age + region * bmi", rand_formula = NULL,
-                  p_adj_method = "holm", pseudo_sens = TRUE,
-                  prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
-                  group = "bmi", struc_zero = TRUE, neg_lb = TRUE,
-                  alpha = 0.05, n_cl = 2, verbose = TRUE,
-                  global = TRUE, pairwise = TRUE, dunnet = TRUE, trend = TRUE,
-                  iter_control = list(tol = 1e-2, max_iter = 20, 
-                                      verbose = TRUE),
-                  em_control = list(tol = 1e-5, max_iter = 100),
-                  lme_control = lme4::lmerControl(),
-                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
-                  trend_control = list(contrast = list(matrix(c(1, 0, -1, 1),
-                                                              nrow = 2, 
-                                                              byrow = TRUE),
-                                                       matrix(c(-1, 0, 1, -1),
-                                                              nrow = 2, 
-                                                              byrow = TRUE),
-                                                       matrix(c(1, 0, 1, -1),
-                                                              nrow = 2, 
-                                                              byrow = TRUE)),
-                                       node = list(2, 2, 1),
-                                       solver = "ECOS",
-                                       B = 10))
+output_interact = ancombc2(data = pseq, tax_level = "Family",
+                          fix_formula = "age * bmi + region", rand_formula = NULL,
+                          p_adj_method = "holm", pseudo_sens = TRUE,
+                          prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+                          group = "bmi", struc_zero = TRUE, neg_lb = TRUE,
+                          alpha = 0.05, n_cl = 2, verbose = TRUE)
+
+head(output_interact$res) %>%
+    dplyr::select(starts_with("lfc_age")) %>%
+    mutate_if(is.numeric, function(x) round(x, 2)) %>%
+    datatable(caption = "Example of including interaction terms")
 ```
 
 ## 5.3 Structural zeros (taxon presence/absence)
