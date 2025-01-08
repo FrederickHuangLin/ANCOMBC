@@ -71,6 +71,8 @@
 #' to achieve the sparsity of the correlation matrix. \code{FALSE} indicates
 #' that hard thresholding is applied to achieve the sparsity of the correlation
 #' matrix. Default is \code{FALSE}.
+#' @param alpha_grid a numeric vector of penalty parameters for the element-wise
+#' L1 norm to induce sparsity. Default is 0.
 #' @param thresh_len numeric. Grid-search is implemented to find the optimal
 #' values over \code{thresh_len} thresholds for the thresholding operator.
 #' Default is 100.
@@ -111,6 +113,8 @@
 #'         thresholding based on the method specified in \code{soft}.}
 #'         \item{ \code{corr_fl}, the sparse correlation matrix obtained by
 #'         p-value filtering based on the cutoff specified in \code{max_p}.}
+#'         \item{ \code{corr_reg}, the correlation matrix obtained by
+#'         winsorizing small eigenvalues.}
 #'         }
 #'
 #' @seealso \code{\link{secom_dist}}
@@ -129,7 +133,8 @@
 #'                               aggregate_data = NULL, meta_data = NULL, pseudo = 0,
 #'                               prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5,
 #'                               wins_quant = c(0.05, 0.95), method = "pearson",
-#'                               soft = FALSE, thresh_len = 20, n_cv = 10,
+#'                               soft = FALSE, alpha_grid = 0,
+#'                               thresh_len = 20, n_cv = 10,
 #'                               thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 #'
 #'     corr_th = res_linear$corr_th
@@ -158,7 +163,8 @@ secom_linear = function(data, taxa_are_rows = TRUE,
                         pseudo = 0, prv_cut = 0.5, lib_cut = 1000,
                         corr_cut = 0.5, wins_quant = c(0.05, 0.95),
                         method = c("pearson", "spearman"),
-                        soft = FALSE, thresh_len = 100, n_cv = 10,
+                        soft = FALSE, alpha_grid = 0,
+                        thresh_len = 100, n_cv = 10,
                         thresh_hard = 0, max_p = 0.005, n_cl = 1,
                         verbose = TRUE) {
 
@@ -264,8 +270,9 @@ secom_linear = function(data, taxa_are_rows = TRUE,
     }
 
     if (method %in% c("pearson", "spearman")) {
-        res_corr = .sparse_linear(mat = t(y_hat), wins_quant, method, soft,
-                                  thresh_len, n_cv, thresh_hard, max_p)
+        res_corr = .sparse_linear(mat = t(y_hat), wins_quant, method,
+                                  soft, alpha_grid, thresh_len, n_cv,
+                                  thresh_hard, max_p)
     } else {
         stop_txt = paste0("The specified correlation coefficient type is not valid \n",
                           "Please choose either 'pearson' or 'spearman' as the type of correlation coefficient")
@@ -287,6 +294,7 @@ secom_linear = function(data, taxa_are_rows = TRUE,
         res_corr$corr[fp_ind] = 0
         res_corr$corr_th[fp_ind] = 0
         res_corr$corr_fl[fp_ind] = 0
+        res_corr$corr_reg[fp_ind] = 0
         res_corr$corr_p[fp_ind] = 1
     } else {
         for (i in seq_along(data)) {
@@ -310,6 +318,7 @@ secom_linear = function(data, taxa_are_rows = TRUE,
             res_corr$corr[fp_ind] = 0
             res_corr$corr_th[fp_ind] = 0
             res_corr$corr_fl[fp_ind] = 0
+            res_corr$corr_reg[fp_ind] = 0
             res_corr$corr_p[fp_ind] = 1
         }
     }

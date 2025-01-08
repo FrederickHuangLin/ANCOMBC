@@ -20,6 +20,7 @@ secom_linear(
   wins_quant = c(0.05, 0.95),
   method = c("pearson", "spearman"),
   soft = FALSE,
+  alpha_grid = 0,
   thresh_len = 100,
   n_cv = 10,
   thresh_hard = 0,
@@ -110,6 +111,9 @@ to achieve the sparsity of the correlation matrix. \code{FALSE} indicates
 that hard thresholding is applied to achieve the sparsity of the correlation
 matrix. Default is \code{FALSE}.}
 
+\item{alpha_grid}{a numeric vector of penalty parameters for the element-wise
+L1 norm to induce sparsity. Default is 0.}
+
 \item{thresh_len}{numeric. Grid-search is implemented to find the optimal
 values over \code{thresh_len} thresholds for the thresholding operator.
 Default is 100.}
@@ -156,6 +160,8 @@ a \code{list} with components:
         thresholding based on the method specified in \code{soft}.}
         \item{ \code{corr_fl}, the sparse correlation matrix obtained by
         p-value filtering based on the cutoff specified in \code{max_p}.}
+        \item{ \code{corr_reg}, the correlation matrix obtained by
+        winsorizing small eigenvalues.}
         }
 }
 \description{
@@ -178,7 +184,8 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
                               aggregate_data = NULL, meta_data = NULL, pseudo = 0,
                               prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5,
                               wins_quant = c(0.05, 0.95), method = "pearson",
-                              soft = FALSE, thresh_len = 20, n_cv = 10,
+                              soft = FALSE, alpha_grid = 0,
+                              thresh_len = 20, n_cv = 10,
                               thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 
     corr_th = res_linear$corr_th

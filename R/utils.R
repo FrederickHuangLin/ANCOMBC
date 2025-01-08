@@ -166,46 +166,53 @@
 }
 
 # Regularize eigenvalues
-regularize_eigenvalues <- function(mat=cov_mat){
-  
+.regularize_eigenvalues = function(mat){
+
   # Decomposition
-  decomp <- eigen(mat)
-  
+  decomp = eigen(mat)
+
   # Replace zero and negative eigenvalues with the minimum positive eigenvalue
-  decomp$values[decomp$values <= 0] <- min(decomp$values[decomp$values>0])
-  
+  decomp$values[decomp$values <= 0] = min(decomp$values[decomp$values > 0])
+
   # Ratio of eigenvalues to the largest eigenvalue
-  ratios <- decomp$values[1]/decomp$values
-  
+  ratios = decomp$values[1]/decomp$values
+
   # Difference between consecutive ratios
-  diff_ratio <- sapply(2:length(ratios),function(x){ ratios[x]-ratios[x-1]})
+  diff_ratio = vapply(2:length(ratios),
+                      FUN = function(x){ ratios[x]-ratios[x-1] },
+                      FUN.VALUE = numeric(1))
+
   # Find the eigenvalue that corresponds to the maximum difference (the largest gap)
-  delta <- decomp$values[which(diff_ratio == max(diff_ratio,na.rm = T))]
+  delta = decomp$values[which(diff_ratio == max(diff_ratio,na.rm = TRUE))]
+
   # Delta must be between 0.01 -1
   i = 1
   while(delta <0.01){
-    delta <- decomp$values[which(diff_ratio == max(diff_ratio,na.rm = T))-i]
-    i<- i+1
+    delta = decomp$values[which(diff_ratio == max(diff_ratio, na.rm = TRUE)) - i]
+    i= i + 1
   }
-  if(delta>1)
-    delta <- 1
-  
+  if(delta > 1)
+    delta = 1
+
   # Winsorize eigenvalues to the delta
-  decomp$values[decomp$values<delta] <- delta
-  
+  decomp$values[decomp$values < delta] = delta
+
   # Reconstruct the covariance matrix
-  cov_mat_pos <- decomp$vectors %*% diag(decomp$values) %*% pracma::inv(decomp$vectors)
-  rownames(cov_mat_pos) <- rownames(mat)
-  colnames(cov_mat_pos) <- colnames(mat)
-  
+  cov_mat_pos = decomp$vectors %*% diag(decomp$values) %*% solve(decomp$vectors)
+  rownames(cov_mat_pos) = rownames(mat)
+  colnames(cov_mat_pos) = colnames(mat)
+
   # Make the matrix symmetric
   cov_mat_pos[lower.tri(cov_mat_pos)] = t(cov_mat_pos)[lower.tri(cov_mat_pos)]
-  
+
   return(cov_mat_pos)
 }
 
-is.positive.semidefinite <- function(matrix) {
-  return((min(round(eigen(matrix)$values, 7))) >= 0)
+# Check if a matrix is positive semi-definite
+.is_psd = function(matrix) {
+    # Get eigenvalues
+    eigenvals <- eigen(matrix, symmetric = TRUE)$values
+    # Check if all eigenvalues are non-negative (within numerical precision)
+    all(eigenvals > -1e-10)
 }
-
 

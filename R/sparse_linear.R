@@ -1,5 +1,5 @@
-.sparse_linear = function(mat, wins_quant, method, soft, thresh_len,
-                          n_cv, thresh_hard, max_p) {
+.sparse_linear = function(mat, wins_quant, method, soft, alpha_grid,
+                          thresh_len, n_cv, thresh_hard, max_p) {
     # Thresholding
     mat_thresh = function(mat, th, soft){
         mat_sign = sign(mat)
@@ -13,12 +13,29 @@
     }
 
     # Threshold loss function
-    thresh_loss = function(mat1, mat2, method, th, soft) {
+    thresh_loss = function(mat1, mat2, method, soft, th, alpha) {
         corr1 = cor(mat1, method = method, use = "pairwise.complete.obs")
         corr2 = cor(mat2, method = method, use = "pairwise.complete.obs")
-        corr_diff = mat_thresh(corr1, th, soft) - corr2
+        corr1_th = mat_thresh(corr1, th, soft)
+        corr_diff = corr1_th - corr2
         corr_diff[is.na(corr_diff)] = 0
-        loss = norm(corr_diff, type = "F")
+
+        # Compute Frobenius norm
+        fro_norm = norm(corr_diff, type = "F")
+
+        # Compute sparsity penalty if alpha > 0
+        if (alpha > 0) {
+            epsilon = 1e-10  # Small constant to prevent division by zero
+            weight = 1/abs(corr2 + epsilon)
+            weight[corr2 == 0] = 0
+            diag(weight) = 0
+            sparsity_penalty = alpha * sum(abs(weight * corr1_th))
+        } else {
+            sparsity_penalty = 0
+        }
+
+        # Total loss
+        loss = 0.5 * fro_norm + sparsity_penalty
         return(loss)
     }
 
@@ -104,6 +121,34 @@
     corr_reg <- cov2cor(cov_mat_pos)
     
 
+    # Regularization of the covariance matrix
+    if(method == "spearman"){
+      # Convert to rank
+      mat = apply(mat,2,function(x) {
+          r = rank(x, na.last = NA)
+          x[!is.na(x)] = r
+          return(x)
+          }
+          )
+    }
+    # Covariance matrix
+    cov_mat = stats::cov(mat, use = "pairwise.complete.obs")
+    cov_mat[is.na(cov_mat)] = 0
+
+    # Regularize the covariance matrix
+    cov_mat_pos = .regularize_eigenvalues(cov_mat)
+    cov_mat_pos[mat_cooccur < 2] = 0
+    cov_mat_pos[is.infinite(cov_mat_pos)] = 0
+
+    # Check if it is positive semi-definite, if not repeat the regularization process
+    while(!.is_psd(cov_mat_pos)) {
+      cov_mat_pos = .regularize_eigenvalues(cov_mat_pos)
+      cov_mat_pos[mat_cooccur < 2] = 0
+      cov_mat_pos[is.infinite(cov_mat_pos)] = 0
+    }
+    # Convert to correlation coefficient
+    corr_reg = cov2cor(cov_mat_pos)
+
     # Sample size for training and test sets
     n = dim(mat)[1]
     n1 = n - floor(n/log(n))
@@ -119,20 +164,38 @@
     # Cross-Validation
     max_thresh = max(abs(corr[corr != 1]), na.rm = TRUE)
     thresh_grid = seq(from = 0, to = max_thresh, length.out = thresh_len)
+    if (is.null(alpha_grid)) alpha_grid = 0
+    param_grid = expand.grid(thresh = thresh_grid, alpha = alpha_grid)
 
     loss_mat = foreach(i = seq_len(n_cv), .combine = rbind) %dorng% {
+        # Create training and validation splits
         index = sample(seq_len(n), size = n1, replace = FALSE)
         mat1 = mat[index,]
         mat2 = mat[-index,]
-        loss = vapply(thresh_grid, FUN = thresh_loss,
-                      mat1 = mat1, mat2 = mat2,
-                      method = method, soft = soft,
-                      FUN.VALUE = double(1))
+
+        # Calculate loss for each parameter combination
+        loss = apply(param_grid, 1, function(params) {
+            thresh_loss(
+                mat1 = mat1,
+                mat2 = mat2,
+                method = method,
+                soft = soft,
+                th = params["thresh"],
+                alpha = params["alpha"]
+            )
+        })
     }
 
-    # Correlation matrix after thresholding
-    loss_vec = colMeans(loss_mat)
-    thresh_opt = thresh_grid[which.min(loss_vec)]
+    # Calculate mean loss across CV folds
+    mean_losses = colMeans(loss_mat)
+
+    # Find optimal parameters
+    opt_index = which.min(mean_losses)
+    thresh_opt = param_grid$thresh[opt_index]
+    alpha_opt = param_grid$alpha[opt_index]
+
+    # Apply optimal thresholding
+    corr = cor(mat, method = method, use = "pairwise.complete.obs")
     corr_th = mat_thresh(mat = corr, th = thresh_opt, soft = soft)
     corr_th = mat_thresh(mat = corr_th, th = thresh_hard, soft = FALSE)
 
@@ -146,9 +209,10 @@
     corr_fl = mat_thresh(mat = corr_fl, th = thresh_hard, soft = FALSE)
 
     # Output
-    result = list(cv_error = loss_vec,
+    result = list(cv_error = mean_losses,
                   thresh_grid = thresh_grid,
                   thresh_opt = thresh_opt,
+                  alpha_opt = alpha_opt,
                   mat_cooccur = mat_cooccur,
                   corr = corr,
                   corr_p = corr_p,
