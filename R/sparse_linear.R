@@ -93,43 +93,16 @@
                                  sep = "\n"))
         warning(warn_txt)
     }
-    
-    # Regularization of the covariance matrix
-    if(method == "spearman"){
-      # Convert to rank 
-      mat <-apply(mat,2,function(x) {r <- rank(x,na.last = NA)
-      x[!is.na(x)] <- r
-      return(x)})
-    }
-    # Covariance matrix
-    cov_mat <- stats::cov(mat,use = "pairwise.complete.obs")
-    cov_mat[is.na(cov_mat)] <- 0
-    
-    # Regularize the covariance matrix
-    cov_mat_pos <- regularize_eigenvalues(cov_mat)
-    
-    cov_mat_pos[mat_cooccur < 2] = 0
-    cov_mat_pos[is.infinite(cov_mat_pos)] = 0
-    
-    # Check if it is positive semi-definite, if not repeat the regularization process
-    while(!is.positive.semidefinite(cov_mat_pos)) {
-      cov_mat_pos <- regularize_eigenvalues(cov_mat_pos)
-      cov_mat_pos[mat_cooccur < 2] = 0
-      cov_mat_pos[is.infinite(cov_mat_pos)] = 0
-    }
-    # Convert to correlation coefficient
-    corr_reg <- cov2cor(cov_mat_pos)
-    
 
     # Regularization of the covariance matrix
     if(method == "spearman"){
-      # Convert to rank
-      mat = apply(mat,2,function(x) {
-          r = rank(x, na.last = NA)
-          x[!is.na(x)] = r
-          return(x)
-          }
-          )
+        # Convert to rank
+        mat = apply(mat,2,function(x) {
+            r = rank(x, na.last = NA)
+            x[!is.na(x)] = r
+            return(x)
+        }
+        )
     }
     # Covariance matrix
     cov_mat = stats::cov(mat, use = "pairwise.complete.obs")
@@ -142,9 +115,9 @@
 
     # Check if it is positive semi-definite, if not repeat the regularization process
     while(!.is_psd(cov_mat_pos)) {
-      cov_mat_pos = .regularize_eigenvalues(cov_mat_pos)
-      cov_mat_pos[mat_cooccur < 2] = 0
-      cov_mat_pos[is.infinite(cov_mat_pos)] = 0
+        cov_mat_pos = .regularize_eigenvalues(cov_mat_pos)
+        cov_mat_pos[mat_cooccur < 2] = 0
+        cov_mat_pos[is.infinite(cov_mat_pos)] = 0
     }
     # Convert to correlation coefficient
     corr_reg = cov2cor(cov_mat_pos)

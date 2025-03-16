@@ -94,7 +94,7 @@ check_results = data_sanity_check(data = atlas1006,
 ## 3.2 Import a `tse` object
 
 ```{r}
-tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
+tse = mia::convertFromPhyloseq(atlas1006)
 ```
 
 List the taxonomic levels available for data aggregation.
