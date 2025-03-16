@@ -42,5 +42,5 @@ RdMacros: Rdpack
 Encoding: UTF-8
 RoxygenNote: 7.3.2
 Depends: 
-    R (>= 4.3.0)
+    R (>= 4.5.0)
 LazyData: false
