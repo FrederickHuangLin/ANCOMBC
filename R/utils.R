@@ -151,20 +151,6 @@
   return(p_val)
 }
 
-# Internal wrappers for mia::agglomerateByRank/mergeRows
-.merge_features = function(x, merge.by, ...) {
-    # Check if merge.by parameter belongs to taxonomyRanks
-    if (is.character(merge.by) && length(merge.by) == 1 && merge.by %in% mia::taxonomyRanks(x)) {
-        # Merge using agglomerateByRank
-        x = mia::agglomerateByRank(x, rank = merge.by, ...)
-    } else {
-        # Merge using mia::mergeRows
-        f = factor(SummarizedExperiment::rowData(x)[, merge.by])
-        x = mia::mergeRows(x, f = f, ...)
-    }
-    return(x)
-}
-
 # Regularize eigenvalues
 .regularize_eigenvalues = function(mat){
 

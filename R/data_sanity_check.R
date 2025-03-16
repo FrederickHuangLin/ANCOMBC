@@ -146,16 +146,18 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
             stop(paste("The 'mia' package is needed to process the imported data but is not installed.",
                        "Please install the package to continue."))
             }
-        # Process the tse object
-        feature_table = SummarizedExperiment::assay(data, assay_name)
-        meta_data = as.data.frame(SummarizedExperiment::colData(data))
+        # Convert the tse object to phyloseq
+        pseq = mia::convertToPhyloseq(data, assay.type = assay.type)
+        # Process the phyloseq object
+        feature_table = microbiome::abundances(pseq)
+        meta_data = microbiome::meta(pseq)
         if (!is.null(tax_level)) {
-            aggregate_data = .merge_features(data, tax_level)
-            feature_table_aggregate = SummarizedExperiment::assay(aggregate_data, assay_name)
+            aggregate_data = microbiome::aggregate_taxa(pseq, tax_level)
+            feature_table_aggregate = microbiome::abundances(aggregate_data)
         } else {
             feature_table_aggregate = feature_table
-            }
         }
+    }
     else if (inherits(data, c("data.frame", "matrix"))) {
         message("The imported data is in a generic 'matrix'/'data.frame' format.")
 
