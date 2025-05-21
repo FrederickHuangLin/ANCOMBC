@@ -57,16 +57,17 @@ transformation. However, it has been shown that the choice of pseudo-count can
 impact the results and lead to an inflated false positive 
 rate [@costea2014fair; @paulson2014reply]. To address this issue, 
 we conduct a sensitivity analysis to assess the impact of different 
-pseudo-counts on zero counts for each taxon. This analysis involves adding a 
-series of pseudo-counts (ranging from 0.01 to 0.5 in increments of 0.01) to 
-the zero counts of each taxon. Linear regression models are then performed on 
-the bias-corrected log abundance table using the different pseudo-counts. The 
-sensitivity score for each taxon is calculated as the proportion of times 
-that the p-value exceeds the specified significance level (alpha). If all 
-p-values consistently show significance or nonsignificance across different 
-pseudo-counts and are consistent with the results obtained without adding 
-pseudo-counts to zero counts (using the complete data), then the taxon is 
-considered not sensitive to the pseudo-count addition. 
+pseudo-counts on zero counts for each taxon. This involves adding various 
+pseudo-count values (0.1, 0.5, and 1) to the feature table 
+and re-running the ANCOM-BC2 algorithm. The sensitivity score for each taxon is 
+calculated as the proportion of times that the q-value exceeds the specified 
+significance level (alpha). If all q-values consistently show significance or 
+nonsignificance across different pseudo-counts and are consistent with the 
+results obtained without adding pseudo-counts to zero counts (using the complete 
+data), then the taxon is considered not sensitive to the pseudo-count addition. 
+**Important:** The sensitivity analysis results depend directly on your chosen 
+alpha value (since this threshold determines significance). You should expect 
+sensitivity analysis results to change when you modify the alpha value.
 
 4. **Multi-group comparisons and repeated measurements**: The ANCOM-BC2 
 methodology extends ANCOM-BC for multiple groups and repeated measurements 
@@ -300,9 +301,9 @@ fdr1 = fp/(tp + fp)
 
 res_merge2 = res_pair %>%
   dplyr::transmute(taxon, 
-                   lfc_est1 = lfc_cat_cov2 * diff_cat_cov2 * passed_ss_cat_cov2,
-                   lfc_est2 = lfc_cat_cov3 * diff_cat_cov3 * passed_ss_cat_cov3,
-                   lfc_est3 = lfc_cat_cov3_cat_cov2 * diff_cat_cov3_cat_cov2* passed_ss_cat_cov3_cat_cov2) %>%
+                   lfc_est1 = lfc_cat_cov2 * diff_robust_cat_cov2,
+                   lfc_est2 = lfc_cat_cov3 * diff_robust_cat_cov3,
+                   lfc_est3 = lfc_cat_cov3_cat_cov2 * diff_robust_cat_cov3_cat_cov2) %>%
   dplyr::left_join(fmd %>%
                      dplyr::transmute(taxon, 
                                       lfc_true1 = lfc_cat2_vs_1,
@@ -599,7 +600,8 @@ res_prim = output$res
 
 In the subsequent waterfall plot, each bar represents a log fold-change 
 (in natural log) value. Any taxon highlighted in green indicates its successful 
-passage through the sensitivity analysis for pseudo-count addition.
+passage through the sensitivity analysis (`diff_robust` is `TRUE`) for 
+pseudo-count addition.
 
 ```{r}
 df_age = res_prim %>%
@@ -608,7 +610,7 @@ df_fig_age = df_age %>%
     dplyr::filter(diff_age == 1) %>% 
     dplyr::arrange(desc(lfc_age)) %>%
     dplyr::mutate(direct = ifelse(lfc_age > 0, "Positive LFC", "Negative LFC"),
-                  color = ifelse(passed_ss_age == 1, "aquamarine3", "black"))
+                  color = ifelse(diff_robust_age, "aquamarine3", "black"))
 df_fig_age$taxon = factor(df_fig_age$taxon, levels = df_fig_age$taxon)
 df_fig_age$direct = factor(df_fig_age$direct, 
                            levels = c("Positive LFC", "Negative LFC"))
@@ -654,9 +656,9 @@ df_fig_bmi1 = df_bmi %>%
 df_fig_bmi2 = df_bmi %>%
     dplyr::filter(diff_bmilean == 1 | 
                     diff_bmioverweight == 1) %>%
-    dplyr::mutate(lfc1 = ifelse(passed_ss_bmioverweight == 1 & diff_bmioverweight == 1, 
+    dplyr::mutate(lfc1 = ifelse(diff_robust_bmioverweight, 
                                 "aquamarine3", "black"),
-                  lfc2 = ifelse(passed_ss_bmilean == 1 & diff_bmilean == 1, 
+                  lfc2 = ifelse(diff_robust_bmilean, 
                                 "aquamarine3", "black")) %>%
     tidyr::pivot_longer(cols = lfc1:lfc2, 
                         names_to = "group", values_to = "color") %>%
@@ -714,11 +716,11 @@ df_fig_global = df_bmi %>%
     dplyr::left_join(res_global %>%
                        dplyr::transmute(taxon, 
                                         diff_bmi = diff_abn, 
-                                        passed_ss = passed_ss)) %>%
+                                        diff_robust_bmi = diff_robust_abn)) %>%
     dplyr::filter(diff_bmi == 1) %>%
     dplyr::mutate(lfc_overweight = lfc_bmioverweight,
                   lfc_lean = lfc_bmilean,
-                  color = ifelse(passed_ss == 1, "aquamarine3", "black")) %>%
+                  color = ifelse(diff_robust_bmi, "aquamarine3", "black")) %>%
     dplyr::transmute(taxon,
                      `Overweight - Obese` = round(lfc_overweight, 2),
                      `Lean - Obese` = round(lfc_lean, 2), 
@@ -789,11 +791,11 @@ df_fig_pair2 = res_pair %>%
     dplyr::filter(diff_bmioverweight == 1 |
                       diff_bmilean == 1 | 
                       diff_bmilean_bmioverweight == 1) %>%
-    dplyr::mutate(lfc1 = ifelse(passed_ss_bmioverweight == 1 & diff_bmioverweight == 1, 
+    dplyr::mutate(lfc1 = ifelse(diff_robust_bmioverweight, 
                                 "aquamarine3", "black"),
-                  lfc2 = ifelse(passed_ss_bmilean == 1 & diff_bmilean == 1, 
+                  lfc2 = ifelse(diff_robust_bmilean, 
                                 "aquamarine3", "black"),
-                  lfc3 = ifelse(passed_ss_bmilean_bmioverweight == 1 & diff_bmilean_bmioverweight == 1, 
+                  lfc3 = ifelse(diff_robust_bmilean_bmioverweight, 
                                 "aquamarine3", "black")) %>%
     tidyr::pivot_longer(cols = lfc1:lfc3, 
                         names_to = "group", values_to = "color") %>%
@@ -867,9 +869,9 @@ df_fig_dunn1 = res_dunn %>%
 df_fig_dunn2 = res_dunn %>%
     dplyr::filter(diff_bmioverweight == 1 | 
                       diff_bmilean == 1) %>%
-    dplyr::mutate(lfc1 = ifelse(passed_ss_bmioverweight == 1 & diff_bmioverweight == 1, 
+    dplyr::mutate(lfc1 = ifelse(diff_robust_bmioverweight, 
                                 "aquamarine3", "black"),
-                  lfc2 = ifelse(passed_ss_bmilean == 1 & diff_bmilean == 1, 
+                  lfc2 = ifelse(diff_robust_bmilean == 1, 
                                 "aquamarine3", "black")) %>%
     tidyr::pivot_longer(cols = lfc1:lfc2, 
                         names_to = "group", values_to = "color") %>%
@@ -968,7 +970,7 @@ df_fig_trend = res_trend %>%
     dplyr::filter(diff_abn == 1) %>%
     dplyr::mutate(lfc1 = round(lfc_bmioverweight, 2),
                   lfc2 = round(lfc_bmilean, 2),
-                  color = ifelse(passed_ss == 1, "aquamarine3", "black")) %>%
+                  color = ifelse(diff_robust_abn, "aquamarine3", "black")) %>%
     tidyr::pivot_longer(cols = lfc1:lfc2, 
                         names_to = "group", values_to = "value") %>%
     dplyr::arrange(taxon)
