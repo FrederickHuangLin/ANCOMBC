@@ -14,6 +14,7 @@ ancombc(
   tax_level = NULL,
   aggregate_data = NULL,
   meta_data = NULL,
+  pseudo = 1,
   formula,
   p_adj_method = "holm",
   prv_cut = 0.1,
@@ -74,6 +75,9 @@ This parameter is mandatory when the input \code{data} is a generic
 \code{matrix} or \code{data.frame}. Ensure that the row names of the \code{metadata} match the
 sample names (column names if \code{taxa_are_rows} is TRUE, and row names
 otherwise) in \code{data}.}
+
+\item{pseudo}{A small positive value (default: 1) added to all counts
+before log transformation to avoid numerical issues caused by log(0).}
 
 \item{formula}{the character string expresses how microbial absolute
 abundances for each taxon depend on the variables in metadata. When
