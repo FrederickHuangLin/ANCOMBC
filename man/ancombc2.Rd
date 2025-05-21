@@ -101,10 +101,8 @@ follows the \code{lmerTest} package in formulating the random effects. See
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
 
-\item{pseudo}{numeric. Add pseudo-counts to the data.
-Please note that this option is not recommended in ANCOM-BC2. The software
-will utilize the complete data (nonzero counts) as its default analysis
-input.}
+\item{pseudo}{A small positive value (default: 1) added to all counts
+before log transformation to avoid numerical issues caused by log(0).}
 
 \item{pseudo_sens}{logical. Whether to perform the sensitivity analysis to
 the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes
@@ -238,6 +236,9 @@ a \code{list} with components:
         taxon passed the sensitivity analysis, i.e., adding different
         pseudo-counts to 0s would not change the results.}
         }
+        \item{ columns started with \code{diff_robust}: TRUE if the
+        taxon is significant (has \code{q} less than \code{alpha}) and robust
+        in the sensitivity analysis (\code{passed_ss} is \code{TRUE}).}
         \item{ \code{res_global},  a \code{data.frame} containing ANCOM-BC2
         global test result for the variable specified in \code{group},
         each column is:}
@@ -336,13 +337,11 @@ pseudo-count can impact the results and lead to an inflated false positive
 rate (\href{https://doi.org/10.1038/nmeth.2897}{Costea et al. (2014)};
 \href{https://doi.org/10.1038/nmeth.2898}{Paulson, Bravo, and Pop (2014)}).
 To address this issue, we conduct a sensitivity analysis to assess the impact
-of different pseudo-counts on zero counts for each taxon. This analysis
-involves adding a series of pseudo-counts (ranging from 0.01 to 0.5 in
-increments of 0.01) to the zero counts of each taxon. Linear regression
-models are then performed on the bias-corrected log abundance table using the
-different pseudo-counts. The sensitivity score for each taxon is calculated
-as the proportion of times that the p-value exceeds the specified
-significance level (alpha). If all p-values consistently show significance or
+of different pseudo-counts on zero counts for each taxon. This involves
+adding various pseudo-count values (0.1, 0.5, and 1) to the feature table and
+re-running the ANCOM-BC2 algorithm. The sensitivity score for each taxon is
+calculated as the proportion of times that the q-value exceeds the specified
+significance level (alpha). If all q-values consistently show significance or
 nonsignificance across different pseudo-counts and are consistent with the
 results obtained without adding pseudo-counts to zero counts (using the
 default settings), then the taxon is considered not sensitive to the

@@ -119,38 +119,6 @@
     return(otu_table)
 }
 
-# Get the p-values for the sensitivity analysis
-.get_p = function(y, data, formula, group, n_levels, pairwise, global, trend) {
-  tformula = paste0("y ~ ", formula)
-  df = data.frame(y = y, data)
-  lm_fit = stats::lm(formula(tformula), data = df)
-  summ = summary(lm_fit)
-  p_val = summ$coefficients[, "Pr(>|t|)"]
-  p_val[p_val == 0] = 2e-16
-  names(p_val) = rownames(summ$coefficients)
-
-  if (pairwise) {
-    mcp_arg = paste0(group, ' = "Tukey"')
-    comparison = multcomp::glht(lm_fit, linfct = eval(parse(text = paste0("multcomp::mcp(", mcp_arg, ")"))))
-    summ = summary(comparison, test = multcomp::adjusted("none"))
-    pair_p_val = summ$test$pvalues
-    pair_p_val[pair_p_val == 0] = 2e-16
-    names(pair_p_val) = paste0(summ$focus, names(pair_p_val))
-    pair_p_val = pair_p_val[-(seq_len(n_levels - 1))]
-    p_val = c(p_val, pair_p_val)
-  }
-
-  if (global | trend) {
-    anova_fit = anova(lm_fit)
-    group_p_val = anova_fit$`Pr(>F)`[rownames(anova_fit) == group]
-    if (group_p_val == 0) group_p_val = 2e-16
-    if (global) p_val = c(p_val, global = group_p_val)
-    if (trend) p_val = c(p_val, trend = group_p_val)
-  }
-
-  return(p_val)
-}
-
 # Regularize eigenvalues
 .regularize_eigenvalues = function(mat){
 

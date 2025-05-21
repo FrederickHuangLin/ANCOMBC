@@ -64,6 +64,8 @@
 #' \code{matrix} or \code{data.frame}. Ensure that the row names of the \code{metadata} match the
 #' sample names (column names if \code{taxa_are_rows} is TRUE, and row names
 #' otherwise) in \code{data}.
+#' @param pseudo A small positive value (default: 1) added to all counts
+#' before log transformation to avoid numerical issues caused by log(0).
 #' @param formula the character string expresses how microbial absolute
 #' abundances for each taxon depend on the variables in metadata. When
 #' specifying the \code{formula}, make sure to include the \code{group} variable
@@ -194,7 +196,8 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
                    assay.type = NULL, assay_name = "counts",
                    rank = NULL, tax_level = NULL,
                    aggregate_data = NULL, meta_data = NULL,
-                   formula, p_adj_method = "holm", prv_cut = 0.10,
+                   pseudo = 1, formula,
+                   p_adj_method = "holm", prv_cut = 0.10,
                    lib_cut = 0, group = NULL, struc_zero = FALSE,
                    neg_lb = FALSE, tol = 1e-05, max_iter = 100,
                    conserve = FALSE, alpha = 0.05, global = FALSE,
@@ -246,8 +249,8 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
         warning(warn_txt, call. = FALSE)
     }
 
-    # Add pseudocount (1) and take logarithm.
-    y = log(feature_table + 1)
+    # Add pseudocount and take logarithm.
+    y = log(feature_table + pseudo)
     options(na.action = "na.pass") # Keep NA's in rows of x
     x = stats::model.matrix(formula(paste0("~", formula)), data = meta_data)
     options(na.action = "na.omit") # Switch it back
