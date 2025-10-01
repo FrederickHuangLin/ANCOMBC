@@ -156,8 +156,10 @@
 #' @param neg_lb logical. Whether to classify a taxon as a structural zero using
 #' its asymptotic lower bound. Default is FALSE.
 #' @param alpha numeric. Level of significance. Default is 0.05.
-#' @param n_cl numeric. The number of nodes to be forked. For details, see
-#' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
+#' @param n_cl numeric. The number of nodes to be forked for parallel processing.
+#' This parameter controls parallelization for both the main analysis and
+#' sensitivity analysis. For details, see \code{?parallel::makeCluster}. 
+#' Default is 1 (no parallel computing).
 #' @param verbose logical. Whether to generate verbose output during the
 #' ANCOM-BC2 fitting process. Default is FALSE.
 #' @param global logical. Whether to perform the global test. Default is FALSE.
@@ -489,24 +491,50 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         if (trend) global = TRUE
         iter_control$verbose = FALSE
 
-        ss_list = lapply(pseudo_list, function(pseudo_count) {
-            res_pseudo = .ancombc2_core(data = O1, aggregate_data = O2,
-                                        meta_data = meta_data,
-                                        fix_formula = fix_formula,
-                                        rand_formula = rand_formula,
-                                        p_adj_method = p_adj_method,
-                                        pseudo = pseudo_count,
-                                        s0_perc = s0_perc,
-                                        group = group, alpha = alpha,
-                                        verbose = FALSE,
-                                        global = global, pairwise = pairwise,
-                                        dunnet = dunnet, trend = FALSE,
-                                        iter_control = iter_control,
-                                        em_control = em_control,
-                                        lme_control = lme_control,
-                                        mdfdr_control = mdfdr_control)
-            return(res_pseudo)
-        })
+        # Use parallel processing for sensitivity analysis if n_cl > 1
+        if (n_cl > 1) {
+            # Use the existing cluster setup for sensitivity analysis
+            
+            ss_list = foreach(pseudo_count = pseudo_list, 
+                             .export = c(".ancombc2_core")) %dopar% {
+                res_pseudo = .ancombc2_core(data = O1, aggregate_data = O2,
+                                            meta_data = meta_data,
+                                            fix_formula = fix_formula,
+                                            rand_formula = rand_formula,
+                                            p_adj_method = p_adj_method,
+                                            pseudo = pseudo_count,
+                                            s0_perc = s0_perc,
+                                            group = group, alpha = alpha,
+                                            verbose = FALSE,
+                                            global = global, pairwise = pairwise,
+                                            dunnet = dunnet, trend = FALSE,
+                                            iter_control = iter_control,
+                                            em_control = em_control,
+                                            lme_control = lme_control,
+                                            mdfdr_control = mdfdr_control)
+                return(res_pseudo)
+            }
+        } else {
+            # Fall back to sequential processing
+            ss_list = lapply(pseudo_list, function(pseudo_count) {
+                res_pseudo = .ancombc2_core(data = O1, aggregate_data = O2,
+                                            meta_data = meta_data,
+                                            fix_formula = fix_formula,
+                                            rand_formula = rand_formula,
+                                            p_adj_method = p_adj_method,
+                                            pseudo = pseudo_count,
+                                            s0_perc = s0_perc,
+                                            group = group, alpha = alpha,
+                                            verbose = FALSE,
+                                            global = global, pairwise = pairwise,
+                                            dunnet = dunnet, trend = FALSE,
+                                            iter_control = iter_control,
+                                            em_control = em_control,
+                                            lme_control = lme_control,
+                                            mdfdr_control = mdfdr_control)
+                return(res_pseudo)
+            })
+        }
 
         # Combine main results with sensitivity analysis results
         ss_list = c(list(res_main), ss_list)
