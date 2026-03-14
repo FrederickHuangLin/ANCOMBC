@@ -45,6 +45,20 @@ For users: Unless the primary focus of your study is power, we highly recommend 
 
 For researchers: We have noted some recent papers critiquing ANCOM-BC2 for not adequately controlling false positives. However, these critiques failed to account for our sensitivity analysis feature. Comparing ANCOM-BC2 without utilizing its embedded features, such as sensitivity analysis, is not a fair evaluation. We emphasize this point in our latest update.
 
+**3. Why did the sensitivity analysis results change between versions of ANCOM-BC2?**
+
++ **Before 2.10.1**: The bias-correction step was performed using only the complete data (without pseudo counts). After bias correction, different pseudo counts were added for inference in order to assess robustness.
++ **From 2.10.1 onward**: The sensitivity analysis begins before bias correction. We first add different pseudo counts to the data, then run the full bias-correction procedure, and finally perform inference. In other words, the new procedure is equivalent to running ANCOM-BC2 together with multiple ANCOM-BC analyses using different pseudo counts. 
+
+This change was made based on feedback from collaborators. In our experience: 
+
++ The previous approach generally has higher statistical power. 
++ The current approach provides better protection against false discoveries, though at the cost of somewhat reduced power. 
+
+Both approaches are valid, as long as you clearly report which version of ANCOM-BC2 was used in your analysis. If your primary goal is to maximize discoveries, or if you need the interaction term to function properly, we recommend using the latest version of ANCOM-BC2 while disabling the sensitivity analysis. 
+
+Note: We agree that the current pseudo-count-based sensitivity analysis is not ideal. In a future major update, we plan to replace this approach with an imputation-based strategy, which we expect will provide a more principled way to deal with zeros.
+
 ## Commonly asked questions
 
 **1. Q: What are the differences between the `formula` and `group` arguments in `ancombc` and `ancombc2`?**

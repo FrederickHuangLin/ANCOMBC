@@ -36,7 +36,7 @@ ancombc2(
   em_control = list(tol = 1e-05, max_iter = 100),
   lme_control = lme4::lmerControl(),
   mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
-  trend_control = list(contrast = NULL, node = NULL, solver = "ECOS", B = 100)
+  trend_control = list(contrast = NULL, node = NULL, solver = "OSQP", B = 100)
 )
 }
 \arguments{

@@ -108,7 +108,7 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
                              trend = FALSE,
                              trend_control = list(contrast = NULL,
                                                   node = NULL,
-                                                  solver = "ECOS",
+                                                  solver = "OSQP",
                                                   B = 100),
                              verbose = TRUE) {
     #=========== Check for aliases ===========
@@ -135,7 +135,7 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
         feature_table = microbiome::abundances(data)
         meta_data = microbiome::meta(data)
         if (!is.null(tax_level)) {
-            aggregate_data = microbiome::aggregate_taxa(data, tax_level)
+            aggregate_data = microbiome::aggregate_taxa(data, level = tax_level)
             feature_table_aggregate = microbiome::abundances(aggregate_data)
         } else {
             feature_table_aggregate = feature_table
@@ -145,15 +145,23 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
         if (!requireNamespace("mia", quietly = TRUE)) {
             stop(paste("The 'mia' package is needed to process the imported data but is not installed.",
                        "Please install the package to continue."))
-            }
+        }
+        if (!requireNamespace("microbiome", quietly = TRUE)) {
+            stop(paste(
+                "The 'microbiome' package is needed to process the imported data but is not installed.",
+                "Please install the package to continue."
+            ))
+        }
         # Convert the tse object to phyloseq
         pseq = mia::convertToPhyloseq(data, assay.type = assay.type)
         # Process the phyloseq object
         feature_table = microbiome::abundances(pseq)
         meta_data = microbiome::meta(pseq)
         if (!is.null(tax_level)) {
-            aggregate_data = microbiome::aggregate_taxa(pseq, tax_level)
-            feature_table_aggregate = microbiome::abundances(aggregate_data)
+            aggregate_data = mia::agglomerateByRank(data, rank = tax_level)
+            pseq_aggregate = mia::convertToPhyloseq(aggregate_data,
+                                                    assay.type = assay.type)
+            feature_table_aggregate = microbiome::abundances(pseq_aggregate)
         } else {
             feature_table_aggregate = feature_table
         }
@@ -291,6 +299,13 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
             if (is.null(trend_control$node)) {
                 stop("Please specify the nodes for the trend test",
                      call. = FALSE)
+            }
+            if (trend_control$solver == "ECOS") {
+                warning(
+                    "Solver 'ECOS' is incompatible with CVXR >= 1.8 for this problem. ",
+                    "Switching to solver = 'OSQP'."
+                )
+                trend_control$solver = "OSQP"
             }
             if (length(trend_control$contrast) != length(trend_control$node)) {
                 stop("The number of nodes should match the number of contrast matrices",

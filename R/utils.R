@@ -85,21 +85,34 @@
 }
 
 # Estimate coefficients under constraints
+.safe_inverse_spd = function(A, ridge = 1e-8) {
+    A <- (A + t(A)) / 2
+
+    tryCatch(
+        chol2inv(chol(A)),
+        error = function(e) chol2inv(chol(A + ridge * diag(nrow(A))))
+    )
+}
+
 .constrain_est = function(beta_hat, vcov_hat, contrast, solver) {
-    beta_opt = CVXR::Variable(rows = length(beta_hat), cols = 1, name = "beta")
-    obj = CVXR::Minimize(CVXR::matrix_frac(beta_opt - beta_hat, vcov_hat))
+    beta_hat_mat = matrix(beta_hat, ncol = 1)
+    vcov_hat_inv = .safe_inverse_spd(vcov_hat)
+
+    beta_opt = CVXR::Variable(shape = c(length(beta_hat), 1),
+                              name = "beta")
+    obj = CVXR::Minimize(CVXR::quad_form(beta_opt - beta_hat_mat, vcov_hat_inv))
     cons = suppressMessages(contrast %*% beta_opt >= 0)
     problem = CVXR::Problem(objective = obj, constraints = list(cons))
 
-    suppressMessages(result <- try(CVXR::solve(problem, solver = solver),
-                                   silent = TRUE))
+    suppressMessages(opt_val <- try(CVXR::psolve(problem, solver = solver),
+                                    silent = TRUE))
 
-    if (inherits(result, "try-error")) {
-        beta_opt = rep(0, length(beta_hat))
+    if (inherits(opt_val, "try-error")) {
+        beta_opt_val = rep(0, length(beta_hat))
     } else {
-        beta_opt = as.numeric(result$getValue(beta_opt))
+        beta_opt_val = as.numeric(CVXR::value(beta_opt))
     }
-    return(beta_opt)
+    return(beta_opt_val)
 }
 
 # Compute the l_infty norm for a pattern
