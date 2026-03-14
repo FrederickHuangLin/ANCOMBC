@@ -351,7 +351,7 @@
 #' @importFrom lmerTest lmer
 #' @importFrom lme4 lmerControl
 #' @importFrom multcomp glht mcp adjusted
-#' @importFrom CVXR Variable Minimize Problem solve matrix_frac
+#' @importFrom CVXR Variable Minimize Problem psolve quad_form value
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom foreach foreach %dopar% %:% registerDoSEQ
 #' @importFrom doParallel registerDoParallel
@@ -380,7 +380,7 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                     mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
                     trend_control = list(contrast = NULL,
                                          node = NULL,
-                                         solver = "ECOS",
+                                         solver = "OSQP",
                                          B = 100)){
     # Run with cluster
     if (n_cl > 1) {
