@@ -250,7 +250,7 @@
                           p_adj_method, alpha,
                           trend_control = list(contrast = NULL,
                                                node = NULL,
-                                               solver = "ECOS",
+                                               solver = "OSQP",
                                                B = 100)){
     tax_id = rownames(beta_hat)
     n_tax = nrow(beta_hat)

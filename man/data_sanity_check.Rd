@@ -21,7 +21,7 @@ data_sanity_check(
   dunnet = FALSE,
   mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
   trend = FALSE,
-  trend_control = list(contrast = NULL, node = NULL, solver = "ECOS", B = 100),
+  trend_control = list(contrast = NULL, node = NULL, solver = "OSQP", B = 100),
   verbose = TRUE
 )
 }
