@@ -36,7 +36,7 @@ ancombc2(
   em_control = list(tol = 1e-05, max_iter = 100),
   lme_control = lme4::lmerControl(),
   mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
-  trend_control = list(contrast = NULL, node = NULL, solver = "OSQP", B = 100)
+  trend_control = list(contrast = NULL, node = NULL, B = 100)
 )
 }
 \arguments{
@@ -193,8 +193,7 @@ mdFDR.}
 \item{trend_control}{a named list of control parameters for the trend test,
 including 1) \code{contrast}: the list of contrast matrices for
 constructing inequalities, 2) \code{node}: the list of positions for the
-nodal parameter, 3) \code{solver}: a string indicating the solver to use
-(default is "ECOS"), and 4) \code{B}: the number of bootstrap samples
+nodal parameter, and 3) \code{B}: the number of bootstrap samples
 (default is 100). Increase \code{B} will lead to a more accurate p-values.
 See \code{vignette} for the corresponding trend test examples.}
 }
@@ -388,7 +387,6 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
                                                         nrow = 2,
                                                         byrow = TRUE)),
                                         node = list(2),
-                                        solver = "ECOS",
                                         B = 1))
     res_prim = out$res
     res_global = out$res_global
