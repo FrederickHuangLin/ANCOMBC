@@ -94,25 +94,33 @@
     )
 }
 
-.constrain_est = function(beta_hat, vcov_hat, contrast, solver) {
-    beta_hat_mat = matrix(beta_hat, ncol = 1)
-    vcov_hat_inv = .safe_inverse_spd(vcov_hat)
+.constrain_est = function(beta_hat, vcov_hat, contrast) {
+    P = .safe_inverse_spd(vcov_hat)
+    
+    Dmat = 2 * P
+    Dmat = (Dmat + t(Dmat)) / 2
+    diag(Dmat) = diag(Dmat) + 1e-10
 
-    beta_opt = CVXR::Variable(shape = c(length(beta_hat), 1),
-                              name = "beta")
-    obj = CVXR::Minimize(CVXR::quad_form(beta_opt - beta_hat_mat, vcov_hat_inv))
-    cons = suppressMessages(contrast %*% beta_opt >= 0)
-    problem = CVXR::Problem(objective = obj, constraints = list(cons))
+    dvec = as.numeric(2 * P %*% beta_hat)
+    Amat = t(contrast)
+    bvec = rep(0, nrow(contrast))
 
-    suppressMessages(opt_val <- try(CVXR::psolve(problem, solver = solver),
-                                    silent = TRUE))
+    fit = try(
+        quadprog::solve.QP(
+            Dmat = Dmat,
+            dvec = dvec,
+            Amat = Amat,
+            bvec = bvec,
+            meq = 0
+        ),
+        silent = TRUE
+    )
 
-    if (inherits(opt_val, "try-error")) {
-        beta_opt_val = rep(0, length(beta_hat))
+    if (inherits(fit, "try-error")) {
+        rep(0, length(beta_hat))
     } else {
-        beta_opt_val = as.numeric(CVXR::value(beta_opt))
+        as.numeric(fit$solution)
     }
-    return(beta_opt_val)
 }
 
 # Compute the l_infty norm for a pattern

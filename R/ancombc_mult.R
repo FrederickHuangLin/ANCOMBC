@@ -250,7 +250,6 @@
                           p_adj_method, alpha,
                           trend_control = list(contrast = NULL,
                                                node = NULL,
-                                               solver = "OSQP",
                                                B = 100)){
     tax_id = rownames(beta_hat)
     n_tax = nrow(beta_hat)
@@ -266,7 +265,6 @@
 
     contrast = trend_control$contrast
     node = trend_control$node
-    solver = trend_control$solver
     B = trend_control$B
 
     n_trend = length(contrast)
@@ -278,8 +276,7 @@
       beta_hat_opt = unlist(lapply(X = contrast,
                                    FUN = fun_list[[1]],
                                    beta_hat = beta_hat_sub[i, ],
-                                   vcov_hat = vcov_hat_sub[[i]],
-                                   solver = solver))
+                                   vcov_hat = vcov_hat_sub[[i]]))
     }
 
     l = matrix(NA, nrow = n_tax, ncol = n_trend)
@@ -309,8 +306,7 @@
           beta_null_opt_x = unlist(lapply(X = contrast,
                                           FUN = fun_list[[1]],
                                           beta_hat = x,
-                                          vcov_hat = ident_mat,
-                                          solver = solver))
+                                          vcov_hat = ident_mat))
           return(beta_null_opt_x)
         }))
         beta_null_opt = beta_null_opt * sqrt(var_hat_sub_dup)

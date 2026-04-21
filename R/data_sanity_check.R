@@ -75,8 +75,7 @@
 #' @param trend_control a named list of control parameters for the trend test,
 #' including 1) \code{contrast}: the list of contrast matrices for
 #' constructing inequalities, 2) \code{node}: the list of positions for the
-#' nodal parameter, 3) \code{solver}: a string indicating the solver to use
-#' (default is "ECOS"), and 4) \code{B}: the number of bootstrap samples
+#' nodal parameter, and 3) \code{B}: the number of bootstrap samples
 #' (default is 100). Increase \code{B} will lead to a more accurate p-values.
 #' See \code{vignette} for the corresponding trend test examples.
 #' @param verbose logical. Whether to display detailed progress messages.
@@ -108,7 +107,6 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
                              trend = FALSE,
                              trend_control = list(contrast = NULL,
                                                   node = NULL,
-                                                  solver = "OSQP",
                                                   B = 100),
                              verbose = TRUE) {
     #=========== Check for aliases ===========
@@ -299,13 +297,6 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
             if (is.null(trend_control$node)) {
                 stop("Please specify the nodes for the trend test",
                      call. = FALSE)
-            }
-            if (trend_control$solver == "ECOS") {
-                warning(
-                    "Solver 'ECOS' is incompatible with CVXR >= 1.8 for this problem. ",
-                    "Switching to solver = 'OSQP'."
-                )
-                trend_control$solver = "OSQP"
             }
             if (length(trend_control$contrast) != length(trend_control$node)) {
                 stop("The number of nodes should match the number of contrast matrices",

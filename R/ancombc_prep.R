@@ -103,7 +103,6 @@
                                                B = 100),
                           trend_control = list(contrast = NULL,
                                                node = NULL,
-                                               solver = "ECOS",
                                                B = 100)){
 
     # 1. Data pre-processing
