@@ -22,9 +22,10 @@ Authors@R: c(
            role = c("cre", "aut"),
            comment = c(ORCID = "0000-0002-4892-7871")))
 License: Artistic-2.0
-Imports: stats, 
-    CVXR (>= 1.8.1), DescTools, Hmisc, MASS, Matrix, Rdpack, doParallel, doRNG, energy, 
-    foreach, gtools, lme4, lmerTest, multcomp, nloptr, parallel, utils
+Imports: 
+    stats, DescTools, Hmisc, MASS, Matrix, Rdpack, doParallel,
+    doRNG, energy, foreach, gtools, lme4, lmerTest, multcomp,
+    nloptr, parallel, utils, quadprog
 Suggests: mia (>= 1.18.0), 
     DT, S4Vectors, SingleCellExperiment, SummarizedExperiment, 
     TreeSummarizedExperiment, dplyr, knitr, magrittr, microbiome, 

@@ -21,7 +21,7 @@ data_sanity_check(
   dunnet = FALSE,
   mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
   trend = FALSE,
-  trend_control = list(contrast = NULL, node = NULL, solver = "OSQP", B = 100),
+  trend_control = list(contrast = NULL, node = NULL, B = 100),
   verbose = TRUE
 )
 }
@@ -115,8 +115,7 @@ mdFDR.}
 \item{trend_control}{a named list of control parameters for the trend test,
 including 1) \code{contrast}: the list of contrast matrices for
 constructing inequalities, 2) \code{node}: the list of positions for the
-nodal parameter, 3) \code{solver}: a string indicating the solver to use
-(default is "ECOS"), and 4) \code{B}: the number of bootstrap samples
+nodal parameter, and 3) \code{B}: the number of bootstrap samples
 (default is 100). Increase \code{B} will lead to a more accurate p-values.
 See \code{vignette} for the corresponding trend test examples.}
 
