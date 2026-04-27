@@ -1,3 +1,6 @@
+version 2.12.xx (last update 2026-04-27)
+        + Remove CVXR dependences
+
 version 2.6.xx (last update 2024-10-01)
         + Fixed bugs
         + Add data sanity check
