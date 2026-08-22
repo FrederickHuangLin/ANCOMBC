@@ -420,6 +420,9 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
     dunnet = check_results$dunnet
     trend = check_results$trend
     trend_control = check_results$trend_control
+    # Remember user request: trend+pseudo_sens sensitivity uses the global test as a
+    # proxy and therefore needs res_global at pseudo=0 from the main fit as well.
+    global_user = global
 
     # Identify taxa with structural zeros
     if (struc_zero) {
@@ -450,6 +453,14 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
     meta_data = core2$meta_data
 
     # 2. ANCOM-BC2 main analysis
+    # Trend sensitivity analysis (below) sets global=TRUE and stacks res_main with
+    # sensitivity fits that have res_global. If the main fit omitted the global
+    # test, res_main$res_global is NULL, dim() is dropped when building
+    # ss_3d_global, and apply(..., MARGIN=c(1,2)) fails. Run global on main when
+    # needed for that stack; still honor global_user for returned res_global.
+    if (pseudo_sens && trend && !global) {
+        global = TRUE
+    }
     res_main = .ancombc2_core(data = O1, aggregate_data = O2,
                               meta_data = meta_data, fix_formula = fix_formula,
                               rand_formula = rand_formula,
@@ -566,10 +577,21 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 
         ## Global and trend test results
         if (global) {
-            ss_list_global = lapply(ss_list, function(res_pseudo)
-                res_pseudo$res_global[, "q_val", drop = FALSE])
-            ss_3d_global = array(unlist(ss_list_global),
-                                 c(dim(ss_list_global[[1]]), length(ss_list_global)))
+            ss_list_global = lapply(ss_list, function(res_pseudo) {
+                rg = res_pseudo$res_global
+                if (is.null(rg)) {
+                    stop("Internal ANCOM-BC2 error: res_global is NULL in the ",
+                         "pseudo-count sensitivity stack. This usually means the ",
+                         "main fit ran with global=FALSE while trend+pseudo_sens ",
+                         "required global results for sensitivity.", call. = FALSE)
+                }
+                as.matrix(rg[, "q_val", drop = FALSE])
+            })
+            # Explicit dims avoid 1-D arrays when dim() is NULL (apply MARGIN error)
+            nr = nrow(ss_list_global[[1]])
+            nc = ncol(ss_list_global[[1]])
+            ss_3d_global = array(unlist(ss_list_global, use.names = FALSE),
+                                 dim = c(nr, nc, length(ss_list_global)))
             ss_tab_global = apply(ss_3d_global, c(1, 2), function(x) {
                 sum(x > alpha)/length(pseudo_list)
             })
@@ -577,9 +599,14 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 
             ss_tab_log = (ss_tab_global == 0 | ss_tab_global == 1)
             colnames(ss_tab_log) = "passed_ss"
-            res_global = cbind(res_main$res_global, ss_tab_log)
-            res_global[["diff_robust_abn"]] = res_global[["diff_abn"]] &
-                res_global[["passed_ss"]]
+            if (global_user) {
+                res_global = cbind(res_main$res_global, ss_tab_log)
+                res_global[["diff_robust_abn"]] = res_global[["diff_abn"]] &
+                    res_global[["passed_ss"]]
+            } else {
+                # Global was only enabled as a proxy for trend sensitivity
+                res_global = NULL
+            }
         } else { res_global = NULL }
 
         if (trend) {
@@ -647,7 +674,7 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 
         ## Table of all sensitivity analysis results
         ss_tab_cols = list(taxon = rownames(O2), ss_tab_prim)
-        if (global) ss_tab_cols$ss_tab_global = ss_tab_global
+        if (global_user) ss_tab_cols$ss_tab_global = ss_tab_global
         if (pairwise) ss_tab_cols$ss_tab_pair = ss_tab_pair
         if (dunnet) ss_tab_cols$ss_tab_dunn = ss_tab_dunn
         if (trend) ss_tab_cols$ss_tab_trend = ss_tab_trend
