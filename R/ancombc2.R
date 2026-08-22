@@ -156,8 +156,10 @@
 #' @param neg_lb logical. Whether to classify a taxon as a structural zero using
 #' its asymptotic lower bound. Default is FALSE.
 #' @param alpha numeric. Level of significance. Default is 0.05.
-#' @param n_cl numeric. The number of nodes to be forked. For details, see
-#' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
+#' @param n_cl numeric. The number of nodes to be forked for parallel processing.
+#' This parameter controls parallelization for both the main analysis and
+#' sensitivity analysis. For details, see \code{?parallel::makeCluster}. 
+#' Default is 1 (no parallel computing).
 #' @param verbose logical. Whether to generate verbose output during the
 #' ANCOM-BC2 fitting process. Default is FALSE.
 #' @param global logical. Whether to perform the global test. Default is FALSE.
@@ -415,6 +417,9 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
     dunnet = check_results$dunnet
     trend = check_results$trend
     trend_control = check_results$trend_control
+    # Remember user request: trend+pseudo_sens sensitivity uses the global test as a
+    # proxy and therefore needs res_global at pseudo=0 from the main fit as well.
+    global_user = global
 
     # Identify taxa with structural zeros
     if (struc_zero) {
@@ -445,6 +450,14 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
     meta_data = core2$meta_data
 
     # 2. ANCOM-BC2 main analysis
+    # Trend sensitivity analysis (below) sets global=TRUE and stacks res_main with
+    # sensitivity fits that have res_global. If the main fit omitted the global
+    # test, res_main$res_global is NULL, dim() is dropped when building
+    # ss_3d_global, and apply(..., MARGIN=c(1,2)) fails. Run global on main when
+    # needed for that stack; still honor global_user for returned res_global.
+    if (pseudo_sens && trend && !global) {
+        global = TRUE
+    }
     res_main = .ancombc2_core(data = O1, aggregate_data = O2,
                               meta_data = meta_data, fix_formula = fix_formula,
                               rand_formula = rand_formula,
@@ -486,24 +499,50 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         if (trend) global = TRUE
         iter_control$verbose = FALSE
 
-        ss_list = lapply(pseudo_list, function(pseudo_count) {
-            res_pseudo = .ancombc2_core(data = O1, aggregate_data = O2,
-                                        meta_data = meta_data,
-                                        fix_formula = fix_formula,
-                                        rand_formula = rand_formula,
-                                        p_adj_method = p_adj_method,
-                                        pseudo = pseudo_count,
-                                        s0_perc = s0_perc,
-                                        group = group, alpha = alpha,
-                                        verbose = FALSE,
-                                        global = global, pairwise = pairwise,
-                                        dunnet = dunnet, trend = FALSE,
-                                        iter_control = iter_control,
-                                        em_control = em_control,
-                                        lme_control = lme_control,
-                                        mdfdr_control = mdfdr_control)
-            return(res_pseudo)
-        })
+        # Use parallel processing for sensitivity analysis if n_cl > 1
+        if (n_cl > 1) {
+            # Use the existing cluster setup for sensitivity analysis
+            
+            ss_list = foreach(pseudo_count = pseudo_list, 
+                             .export = c(".ancombc2_core")) %dopar% {
+                res_pseudo = .ancombc2_core(data = O1, aggregate_data = O2,
+                                            meta_data = meta_data,
+                                            fix_formula = fix_formula,
+                                            rand_formula = rand_formula,
+                                            p_adj_method = p_adj_method,
+                                            pseudo = pseudo_count,
+                                            s0_perc = s0_perc,
+                                            group = group, alpha = alpha,
+                                            verbose = FALSE,
+                                            global = global, pairwise = pairwise,
+                                            dunnet = dunnet, trend = FALSE,
+                                            iter_control = iter_control,
+                                            em_control = em_control,
+                                            lme_control = lme_control,
+                                            mdfdr_control = mdfdr_control)
+                return(res_pseudo)
+            }
+        } else {
+            # Fall back to sequential processing
+            ss_list = lapply(pseudo_list, function(pseudo_count) {
+                res_pseudo = .ancombc2_core(data = O1, aggregate_data = O2,
+                                            meta_data = meta_data,
+                                            fix_formula = fix_formula,
+                                            rand_formula = rand_formula,
+                                            p_adj_method = p_adj_method,
+                                            pseudo = pseudo_count,
+                                            s0_perc = s0_perc,
+                                            group = group, alpha = alpha,
+                                            verbose = FALSE,
+                                            global = global, pairwise = pairwise,
+                                            dunnet = dunnet, trend = FALSE,
+                                            iter_control = iter_control,
+                                            em_control = em_control,
+                                            lme_control = lme_control,
+                                            mdfdr_control = mdfdr_control)
+                return(res_pseudo)
+            })
+        }
 
         # Combine main results with sensitivity analysis results
         ss_list = c(list(res_main), ss_list)
@@ -535,10 +574,21 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 
         ## Global and trend test results
         if (global) {
-            ss_list_global = lapply(ss_list, function(res_pseudo)
-                res_pseudo$res_global[, "q_val", drop = FALSE])
-            ss_3d_global = array(unlist(ss_list_global),
-                                 c(dim(ss_list_global[[1]]), length(ss_list_global)))
+            ss_list_global = lapply(ss_list, function(res_pseudo) {
+                rg = res_pseudo$res_global
+                if (is.null(rg)) {
+                    stop("Internal ANCOM-BC2 error: res_global is NULL in the ",
+                         "pseudo-count sensitivity stack. This usually means the ",
+                         "main fit ran with global=FALSE while trend+pseudo_sens ",
+                         "required global results for sensitivity.", call. = FALSE)
+                }
+                as.matrix(rg[, "q_val", drop = FALSE])
+            })
+            # Explicit dims avoid 1-D arrays when dim() is NULL (apply MARGIN error)
+            nr = nrow(ss_list_global[[1]])
+            nc = ncol(ss_list_global[[1]])
+            ss_3d_global = array(unlist(ss_list_global, use.names = FALSE),
+                                 dim = c(nr, nc, length(ss_list_global)))
             ss_tab_global = apply(ss_3d_global, c(1, 2), function(x) {
                 sum(x > alpha)/length(pseudo_list)
             })
@@ -546,9 +596,14 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 
             ss_tab_log = (ss_tab_global == 0 | ss_tab_global == 1)
             colnames(ss_tab_log) = "passed_ss"
-            res_global = cbind(res_main$res_global, ss_tab_log)
-            res_global[["diff_robust_abn"]] = res_global[["diff_abn"]] &
-                res_global[["passed_ss"]]
+            if (global_user) {
+                res_global = cbind(res_main$res_global, ss_tab_log)
+                res_global[["diff_robust_abn"]] = res_global[["diff_abn"]] &
+                    res_global[["passed_ss"]]
+            } else {
+                # Global was only enabled as a proxy for trend sensitivity
+                res_global = NULL
+            }
         } else { res_global = NULL }
 
         if (trend) {
@@ -616,7 +671,7 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 
         ## Table of all sensitivity analysis results
         ss_tab_cols = list(taxon = rownames(O2), ss_tab_prim)
-        if (global) ss_tab_cols$ss_tab_global = ss_tab_global
+        if (global_user) ss_tab_cols$ss_tab_global = ss_tab_global
         if (pairwise) ss_tab_cols$ss_tab_pair = ss_tab_pair
         if (dunnet) ss_tab_cols$ss_tab_dunn = ss_tab_dunn
         if (trend) ss_tab_cols$ss_tab_trend = ss_tab_trend
