@@ -372,6 +372,63 @@ tab_summ %>%
     datatable(caption = "Power/FDR Comparison")
 ```
 
+## 3.4 Sensitivity analysis with `conservative = FALSE`
+
+The `conservative` argument specifies at which stage the pseudo-counts are
+added. The default, `conservative = TRUE`, adds the pseudo-counts 0.1, 0.5, and
+1 to the feature table before the estimation of the sampling fractions and
+re-runs the entire ANCOM-BC2 algorithm for each value. With
+`conservative = FALSE`, the sampling fractions are estimated once on the
+complete data, the pseudo-counts `seq(0.01, 0.5, 0.01)` are added to the zero
+counts of the bias-corrected data, and only the inference step is re-run for
+each value. The `passed_ss` and `diff_robust` columns are reported under both
+settings.
+
+```{r}
+set.seed(123)
+output_sens = ancombc2(data = otu_data, meta_data = smd,
+                       fix_formula = "cont_cov + cat_cov", rand_formula = NULL,
+                       p_adj_method = "holm", pseudo_sens = TRUE,
+                       conservative = FALSE,
+                       prv_cut = 0.10, lib_cut = 1000, s0_perc = 0.05,
+                       group = "cat_cov", struc_zero = FALSE, neg_lb = FALSE,
+                       alpha = 0.05, n_cl = 2, verbose = FALSE,
+                       global = FALSE, pairwise = TRUE,
+                       dunnet = FALSE, trend = FALSE,
+                       iter_control = list(tol = 1e-5, max_iter = 20,
+                                           verbose = FALSE),
+                       em_control = list(tol = 1e-5, max_iter = 100),
+                       lme_control = NULL,
+                       mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+                       trend_control = NULL)
+
+res_pair_sens = output_sens$res_pair
+
+pair_col = c("cat_cov2", "cat_cov3", "cat_cov3_cat_cov2")
+tab_sens = data.frame(
+    Comparison = pair_col,
+    Significant = colSums(res_pair[, paste0("diff_", pair_col)]),
+    `Robust (conservative = TRUE)` =
+        colSums(res_pair[, paste0("diff_robust_", pair_col)]),
+    `Robust (conservative = FALSE)` =
+        colSums(res_pair_sens[, paste0("diff_robust_", pair_col)]),
+    `Passed (conservative = TRUE)` =
+        colSums(res_pair[, paste0("passed_ss_", pair_col)]),
+    `Passed (conservative = FALSE)` =
+        colSums(res_pair_sens[, paste0("passed_ss_", pair_col)]),
+    row.names = NULL, check.names = FALSE)
+tab_sens %>%
+    datatable(caption = "Sensitivity Analysis Comparison")
+```
+
+The two settings flag the same taxa as robust in the pairwise directional test
+on this dataset: 7, 7, and 12 taxa for the three comparisons. They differ in
+the sensitivity analysis itself. Under `conservative = FALSE`, 72, 70, and 90
+of the 91 taxa are declared insensitive to the pseudo-count addition, compared
+with 67, 55, and 84 taxa under the default. The taxa whose sensitivity flags
+differ between the two settings are not significant in the pairwise directional
+test.
+
 # 4. Benchmark the performance of ANCOM-BC2 on a null dataset
 
 ## 4.1 Import example data
