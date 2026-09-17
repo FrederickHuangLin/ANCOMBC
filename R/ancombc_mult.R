@@ -15,60 +15,42 @@
         x = x[group_ind, group_ind, drop = FALSE]
     })
 
-    if (is.null(dof)) {
-      for (i in seq_len(n_tax)) {
-        # Loop over taxa
+    # Wald-type global statistic per taxon
+    n_grp = ncol(beta_hat_sub)
+    use_chisq = is.null(dof)
+    W_vec = rep(NA_real_, n_tax)
+    p_vec = rep(1, n_tax)
+    for (i in seq_len(n_tax)) {
         beta_hat_sub_i = beta_hat_sub[i, ]
         vcov_hat_sub_i = vcov_hat_sub[[i]]
-        A = diag(x = 1, nrow = length(beta_hat_sub_i))
 
-        suppressWarnings(W_global <- try(t(A %*% beta_hat_sub_i) %*%
-                                           MASS::ginv(A %*% vcov_hat_sub_i %*% t(A)) %*%
-                                           (A %*% beta_hat_sub_i),
+        suppressWarnings(W_global <- try(t(beta_hat_sub_i) %*%
+                                             MASS::ginv(vcov_hat_sub_i) %*%
+                                             beta_hat_sub_i,
                                          silent = TRUE))
 
         if (inherits(W_global, "try-error")) {
-          output[i, "W"] = NA
-          output[i, "p_val"] = 1
+            W_vec[i] = NA
+            p_vec[i] = 1
         } else {
-          p_global = 2 * min(pchisq(W_global, df = length(beta_hat_sub_i),
-                                    lower.tail = TRUE),
-                             pchisq(W_global, df = length(beta_hat_sub_i),
-                                    lower.tail = FALSE))
-          output[i, "W"] = W_global
-          output[i, "p_val"] = p_global
+            W_global = as.numeric(W_global)
+            W_vec[i] = W_global
+            if (use_chisq) {
+                p_vec[i] = 2 * min(pchisq(W_global, df = n_grp,
+                                          lower.tail = TRUE),
+                                   pchisq(W_global, df = n_grp,
+                                          lower.tail = FALSE))
+            } else {
+                dof_i = unique(dof[i, ])
+                p_vec[i] = 2 * min(pf(W_global, df1 = n_grp, df2 = dof_i,
+                                      lower.tail = TRUE),
+                                   pf(W_global, df1 = n_grp, df2 = dof_i,
+                                      lower.tail = FALSE))
+            }
         }
-      }
-    } else {
-      for (i in seq_len(n_tax)) {
-        # Loop over taxa
-        beta_hat_sub_i = beta_hat_sub[i, ]
-        vcov_hat_sub_i = vcov_hat_sub[[i]]
-        dof_i = unique(dof[i, ])
-        A = diag(x = 1, nrow = length(beta_hat_sub_i))
-
-        suppressWarnings(W_global <- try(t(A %*% beta_hat_sub_i) %*%
-                                           MASS::ginv(A %*% vcov_hat_sub_i %*% t(A)) %*%
-                                           (A %*% beta_hat_sub_i),
-                                         silent = TRUE))
-
-        if (inherits(W_global, "try-error")) {
-          output[i, "W"] = NA
-          output[i, "p_val"] = 1
-        } else {
-          p_global = 2 * min(pf(W_global,
-                                df1 = length(beta_hat_sub_i),
-                                df2 = dof_i,
-                                lower.tail = TRUE),
-                             pf(W_global,
-                                df1 = length(beta_hat_sub_i),
-                                df2 = dof_i,
-                                lower.tail = FALSE))
-          output[i, "W"] = W_global
-          output[i, "p_val"] = p_global
-        }
-      }
     }
+    output$W = W_vec
+    output$p_val = p_vec
 
     # Model summary
     q_global = p.adjust(output[, "p_val"], method = p_adj_method)
@@ -197,16 +179,17 @@
 
     suppressWarnings(W_global <- apply(W, 1, function(x) max(abs(x), na.rm = TRUE)))
 
+    # rt() recycles df, so the draws fill dof in column-major order
+    dof_vec = as.vector(dof)
     W_global_null = matrix(NA, nrow = n_tax, ncol = B)
     for (b in seq_len(B)) {
-        W_null_b = matrix(unlist(apply(dof, seq_len(2), function(df) rt(1, df = df))),
+        W_null_b = matrix(rt(length(dof_vec), df = dof_vec),
                           nrow = nrow(dof), ncol = ncol(dof))
         W_global_null_b = apply(W_null_b, 1, function(x)
             max(abs(x), na.rm = TRUE))
         W_global_null[, b] = W_global_null_b
     }
-    p_global = 1/B * apply(W_global_null > W_global, 1, function(x)
-        sum(x, na.rm = TRUE))
+    p_global = 1/B * rowSums(W_global_null > W_global, na.rm = TRUE)
 
     q_global = p.adjust(p_global, method = p_adj_method)
     q_global[is.na(q_global)] = 1
@@ -327,8 +310,7 @@
       }
     W_trend_null = as.matrix(W_trend_null)
 
-    p_trend = 1/B * apply(W_trend_null > W_trend, 1, function(x)
-        sum(x, na.rm = TRUE))
+    p_trend = 1/B * rowSums(W_trend_null > W_trend, na.rm = TRUE)
 
     q_trend = p.adjust(p_trend, method = p_adj_method)
     q_trend[is.na(q_trend)] = 1

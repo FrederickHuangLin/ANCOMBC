@@ -17,10 +17,10 @@
 
 .combn_fun2 = function(x, fun, sep) {
     combn_mat = utils::combn(colnames(x), 2)
-    y = vector(mode = "numeric")
+    y = numeric(ncol(combn_mat))
     for (i in seq(ncol(combn_mat))) {
         idx = c(combn_mat[2, i], combn_mat[1, i])
-        y = c(y, fun(x[idx, idx]))
+        y[i] = fun(x[idx, idx])
     }
     y = c(diag(x), y)
     combn_name = paste(combn_mat[2, ], combn_mat[1, ], sep = sep)

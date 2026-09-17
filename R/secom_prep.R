@@ -54,3 +54,14 @@
     return(abs_list)
 }
 
+# Evaluation environment for a foreach loop, detached from the package
+# namespace. The parallel backend loads the package that owns the evaluation
+# environment of the loop on every worker; an environment whose parent is the
+# global environment carries no package name. Named arguments become the
+# objects visible to the loop body.
+.detached_env = function(...) {
+    env = list2env(list(...), envir = new.env(parent = globalenv()))
+    env$foreach = foreach::foreach
+    env$`%dorng%` = doRNG::`%dorng%`
+    return(env)
+}

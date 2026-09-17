@@ -35,25 +35,9 @@
     mat_occur[mat_occur == 0] = 0
     mat_occur[is.na(mat_occur)] = 0
 
-    df_occur = as.data.frame(mat_occur)
-    df_occur$sample_id = rownames(df_occur)
-    df_occur_long = stats::reshape(df_occur,
-                                   direction = "long",
-                                   varying = list(colnames(mat_occur)),
-                                   v.names = "occur",
-                                   idvar = "sample_id",
-                                   times = colnames(mat_occur),
-                                   new.row.names = seq_len(nrow(df_occur)*ncol(df_occur)))
-    names(df_occur_long)[names(df_occur_long) == "time"] = "taxon"
-    df_occur_long = df_occur_long[df_occur_long$occur == 1, ]
-
-    mat_cooccur = matrix(0, nrow = ncol(mat_occur), ncol = ncol(mat_occur))
-    rownames(mat_cooccur) = colnames(mat_occur)
-    colnames(mat_cooccur) = colnames(mat_occur)
-
-    mat_cooccur_comp = crossprod(table(df_occur_long[, seq_len(2)]))
-    idx = base::match(colnames(mat_cooccur_comp), colnames(mat_cooccur))
-    mat_cooccur[idx, idx] = mat_cooccur_comp
+    # The number of samples in which both taxa are present is the cross-product
+    # of the presence indicators
+    mat_cooccur = crossprod(mat_occur)
     diag(mat_cooccur) = colSums(mat_occur)
 
     if (any(mat_cooccur < 10)) {
@@ -69,12 +53,15 @@
     # Calculation
     d = dim(mat)[2]
     taxanames = colnames(mat)
-    comb = function(...) {
-        mapply('rbind', ..., SIMPLIFY = FALSE)
-    }
 
-    idx = NULL
-    dcorr_list = foreach(idx = seq_len(d - 1), .combine = 'comb', .multicombine = TRUE, .packages = "energy") %dorng% {
+    # The permutation tests are evaluated in an environment detached from the
+    # package namespace. Each task returns the distance correlations and the
+    # p-values of one taxon as the two rows of a matrix.
+    loop_env = .detached_env(mat = mat, d = d, R = R)
+
+    dcorr_mat = eval(quote(
+        foreach(idx = seq_len(d - 1), .combine = "rbind",
+                .multicombine = TRUE, .packages = "energy") %dorng% {
         dcorr_idx = rep(NA, d)
         p_val_idx = rep(NA, d)
 
@@ -85,28 +72,25 @@
           dcorr_idx = rep(0, d)
           p_val_idx = rep(1, d)
         } else {
-          # Distance correlation
-          dcorr_idx[(idx + 1):d] = apply(mat_x[, (idx + 1):d, drop = FALSE], 2,
-                                         function(y) {
-                                           z = x[!is.na(y)]
-                                           y = y[!is.na(y)]
-                                           dcor(z, y, index = 1.0)
-                                         })
-
-          # P-values
-          p_val_idx[(idx + 1):d] = apply(mat_x[, (idx + 1):d, drop = FALSE], 2,
-                                         function(y) {
-                                           z = x[!is.na(y)]
-                                           y = y[!is.na(y)]
-                                           dcor.test(z, y, index = 1.0, R = R)$p.value
-                                         })
+          # Distance correlation and its permutation p-value, both returned by
+          # dcor.test()
+          js = (idx + 1):d
+          dcorr_p_idx = vapply(js, function(j) {
+            y = mat_x[, j]
+            keep = !is.na(y)
+            tt = energy::dcor.test(x[keep], y[keep], index = 1.0, R = R)
+            c(unname(tt$estimates["dCor"]), tt$p.value)
+          }, FUN.VALUE = double(2))
+          dcorr_idx[js] = dcorr_p_idx[1, ]
+          p_val_idx[js] = dcorr_p_idx[2, ]
         }
 
-        list(dcorr_idx, p_val_idx)
-        }
+        rbind(dcorr_idx, p_val_idx)
+        }), loop_env)
 
-    dcorr = rbind(dcorr_list[[1]], rep(NA, d))
-    dcorr_p = rbind(dcorr_list[[2]], rep(NA, d))
+    row_dcorr = seq(from = 1, by = 2, length.out = d - 1)
+    dcorr = rbind(dcorr_mat[row_dcorr, , drop = FALSE], rep(NA, d))
+    dcorr_p = rbind(dcorr_mat[row_dcorr + 1, , drop = FALSE], rep(NA, d))
     # Symmetrize the matrix
     dcorr[lower.tri(dcorr)] = t(dcorr)[lower.tri(dcorr)]
     diag(dcorr) = 1
