@@ -1,3 +1,12 @@
+version 2.15.1 (last update 2026-09-17)
+        + Reduce the running time of ancombc, ancombc2, secom_linear, and
+          secom_dist without changing the results
+        + Add the 'conservative' argument to ancombc2, which specifies whether
+          the pseudo-counts of the sensitivity analysis are added before or
+          after the estimation of sampling fractions
+        + Fix the error in ancombc2 when the trend test is requested with the
+          sensitivity analysis but without the global test
+
 version 2.12.xx (last update 2026-04-27)
         + Remove CVXR dependences
 
