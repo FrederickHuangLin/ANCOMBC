@@ -91,7 +91,8 @@ otherwise) in \code{data}.}
 \item{fix_formula}{the character string expresses how the microbial absolute
 abundances for each taxon depend on the fixed effects in metadata. When
 specifying the \code{fix_formula}, make sure to include the \code{group}
-variable in the formula if it is not NULL.}
+variable in the formula if it is not NULL. This argument is required and has
+no default.}
 
 \item{rand_formula}{the character string expresses how the microbial absolute
 abundances for each taxon depend on the random effects in metadata. ANCOM-BC2
@@ -102,8 +103,12 @@ follows the \code{lmerTest} package in formulating the random effects. See
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
 "fdr", "none". See \code{?stats::p.adjust} for more details.}
 
-\item{pseudo}{A small positive value (default: 1) added to all counts
-before log transformation to avoid numerical issues caused by log(0).}
+\item{pseudo}{numeric. A nonnegative value added to all counts before the log
+transformation. Default is 0, in which case no pseudo-count is added and zero
+counts are treated as missing on the log scale. A nonzero value replaces the
+log of a zero count by the log of \code{pseudo}, so that every count
+contributes to the estimation, at the cost of a result that depends on the
+value chosen.}
 
 \item{pseudo_sens}{logical. Whether to perform the sensitivity analysis to
 the pseudo-count addition. Default is \code{TRUE}. While ANCOM-BC2 utilizes
@@ -112,18 +117,20 @@ evaluation of result robustness is performed by assessing how pseudo-count
 addition to zeros may affect the outcomes. For a detailed discussion on this
 sensitivity analysis, refer to the \code{Details} section.}
 
-\item{conservative}{logical. Whether to add the pseudo-counts before the
-estimation of sampling fractions in the sensitivity analysis. Default is
-\code{TRUE}, which adds the pseudo-count values 0.1, 0.5, and 1 to the
-feature table, re-runs the entire ANCOM-BC2 algorithm for each value, and
-compares the q-values with those obtained on the complete data.
-Setting \code{conservative = FALSE} estimates the sampling fractions once on
-the complete data, adds the pseudo-count values seq(0.01, 0.5, 0.01) to the
-zero counts of the bias-corrected data, re-estimates the fixed effects by
-ordinary least squares for each value, and compares the unadjusted p-values
-with those obtained on the complete data. Relative to the default,
+\item{conservative}{logical. Whether to add the pseudo-counts of the
+sensitivity analysis before the estimation of sampling fractions. Default is
+\code{TRUE}, which adds the pseudo-counts 0.1, 0.5, and 1 to the feature
+table, re-runs the entire ANCOM-BC2 algorithm for each value, and evaluates
+the agreement on the adjusted p-values. Setting \code{conservative = FALSE}
+estimates the sampling fractions once on the complete data, adds the
+pseudo-counts 0.01 to 0.5 in steps of 0.01 to the zero counts of the
+bias-corrected data, re-estimates the fixed effects by ordinary least squares
+for each value, and evaluates the agreement on the unadjusted p-values. Use
+the default unless power is the primary concern, since
 \code{conservative = FALSE} has higher power and a higher false positive
-rate. This argument applies only when \code{pseudo_sens = TRUE}.}
+rate. This argument applies only when \code{pseudo_sens = TRUE}. The
+\code{Details} section states the sensitivity score and the passing rule of
+each setting.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
 (the proportion of samples in which the taxon is present)
@@ -150,7 +157,7 @@ The \code{group} parameter should be a character string representing the name
 of the group variable in the metadata. The \code{group} variable should be
 discrete, meaning it consists of categorical values. Specifying the
 \code{group} variable is required if you are interested in detecting
-structural zeros and performing performing multi-group comparisons (global
+structural zeros and performing multi-group comparisons (global
 test, pairwise directional test, Dunnett's type of test, and trend test).
 However, if these analyses are not of interest to you, you can leave the
 \code{group} parameter as NULL. If the \code{group} variable of interest
@@ -170,7 +177,7 @@ its asymptotic lower bound. Default is FALSE.}
 \code{?parallel::makeCluster}. Default is 1 (no parallel computing).}
 
 \item{verbose}{logical. Whether to generate verbose output during the
-ANCOM-BC2 fitting process. Default is FALSE.}
+ANCOM-BC2 fitting process. Default is TRUE.}
 
 \item{global}{logical. Whether to perform the global test. Default is FALSE.}
 
@@ -197,7 +204,7 @@ including 1) \code{tol}: the iteration convergence tolerance
 See \code{?lme4::lmerControl} for details.}
 
 \item{mdfdr_control}{a named list of control parameters for mixed directional
-false discover rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
+false discovery rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
 wise error (FWER) controlling procedure, such as "holm", "hochberg",
 "bonferroni", etc (default is "holm") and 2) \code{B}: the number of
 bootstrap samples (default is 100). Increase \code{B} will lead to a more
@@ -248,10 +255,10 @@ a \code{list} with components:
         \item{ columns started with \code{passed_ss}: TRUE if the
         taxon passed the sensitivity analysis, i.e., adding different
         pseudo-counts to 0s would not change the results.}
-        }
         \item{ columns started with \code{diff_robust}: TRUE if the
         taxon is significant (has \code{q} less than \code{alpha}) and robust
         in the sensitivity analysis (\code{passed_ss} is \code{TRUE}).}
+        }
         \item{ \code{res_global},  a \code{data.frame} containing ANCOM-BC2
         global test result for the variable specified in \code{group},
         each column is:}
@@ -265,6 +272,9 @@ a \code{list} with components:
         \code{q_val} less than \code{alpha}.}
         \item{ \code{passed_ss}, A logical vector. TRUE if the taxon has
         passed the sensitivity analysis.}
+        \item{ \code{diff_robust_abn}, A logical vector. TRUE if the taxon
+        has \code{diff_abn} equal to TRUE and \code{passed_ss} equal to
+        TRUE.}
         }
         \item{ \code{res_pair},  a \code{data.frame} containing ANCOM-BC2
         pairwise directional test result for the variable specified in
@@ -279,6 +289,9 @@ a \code{list} with components:
         taxon is significant (has \code{q} less than \code{alpha}).}
         \item{ columns started with \code{passed_ss}: TRUE if the
         taxon has passed the sensitivity analysis.}
+        \item{ columns started with \code{diff_robust}: TRUE if the
+        taxon is significant (has \code{q} less than \code{alpha}) and has
+        passed the sensitivity analysis.}
         }
         \item{ \code{res_dunn},  a \code{data.frame} containing ANCOM-BC2
         Dunnett's type of test result for the variable specified in
@@ -293,6 +306,9 @@ a \code{list} with components:
         taxon is significant (has \code{q} less than \code{alpha}).}
         \item{ columns started with \code{passed_ss}: TRUE if the
         taxon has passed the sensitivity analysis.}
+        \item{ columns started with \code{diff_robust}: TRUE if the
+        taxon is significant (has \code{q} less than \code{alpha}) and has
+        passed the sensitivity analysis.}
         }
         \item{ \code{res_trend},  a \code{data.frame} containing ANCOM-BC2
         trend test result for the variable specified in
@@ -306,7 +322,13 @@ a \code{list} with components:
         \item{ \code{diff_abn}: TRUE if the
         taxon is significant (has \code{q} less than \code{alpha}).}
         \item{ \code{passed_ss}, A logical vector. TRUE if the taxon has
-        passed the sensitivity analysis.}
+        passed the sensitivity analysis. The sensitivity scores of the trend
+        test are those of the global test. Under
+        \code{conservative = FALSE}, these scores are compared with the
+        p-value of the trend test.}
+        \item{ \code{diff_robust_abn}, A logical vector. TRUE if the taxon
+        has \code{diff_abn} equal to TRUE and \code{passed_ss} equal to
+        TRUE.}
         }
         }
 }
@@ -350,32 +372,39 @@ pseudo-count can impact the results and lead to an inflated false positive
 rate (\href{https://doi.org/10.1038/nmeth.2897}{Costea et al. (2014)};
 \href{https://doi.org/10.1038/nmeth.2898}{Paulson, Bravo, and Pop (2014)}).
 To address this issue, we conduct a sensitivity analysis to assess the impact
-of different pseudo-counts on zero counts for each taxon. A taxon is
-considered not sensitive to the pseudo-count addition when the runs with
-pseudo-counts agree with the run on the complete data on the significance of
-the taxon. The \code{conservative} argument specifies how this agreement is
-evaluated.
+of different pseudo-counts on zero counts for each taxon. The
+\code{conservative} argument specifies the pseudo-counts that are added and
+the quantity on which the agreement between runs is evaluated. Let
+\eqn{\alpha} denote the significance level, specified by \code{alpha}, and
+let \eqn{I(\cdot)}{I(.)} denote the indicator function.
 
-With \code{conservative = TRUE}, the pseudo-count values 0.1, 0.5, and 1 are
-added to the feature table before the estimation of sampling fractions, and
-the entire ANCOM-BC2 algorithm is re-run for each value. The sensitivity
-score is the proportion of runs, including the run on the complete data,
-whose q-value exceeds the significance level (alpha). The taxon passes the
-sensitivity analysis when this proportion is 0 or 1.
+Under \code{conservative = TRUE}, the pseudo-counts
+\eqn{c \in \{0, 0.1, 0.5, 1\}}{c in {0, 0.1, 0.5, 1}} are added to all counts before the estimation
+of sampling fractions, and the full ANCOM-BC2 algorithm is re-run for each
+\eqn{c}. Let \eqn{q_c} denote the adjusted p-value of a taxon in run \eqn{c}.
+The sensitivity score of the taxon is
+\deqn{s = \frac{1}{4} \sum_{c \in \{0, 0.1, 0.5, 1\}} I(q_c > \alpha).}{s = (1/4) * sum_c I(q_c > alpha).}
+The taxon passes the sensitivity analysis, \code{passed_ss = TRUE}, when
+\deqn{s = 0 \quad \mbox{or} \quad s = 1.}{s = 0 or s = 1.}
 
-With \code{conservative = FALSE}, the sampling fractions are estimated once
-on the complete data, the pseudo-count values seq(0.01, 0.5, 0.01) are added
-to the zero counts of the bias-corrected data, and the fixed effects are
-re-estimated by ordinary least squares for each value. The sensitivity score
-is the proportion of these runs whose unadjusted p-value exceeds alpha. The
-taxon passes the sensitivity analysis when this proportion is 0 and the
-unadjusted p-value of the run on the complete data is at most alpha, or when
-this proportion is 1 and the unadjusted p-value of the run on the complete
-data exceeds alpha. Relative to the default, \code{conservative = FALSE}
-has higher power and a higher false positive rate.
+Under \code{conservative = FALSE}, the sampling fractions are estimated once
+on the complete data, the pseudo-counts
+\eqn{c \in \{0.01, 0.02, \ldots, 0.5\}}{c in {0.01, 0.02, ..., 0.5}} are added to the zero counts of the
+bias-corrected data, and the fixed effects are re-estimated by ordinary least
+squares for each \eqn{c}. Let \eqn{p_c} denote the unadjusted p-value of a
+taxon in refit \eqn{c}, and let \eqn{p_0} denote the unadjusted p-value of
+the taxon in the main run. The sensitivity score of the taxon is
+\deqn{s = \frac{1}{50} \sum_{c \in \{0.01, 0.02, \ldots, 0.5\}} I(p_c > \alpha).}{s = (1/50) * sum_c I(p_c > alpha).}
+The taxon passes the sensitivity analysis when
+\deqn{(s = 0 \mbox{ and } p_0 \le \alpha) \quad \mbox{or} \quad (s = 1 \mbox{ and } p_0 > \alpha).}{(s = 0 and p_0 <= alpha) or (s = 1 and p_0 > alpha).}
 
-When performning pairwise directional (or Dunnett's type of) test, the mixed
-directional false discover rate (mdFDR) should be taken into account.
+Under both settings, \code{diff_robust} is TRUE when \code{diff_abn} is TRUE
+and \code{passed_ss} is TRUE. Use the default unless power is the primary
+concern, since \code{conservative = FALSE} has higher power and a higher
+false positive rate.
+
+When performing pairwise directional (or Dunnett's type of) test, the mixed
+directional false discovery rate (mdFDR) should be taken into account.
 The mdFDR is the combination of false discovery rate due to multiple testing,
 multiple pairwise comparisons, and directional tests within each pairwise
 comparison. For example, suppose we have five taxa and three experimental
@@ -396,8 +425,9 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
 
     # run ancombc2 function
     set.seed(123)
-    # Note that setting max_iter = 1 and B = 1 is only for the sake of speed
-    # Use default or larger values for max_iter and B for better performance
+    # Setting max_iter = 1 and B = 1 reduces the running time of the example
+    # The results printed below are for illustration only
+    # Use the default or larger values for max_iter and B in an analysis
     out = ancombc2(data = dietswap, tax_level = "Family",
                    fix_formula = "nationality + timepoint + bmi_group",
                    rand_formula = NULL,
@@ -443,6 +473,7 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
 }
 \seealso{
 \code{\link{ancom}} \code{\link{ancombc}}
+\code{\link{data_sanity_check}}
 }
 \author{
 Huang Lin

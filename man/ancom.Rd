@@ -44,9 +44,7 @@ It is recommended to use low taxonomic levels, such as OTU or species level,
 as the estimation of sampling fractions requires a large number of taxa.}
 
 \item{taxa_are_rows}{logical. Whether taxa are positioned in the rows of the
-feature table. Default is TRUE.
-It is recommended to use low taxonomic levels, such as OTU or species level,
-as the estimation of sampling fractions requires a large number of taxa.}
+feature table. Default is TRUE.}
 
 \item{assay.type}{alias for \code{assay_name}.}
 
@@ -63,7 +61,7 @@ Note that \code{tax_level} must be a value from \code{taxonomyRanks} or \code{ro
 includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
 See \code{?mia::taxonomyRanks} for more details.
 Default is NULL, i.e., do not perform agglomeration, and the
-ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
+ANCOM analysis will be performed at the lowest taxonomic level of the
 input \code{data}.}
 
 \item{aggregate_data}{The abundance data that has been aggregated to the desired
@@ -92,7 +90,8 @@ Default is 0.10.}
 sizes. Samples with library sizes less than \code{lib_cut} will be
 excluded in the analysis. Default is 0, i.e. do not discard any sample.}
 
-\item{main_var}{character. The name of the main variable of interest.}
+\item{main_var}{character. The name of the main variable of interest.
+This argument is required and has no default.}
 
 \item{adj_formula}{character string representing the formula for
 covariate adjustment. Please note that you should NOT include the
@@ -117,7 +116,8 @@ its asymptotic lower bound. Default is FALSE.}
 \item{n_cl}{numeric. The number of nodes to be forked. For details, see
 \code{?parallel::makeCluster}. Default is 1 (no parallel computing).}
 
-\item{verbose}{logical. Whether to display detailed progress messages.}
+\item{verbose}{logical. Whether to display detailed progress messages.
+Default is TRUE.}
 }
 \value{
 a \code{list} with components:
@@ -207,6 +207,7 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
 }
 \seealso{
 \code{\link{ancombc}} \code{\link{ancombc2}}
+\code{\link{data_sanity_check}}
 }
 \author{
 Huang Lin

@@ -62,7 +62,7 @@ See \code{?SummarizedExperiment::assay} for more details.}
 \item{tax_level}{character. The taxonomic level of interest. The input data
 can be agglomerated at different taxonomic levels based on your research
 interest. Default is NULL, i.e., do not perform agglomeration, and the
-ANCOM-BC anlysis will be performed at the lowest taxonomic level of the
+ANCOM-BC analysis will be performed at the lowest taxonomic level of the
 input \code{data}.}
 
 \item{aggregate_data}{The abundance data that has been aggregated to the desired
@@ -82,7 +82,8 @@ before log transformation to avoid numerical issues caused by log(0).}
 \item{formula}{the character string expresses how microbial absolute
 abundances for each taxon depend on the variables in metadata. When
 specifying the \code{formula}, make sure to include the \code{group} variable
-in the formula if it is not NULL.}
+in the formula if it is not NULL. This argument is required and has no
+default.}
 
 \item{p_adj_method}{character. method to adjust p-values. Default is "holm".
 Options include "holm", "hochberg", "hommel", "bonferroni", "BH", "BY",
@@ -134,7 +135,7 @@ Default is FALSE.}
 \code{?parallel::makeCluster}. Default is 1 (no parallel computing).}
 
 \item{verbose}{logical. Whether to generate verbose output during the
-ANCOM-BC fitting process. Default is FALSE.}
+ANCOM-BC fitting process. Default is TRUE.}
 }
 \value{
 a \code{list} with components:
@@ -198,8 +199,9 @@ then taxon A will be considered to contain structural zeros in g1.
 In this example, taxon A is declared to be differentially abundant between
 g1 and g2, g1 and g3, and consequently, it is globally differentially
 abundant with respect to this group variable.
-Such taxa are not further analyzed using ANCOM-BC, but the results are
-summarized in the overall summary. For more details about the structural
+Such taxa are retained in the primary result of ANCOM-BC, with their standard
+errors, p-values, and adjusted p-values for the \code{group} variable set to
+0 and \code{diff_abn} set to TRUE. For more details about the structural
 zeros, please go to the
 \href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II} paper.
 Setting \code{neg_lb = TRUE} indicates that you are using both criteria
@@ -237,6 +239,7 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
 }
 \seealso{
 \code{\link{ancom}} \code{\link{ancombc2}}
+\code{\link{data_sanity_check}}
 }
 \author{
 Huang Lin

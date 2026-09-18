@@ -44,20 +44,21 @@
 #' @param fix_formula the character string expresses how the microbial absolute
 #' abundances for each taxon depend on the fixed effects in metadata. When
 #' specifying the \code{fix_formula}, make sure to include the \code{group}
-#' variable in the formula if it is not NULL.
+#' variable in the formula if it is not NULL. This argument is required and has
+#' no default. Set it to NULL to skip the check of the fixed effects.
 #' @param group character. the name of the group variable in metadata.
 #' The \code{group} parameter should be a character string representing the name
 #' of the group variable in the metadata. The \code{group} variable should be
 #' discrete, meaning it consists of categorical values. Specifying the
 #' \code{group} variable is required if you are interested in detecting
-#' structural zeros and performing performing multi-group comparisons (global
+#' structural zeros and performing multi-group comparisons (global
 #' test, pairwise directional test, Dunnett's type of test, and trend test).
 #' However, if these analyses are not of interest to you, you can leave the
 #' \code{group} parameter as NULL. If the \code{group} variable of interest
 #' contains only two categories, you can also leave the \code{group} parameter
 #' as NULL. Default is NULL.
 #' @param struc_zero logical. Whether to detect structural zeros based on
-#' \code{group}. Default is FALSE. See \code{Details} for
+#' \code{group}. Default is FALSE. See \code{\link{ancombc2}} for
 #' a more comprehensive discussion on structural zeros.
 #' @param global logical. Whether to perform the global test. Default is FALSE.
 #' @param pairwise logical. Whether to perform the pairwise directional test.
@@ -65,12 +66,12 @@
 #' @param dunnet logical. Whether to perform the Dunnett's type of test.
 #' Default is FALSE.
 #' @param mdfdr_control a named list of control parameters for mixed directional
-#' false discover rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
+#' false discovery rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
 #' wise error (FWER) controlling procedure, such as "holm", "hochberg",
 #' "bonferroni", etc (default is "holm") and 2) \code{B}: the number of
 #' bootstrap samples (default is 100). Increase \code{B} will lead to a more
-#' accurate p-values. See \code{Details} for a more comprehensive discussion on
-#' mdFDR.
+#' accurate p-values. See \code{\link{ancombc2}} for a more comprehensive
+#' discussion on mdFDR.
 #' @param trend logical. Whether to perform trend test. Default is FALSE.
 #' @param trend_control a named list of control parameters for the trend test,
 #' including 1) \code{contrast}: the list of contrast matrices for
@@ -79,19 +80,50 @@
 #' (default is 100). Increase \code{B} will lead to a more accurate p-values.
 #' See \code{vignette} for the corresponding trend test examples.
 #' @param verbose logical. Whether to display detailed progress messages.
+#' Default is TRUE.
 #'
-#' @return a \code{list} containing the outputs formatted appropriately for
-#' downstream analysis.
+#' @return a \code{list} with components:
+#'         \itemize{
+#'         \item{ \code{feature_table}, a \code{matrix} of microbial counts with
+#'         taxa in the rows and samples in the columns, extracted from
+#'         \code{data} at its original taxonomic level.}
+#'         \item{ \code{feature_table_aggregate}, a \code{matrix} of microbial
+#'         counts aggregated to \code{tax_level}. It is identical to
+#'         \code{feature_table} when \code{tax_level} is NULL.}
+#'         \item{ \code{meta_data}, a \code{data.frame} of sample metadata whose
+#'         rows correspond to the columns of \code{feature_table}, with unused
+#'         factor levels dropped. A non-numeric \code{group} variable is
+#'         converted to a factor.}
+#'         \item{ \code{global}, logical. Whether to perform the global test.}
+#'         \item{ \code{pairwise}, logical. Whether to perform the pairwise
+#'         directional test.}
+#'         \item{ \code{dunnet}, logical. Whether to perform the Dunnett's type
+#'         of test.}
+#'         \item{ \code{trend}, logical. Whether to perform the trend test.}
+#'         \item{ \code{trend_control}, a named list of control parameters for
+#'         the trend test, with default names assigned to the elements of
+#'         \code{contrast} and \code{node} when the input list is unnamed.}
+#'         }
+#'         The returned \code{global}, \code{pairwise}, \code{dunnet},
+#'         \code{trend}, and \code{trend_control} can differ from the
+#'         corresponding inputs. The four logical arguments are set to FALSE
+#'         when \code{group} has fewer than three levels, in which case the
+#'         multi-group comparisons are not identifiable.
 #'
 #' @examples
-#' data(atlas1006, package = "microbiome")
-#' check_results = data_sanity_check(data = atlas1006,
-#'                                   tax_level = "Family",
-#'                                   fix_formula = "age + sex + bmi_group",
-#'                                   group = "bmi_group",
-#'                                   struc_zero = TRUE,
-#'                                   global = TRUE,
-#'                                   verbose = TRUE)
+#' library(ANCOMBC)
+#' if (requireNamespace("microbiome", quietly = TRUE)) {
+#'     data(atlas1006, package = "microbiome")
+#'     check_results = data_sanity_check(data = atlas1006,
+#'                                       tax_level = "Family",
+#'                                       fix_formula = "age + sex + bmi_group",
+#'                                       group = "bmi_group",
+#'                                       struc_zero = TRUE,
+#'                                       global = TRUE,
+#'                                       verbose = TRUE)
+#' } else {
+#'     message("The 'microbiome' package is not installed. Please install it to use this example.")
+#' }
 #'
 #' @author Huang Lin
 #'

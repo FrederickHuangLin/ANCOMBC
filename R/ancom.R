@@ -42,8 +42,6 @@
 #' as the estimation of sampling fractions requires a large number of taxa.
 #' @param taxa_are_rows logical. Whether taxa are positioned in the rows of the
 #' feature table. Default is TRUE.
-#' It is recommended to use low taxonomic levels, such as OTU or species level,
-#' as the estimation of sampling fractions requires a large number of taxa.
 #' @param assay_name character. Name of the count table in the data object
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
@@ -55,7 +53,7 @@
 #' includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
 #' See \code{?mia::taxonomyRanks} for more details.
 #' Default is NULL, i.e., do not perform agglomeration, and the
-#' ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
+#' ANCOM analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
 #' @param rank alias for \code{tax_level}.
 #' @param aggregate_data The abundance data that has been aggregated to the desired
@@ -80,6 +78,7 @@
 #' sizes. Samples with library sizes less than \code{lib_cut} will be
 #' excluded in the analysis. Default is 0, i.e. do not discard any sample.
 #' @param main_var character. The name of the main variable of interest.
+#' This argument is required and has no default.
 #' @param adj_formula  character string representing the formula for
 #' covariate adjustment. Please note that you should NOT include the
 #' \code{main_var} in the formula. Default is \code{NULL}.
@@ -97,6 +96,7 @@
 #' @param n_cl numeric. The number of nodes to be forked. For details, see
 #' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
 #' @param verbose logical. Whether to display detailed progress messages.
+#' Default is TRUE.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -130,6 +130,7 @@
 #'         }
 #'
 #' @seealso \code{\link{ancombc}} \code{\link{ancombc2}}
+#' \code{\link{data_sanity_check}}
 #'
 #' @examples
 #' library(ANCOMBC)
@@ -211,7 +212,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
     main_class = class(main_val)
     if (main_class == "character") {
         if (length(unique(main_val)) == length(main_val)) {
-            warn_txt = sprintf(paste("The class of main varible is:",
+            warn_txt = sprintf(paste("The class of main variable is:",
                                      main_class,
                                      "but it contains too many categories.",
                                      "Perhaps it should be numeric?",
@@ -222,7 +223,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
         } else if (length(unique(main_val)) == 2) {
             main_cat = 0
         } else {
-            stop_txt = sprintf(paste("The class of main varible is:",
+            stop_txt = sprintf(paste("The class of main variable is:",
                                      main_class,
                                      "but it contains < 2 categories",
                                      sep = "\n"))
@@ -230,7 +231,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
         }
     } else if (main_class == "factor") {
         if (nlevels(main_val) == length(main_val)) {
-            warn_txt = sprintf(paste("The class of main varible is:",
+            warn_txt = sprintf(paste("The class of main variable is:",
                                      main_class,
                                      "but it contains too many categories.",
                                      "Perhaps it should be numeric?",
@@ -241,7 +242,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
         } else if (nlevels(main_val) == 2) {
             main_cat = 0
         } else {
-            stop_txt = sprintf(paste("The class of main varible is:",
+            stop_txt = sprintf(paste("The class of main variable is:",
                                      main_class,
                                      "but it contains < 2 categories",
                                      sep = "\n"))

@@ -2,8 +2,7 @@
 #'
 #' @description Obtain the sparse correlation matrix for linear correlations
 #' between taxa. The current version of \code{secom_linear} function supports
-#' either of the three correlation coefficients: Pearson, Spearman, and
-#' Kendall's \eqn{\tau}.
+#' either of the two correlation coefficients: Pearson and Spearman.
 #'
 #' @param data a \code{list} of the input data.
 #' The \code{data} parameter should be either a
@@ -33,7 +32,7 @@
 #' @param tax_level character. The taxonomic level of interest. The input data
 #' can be agglomerated at different taxonomic levels based on your research
 #' interest. Default is NULL, i.e., do not perform agglomeration, and the
-#' SECOM anlysis will be performed at the lowest taxonomic level of the
+#' SECOM analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
 #' @param rank alias for \code{tax_level}.
 #' @param aggregate_data The abundance data that has been aggregated to the desired
@@ -65,8 +64,8 @@
 #' 0 and 1. Replace extreme values in the abundance data with less
 #' extreme values. Default is \code{c(0.05, 0.95)}. For details,
 #' see \code{?DescTools::Winsorize}.
-#' @param method character. It indicates which correlation coefficient is to be
-#' computed. It can be either "pearson" or "spearman".
+#' @param method character. The correlation coefficient to be computed. It is
+#' either "pearson" or "spearman". Default is "pearson".
 #' @param soft logical. \code{TRUE} indicates that soft thresholding is applied
 #' to achieve the sparsity of the correlation matrix. \code{FALSE} indicates
 #' that hard thresholding is applied to achieve the sparsity of the correlation
@@ -80,13 +79,14 @@
 #' Default is 10 (10-fold cross validation).
 #' @param thresh_hard Numeric. Pairwise correlation coefficients
 #' (in their absolute value) that are less than or equal to \code{thresh_hard}
-#' will be set to 0. Default is 0.3.
+#' will be set to 0. Default is 0, i.e. do not apply hard thresholding.
 #' @param max_p numeric. Obtain the sparse correlation matrix by
 #' p-value filtering. Pairwise correlation coefficients with p-value greater
 #' than \code{max_p} will be set to 0s. Default is 0.005.
 #' @param n_cl numeric. The number of nodes to be forked. For details, see
 #' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
 #' @param verbose logical. Whether to display detailed progress messages.
+#' Default is TRUE.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -101,6 +101,9 @@
 #'         in the cross-validation.}
 #'         \item{ \code{thresh_opt}, numeric. The optimal threshold through
 #'         cross-validation.}
+#'         \item{ \code{alpha_opt}, numeric. The optimal penalty parameter for
+#'         the element-wise L1 norm through cross-validation, selected from
+#'         \code{alpha_grid}.}
 #'         \item{ \code{mat_cooccur}, a matrix of taxon-taxon co-occurrence
 #'         pattern. The number in each cell represents the number of complete
 #'         (nonzero) samples for the corresponding pair of taxa.}
@@ -110,14 +113,17 @@
 #'         \item{ \code{corr_p}, the p-value matrix corresponding to the sample
 #'         correlation matrix \code{corr}.}
 #'         \item{ \code{corr_th}, the sparse correlation matrix obtained by
-#'         thresholding based on the method specified in \code{soft}.}
+#'         thresholding \code{corr} at \code{thresh_opt} based on the method
+#'         specified in \code{soft}, followed by hard thresholding at
+#'         \code{thresh_hard}.}
 #'         \item{ \code{corr_fl}, the sparse correlation matrix obtained by
-#'         p-value filtering based on the cutoff specified in \code{max_p}.}
+#'         p-value filtering \code{corr} based on the cutoff specified in
+#'         \code{max_p}, followed by hard thresholding at \code{thresh_hard}.}
 #'         \item{ \code{corr_reg}, the correlation matrix obtained by
 #'         winsorizing small eigenvalues.}
 #'         }
 #'
-#' @seealso \code{\link{secom_dist}}
+#' @seealso \code{\link{secom_dist}} \code{\link{data_sanity_check}}
 #'
 #' @examples
 #' library(ANCOMBC)
@@ -167,6 +173,7 @@ secom_linear = function(data, taxa_are_rows = TRUE,
                         thresh_len = 100, n_cv = 10,
                         thresh_hard = 0, max_p = 0.005, n_cl = 1,
                         verbose = TRUE) {
+    method = match.arg(method)
 
     # ===========Sampling fraction and absolute abundance estimation============
     if (length(data) == 1) {

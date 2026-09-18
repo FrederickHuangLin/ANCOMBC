@@ -6,6 +6,8 @@ version 2.15.xx (last update 2026-09-17)
           after the estimation of sampling fractions
         + Fix the error in ancombc2 when the trend test is requested with the
           sensitivity analysis but without the global test
+        + Correct documented defaults and return values in the help pages and
+          README
 
 version 2.12.xx (last update 2026-04-27)
         + Remove CVXR dependences

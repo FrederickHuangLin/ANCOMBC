@@ -1,6 +1,6 @@
 Package: ANCOMBC
 Type: Package
-Title: Microbiome differential abudance and correlation analyses with bias 
+Title: Microbiome differential abundance and correlation analyses with bias
     correction
 Version: 2.15.1
 Description: ANCOMBC is a package containing differential abundance (DA) and 
