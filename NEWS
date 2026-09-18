@@ -1,4 +1,4 @@
-version 2.15.1 (last update 2026-09-17)
+version 2.15.xx (last update 2026-09-17)
         + Reduce the running time of ancombc, ancombc2, secom_linear, and
           secom_dist without changing the results
         + Add the 'conservative' argument to ancombc2, which specifies whether
