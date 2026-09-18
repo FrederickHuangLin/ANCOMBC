@@ -1,6 +1,139 @@
+# Fit the fixed-effects design x to every taxon's theta-adjusted response. Taxa
+# are grouped by missing-value pattern and each pattern is solved with one
+# multi-response QR. A rank-deficient group is refitted taxon by taxon with
+# stats::lm(), which drops an absent factor level and fails on a single-level
+# factor; tformula and meta_data define that per-taxon model.
+#
+# Returns, aligned to the taxa of Ymat:
+#   beta    taxa x covariate coefficients, NA for an unfitted taxon
+#   fitted  taxa x sample fitted values, 0 for a sample dropped from the fit
+#   dof     residual degrees of freedom per taxon, 999 when not estimable
+.lm_fit_all = function(x, Ymat, meta_data, tformula) {
+    n_tax = nrow(Ymat)
+    n_samp = ncol(Ymat)
+    p = ncol(x)
+    fix_eff = colnames(x)
+    tax_id = rownames(Ymat)
+    samp_id = colnames(Ymat)
+
+    x_ok = stats::complete.cases(x)
+    beta = matrix(NA_real_, nrow = n_tax, ncol = p,
+                  dimnames = list(tax_id, fix_eff))
+    fitted = matrix(NA_real_, nrow = n_tax, ncol = n_samp,
+                    dimnames = list(tax_id, samp_id))
+    dof = rep(999L, n_tax)
+    names(dof) = tax_id
+
+    # Single-taxon fit. Ymat[i, ] is theta-adjusted, so it is the response.
+    fit_one = function(i) {
+        df = data.frame(y_crt = Ymat[i, ], meta_data)
+        fit = suppressWarnings(try(stats::lm(tformula, data = df), silent = TRUE))
+        if (inherits(fit, "lm")) {
+            bi = rep(0, p)
+            ci = stats::coef(fit)
+            bi[match(names(ci), fix_eff)] = ci
+            beta[i, ] <<- bi
+            fi = rep(0, n_samp)
+            fv = stats::fitted(fit)
+            fi[match(names(fv), samp_id)] = fv
+            fitted[i, ] <<- fi
+            dof[i] <<- fit$df.residual
+        }
+        # An unfitted taxon keeps beta and fitted at NA and dof at 999
+    }
+
+    # use[i, j] indicates that sample j is usable for taxon i: the response is
+    # finite and the design row is complete. Taxa sharing a usable-sample
+    # pattern are solved together.
+    if (all(x_ok) && all(is.finite(Ymat))) {
+        use = matrix(TRUE, nrow = n_tax, ncol = n_samp)
+        groups = list(seq_len(n_tax))
+    } else {
+        use = is.finite(Ymat) & matrix(x_ok, nrow = n_tax, ncol = n_samp,
+                                       byrow = TRUE)
+        keys = do.call(paste0, asplit(use * 1L, 2L))
+        groups = split(seq_len(n_tax), factor(keys, levels = unique(keys)))
+    }
+
+    for (idx in groups) {
+        rows = use[idx[1L], ]
+        if (!any(rows)) {
+            # No usable samples
+            for (i in idx) fit_one(i)
+            next
+        }
+        xr = x[rows, , drop = FALSE]
+        Yr = t(Ymat[idx, rows, drop = FALSE])  # n_used x length(idx)
+        fit = stats::lm.fit(xr, Yr)
+
+        if (fit$rank < ncol(xr)) {
+            # Rank-deficient design
+            for (i in idx) fit_one(i)
+            next
+        }
+
+        co = fit$coefficients
+        if (is.null(dim(co))) co = matrix(co, ncol = 1L)
+        beta[idx, ] = t(co)
+
+        fit_vals = fit$fitted.values
+        if (is.null(dim(fit_vals))) fit_vals = matrix(fit_vals, ncol = 1L)
+        fitted[idx, rows] = t(fit_vals)
+        fitted[idx, !rows] = 0
+        dof[idx] = fit$df.residual
+    }
+
+    list(beta = beta, fitted = fitted, dof = dof)
+}
+
+# Sandwich (Huber-White) variance estimator. For taxon i,
+# V_i = (X'X)^- ( sum_j eps_ij^2 x_j x_j' ) (X'X)^-. Any entry of a term
+# involving a missing value is set to 0.1. The per-sample outer products
+# x_j x_j' do not depend on the taxon, so they are computed once, stored as the
+# rows of an n_samp x p^2 matrix, and accumulated over samples for all taxa
+# together.
+.sandwich_vcov = function(x, eps, fix_eff) {
+    n_tax = nrow(eps)
+    n_samp = ncol(eps)
+    p = ncol(x)
+
+    x_cc = x[stats::complete.cases(x), ]
+    XTX_inv = MASS::ginv(t(x_cc) %*% x_cc)
+
+    # Row j of XX is the outer product x_j x_j' in column-major order.
+    XX = matrix(NA_real_, nrow = n_samp, ncol = p * p)
+    for (j in seq_len(n_samp)) XX[j, ] = as.vector(x[j, ] %*% t(x[j, ]))
+
+    eps2 = eps^2
+    vcov_hat = vector(mode = "list", length = n_tax)
+    var_hat = matrix(NA, nrow = n_tax, ncol = p)
+    dn = list(fix_eff, fix_eff)
+
+    # Accumulate taxa in blocks to bound the size of the temporaries
+    block = max(1L, as.integer(2^17 / (p * p)))
+    for (start in seq.int(1L, n_tax, by = block)) {
+        idx = seq.int(start, min(start + block - 1L, n_tax))
+        sigma2_xxT = matrix(0, nrow = length(idx), ncol = p * p)
+        for (j in seq_len(n_samp)) {
+            term_j = outer(eps2[idx, j], XX[j, ])
+            term_j[is.na(term_j)] = 0.1
+            sigma2_xxT = sigma2_xxT + term_j
+        }
+        for (k in seq_along(idx)) {
+            v_i = XTX_inv %*% matrix(sigma2_xxT[k, ], nrow = p, ncol = p) %*%
+                XTX_inv
+            dimnames(v_i) = dn
+            vcov_hat[[idx[k]]] = v_i
+            var_hat[idx[k], ] = diag(v_i)
+        }
+    }
+    list(vcov_hat = vcov_hat, var_hat = var_hat)
+}
+
 # Iterative MLE
 .iter_mle = function(x, y, meta_data, formula, theta = NULL,
                      tol, max_iter, verbose = FALSE) {
+    y = as.matrix(y)
     tax_id = rownames(y)
     n_tax = nrow(y)
     samp_id = colnames(y)
@@ -33,71 +166,22 @@
         theta = rep(0, n_samp)
 
         # ML fits
-        fits = lapply(seq_len(n_tax), function(i) {
-            df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-            suppressWarnings(fit <- try(stats::lm(tformula, data = df),
-                                        silent = TRUE))
-            if (inherits(fit, "try-error")) {fit = NA}
-            return(fit)
-        })
+        beta = .lm_fit_all(x, sweep(y, 2, theta, "-"), meta_data, tformula)$beta
 
         # Degree of freedom
         dof = NULL
 
-        # Coefficients
-        empty_coef = rep(NA, n_fix_eff)
-        names(empty_coef) = fix_eff
-        beta = lapply(fits, function(i) {
-            beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
-            coef_i = if (inherits(i, "lm")) {
-              stats::coef(i)
-            } else {
-              empty_coef
-            }
-            beta_i[match(names(coef_i), fix_eff)] = coef_i
-            return(beta_i)
-        })
-        beta = do.call("rbind", beta)
-
-        # Iterative least square
+        # Iterative least squares
         iterNum = 0
         epsilon = 100
-        empty_fitted = rep(NA, n_samp)
-        names(empty_fitted) = samp_id
+        y_crt_hat = NULL
         while (epsilon > tol & iterNum < max_iter) {
             # Updating beta
-            fits = lapply(seq_len(n_tax), function(i) {
-                df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-                suppressWarnings(fit <- try(stats::lm(tformula, data = df),
-                                            silent = TRUE))
-                if (inherits(fit, "try-error")) {fit = NA}
-                return(fit)
-            })
-
-            beta_new = lapply(fits, function(i) {
-                beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
-                coef_i = if (inherits(i, "lm")) {
-                  stats::coef(i)
-                } else {
-                  empty_coef
-                }
-                beta_i[match(names(coef_i), fix_eff)] = coef_i
-                return(beta_i)
-            })
-            beta_new = do.call("rbind", beta_new)
+            fit_res = .lm_fit_all(x, sweep(y, 2, theta, "-"), meta_data, tformula)
+            beta_new = fit_res$beta
+            y_crt_hat = fit_res$fitted
 
             # Updating theta
-            y_crt_hat = lapply(fits, function(i) {
-                y_crt_hat_i = rep(0, n_samp)
-                fitted_i = if (inherits(i, "lm")) {
-                  stats::fitted(i)
-                } else {
-                  empty_fitted
-                }
-                y_crt_hat_i[match(names(fitted_i), samp_id)] = fitted_i
-                return(y_crt_hat_i)
-            })
-            y_crt_hat = do.call("rbind", y_crt_hat)
             theta_new = colMeans(y - y_crt_hat, na.rm = TRUE)
 
             # Iteration
@@ -114,103 +198,33 @@
             }
         }
 
-        # Variance-covariance matrices
-        y_crt_hat = lapply(fits, function(i) {
-          y_crt_hat_i = rep(0, n_samp)
-          fitted_i = if (inherits(i, "lm")) {
-            stats::fitted(i)
-          } else {
-            empty_fitted
-          }
-          y_crt_hat_i[match(names(fitted_i), samp_id)] = fitted_i
-          return(y_crt_hat_i)
-        })
-        y_crt_hat = do.call("rbind", y_crt_hat)
+        # Residuals
+        if (is.null(y_crt_hat)) {
+            y_crt_hat = .lm_fit_all(x, sweep(y, 2, theta, "-"), meta_data, tformula)$fitted
+        }
         eps = t(t(y - y_crt_hat) - theta)
 
-        XTX_inv = MASS::ginv(t(x[complete.cases(x), ]) %*% x[complete.cases(x), ])
-        vcov_hat = vector(mode = "list", length = n_tax)
-        var_hat = matrix(NA, nrow = n_tax, ncol = n_fix_eff)
-        for (i in seq_len(n_tax)) {
-          sigma2_xxT = matrix(0, ncol = n_fix_eff, nrow = n_fix_eff)
-          for (j in seq_len(n_samp)) {
-            sigma2_xxT_j = eps[i, j]^2 * x[j, ] %*% t(x[j, ])
-            sigma2_xxT_j[is.na(sigma2_xxT_j)] = 0.1
-            sigma2_xxT = sigma2_xxT + sigma2_xxT_j
-          }
-          vcov_hat[[i]] = XTX_inv %*% sigma2_xxT %*% XTX_inv
-          rownames(vcov_hat[[i]]) = fix_eff
-          colnames(vcov_hat[[i]]) = fix_eff
-          var_hat[i, ] = diag(vcov_hat[[i]])
-        }
+        # Variance-covariance matrices
+        sw = .sandwich_vcov(x, eps, fix_eff)
+        vcov_hat = sw$vcov_hat
+        var_hat = sw$var_hat
     } else {
         # ML fits
-        fits = lapply(seq_len(n_tax), function(i) {
-            df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-            suppressWarnings(fit <- try(stats::lm(tformula, data = df),
-                                        silent = TRUE))
-            if (inherits(fit, "try-error")) {fit = NA}
-            return(fit)
-        })
+        fit_res = .lm_fit_all(x, sweep(y, 2, theta, "-"), meta_data, tformula)
+        beta = fit_res$beta
+        y_crt_hat = fit_res$fitted
 
         # Degree of freedom
-        dof = vapply(fits, function(i) {
-          if (inherits(i, "lm")) {
-            summary(i)$df[2]
-          } else {
-            999L
-          }
-        }, FUN.VALUE = integer(1))
+        dof = fit_res$dof
         dof = matrix(rep(dof, n_fix_eff), ncol = n_fix_eff, byrow = FALSE)
 
-        # Coefficients
-        empty_coef = rep(NA, n_fix_eff)
-        names(empty_coef) = fix_eff
-
-        beta = lapply(fits, function(i) {
-            beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
-            coef_i = if (inherits(i, "lm")) {
-              stats::coef(i)
-            } else {
-              empty_coef
-            }
-            beta_i[match(names(coef_i), fix_eff)] = coef_i
-            return(beta_i)
-        })
-        beta = do.call("rbind", beta)
-
-        # Variance-covariance matrices
-        empty_fitted = rep(NA, n_samp)
-        names(empty_fitted) = samp_id
-
-        y_crt_hat = lapply(fits, function(i) {
-          y_crt_hat_i = rep(0, n_samp)
-          fitted_i = if (inherits(i, "lm")) {
-            stats::fitted(i)
-          } else {
-            empty_fitted
-          }
-          y_crt_hat_i[match(names(fitted_i), samp_id)] = fitted_i
-          return(y_crt_hat_i)
-        })
-        y_crt_hat = do.call("rbind", y_crt_hat)
+        # Residuals
         eps = t(t(y - y_crt_hat) - theta)
 
-        XTX_inv = MASS::ginv(t(x[complete.cases(x), ]) %*% x[complete.cases(x), ])
-        vcov_hat = vector(mode = "list", length = n_tax)
-        var_hat = matrix(NA, nrow = n_tax, ncol = n_fix_eff)
-        for (i in seq_len(n_tax)) {
-          sigma2_xxT = matrix(0, ncol = n_fix_eff, nrow = n_fix_eff)
-          for (j in seq_len(n_samp)) {
-            sigma2_xxT_j = eps[i, j]^2 * x[j, ] %*% t(x[j, ])
-            sigma2_xxT_j[is.na(sigma2_xxT_j)] = 0.1
-            sigma2_xxT = sigma2_xxT + sigma2_xxT_j
-          }
-          vcov_hat[[i]] = XTX_inv %*% sigma2_xxT %*% XTX_inv
-          rownames(vcov_hat[[i]]) = fix_eff
-          colnames(vcov_hat[[i]]) = fix_eff
-          var_hat[i, ] = diag(vcov_hat[[i]])
-        }
+        # Variance-covariance matrices
+        sw = .sandwich_vcov(x, eps, fix_eff)
+        vcov_hat = sw$vcov_hat
+        var_hat = sw$var_hat
     }
 
     if (!is.null(dof)) {
@@ -225,6 +239,178 @@
     rownames(var_hat) = tax_id
 
     output = list(dof = dof, beta = beta, theta = theta,
+                  vcov_hat = vcov_hat, var_hat = var_hat)
+    return(output)
+}
+
+# Build the lme4 model structure for one pattern of usable samples. The
+# structure does not depend on the response values, so it is shared by every
+# taxon and every iteration with that pattern. theta0 and lambdat0 hold the
+# starting values of the covariance parameters, which lme4 overwrites in place
+# while optimizing. keep records the samples retained by na.action.
+.lmer_struct = function(tformula, data, lme_control) {
+    lmod = lme4::lFormula(formula = tformula, data = data,
+                          control = lme_control)
+    lmod$formula = NULL
+    na_act = attr(lmod$fr, "na.action")
+    keep = seq_len(nrow(data))
+    if (!is.null(na_act)) keep = keep[-unclass(na_act)]
+    lmod$keep = keep
+    lmod$theta0 = lmod$reTrms$theta
+    lmod$lambdat0 = lmod$reTrms$Lambdat@x
+    return(lmod)
+}
+
+# Fit one response with a pre-built model structure. The covariance parameters
+# are restored to their starting values in a private copy, so the fit does not
+# depend on the fits that precede it.
+.lmer_refit = function(lmod, y_crt, lme_control) {
+    theta0 = lmod$theta0
+    lambdat0 = lmod$lambdat0
+    lmod$keep = NULL
+    lmod$theta0 = NULL
+    lmod$lambdat0 = NULL
+    lmod$fr[[1L]] = y_crt
+    lambdat = lmod$reTrms$Lambdat
+    lambdat@x = lambdat0[seq_along(lambdat0)]
+    lmod$reTrms$Lambdat = lambdat
+    lmod$reTrms$theta = theta0[seq_along(theta0)]
+
+    devfun = do.call(lme4::mkLmerDevfun,
+                     c(lmod, list(start = NULL, verbose = 0L,
+                                  control = lme_control)))
+    rho = environment(devfun)
+    n_obs = nrow(lmod$fr)
+    n_par = length(rho$lower)
+    calc_derivs = lme_control$calc.derivs
+    if (is.null(calc_derivs)) {
+        calc_derivs = n_obs < lme_control$checkConv$check.conv.nobsmax &&
+            n_par < lme_control$checkConv$check.conv.nparmax
+    }
+    opt = lme4::optimizeLmer(devfun, optimizer = lme_control$optimizer,
+                             restart_edge = lme_control$restart_edge,
+                             boundary.tol = lme_control$boundary.tol,
+                             control = lme_control$optCtrl, verbose = 0L,
+                             start = NULL, calc.derivs = calc_derivs,
+                             force.calc.derivs = isTRUE(lme_control$calc.derivs),
+                             use.last.params = lme_control$use.last.params)
+    conv = lme4::checkConv(attr(opt, "derivs"), opt$par,
+                           ctrl = lme_control$checkConv,
+                           lbound = rho$lower, ubound = rho$upper,
+                           nobs = n_obs, ndim = n_par)
+    fit = lme4::mkMerMod(rho, opt, lmod$reTrms, fr = lmod$fr,
+                         mc = quote(lme4::lmer()), lme4conv = conv)
+    return(fit)
+}
+
+# Group the taxa of y by their pattern of non-missing samples and build one
+# model structure per group. A group whose structure cannot be built is recorded
+# as NULL and its taxa are reported as unfitted.
+.lmer_struct_all = function(y, meta_data, tformula, lme_control) {
+    n_tax = nrow(y)
+    obs = !is.na(y)
+    if (all(obs)) {
+        grp = rep(1L, n_tax)
+    } else {
+        keys = do.call(paste0, asplit(obs * 1L, 2L))
+        grp = match(keys, unique(keys))
+    }
+    n_grp = max(grp)
+    structs = vector(mode = "list", length = n_grp)
+    for (g in seq_len(n_grp)) {
+        df = data.frame(y_crt = y[match(g, grp), ], meta_data)
+        structs[[g]] = tryCatch(
+            suppressWarnings(suppressMessages(
+                .lmer_struct(tformula, df, lme_control)
+            )),
+            error = function(e) NULL)
+    }
+    return(list(grp = grp, structs = structs))
+}
+
+# Quantities taken from one fitted model. A model whose variance-covariance
+# matrix is not positive definite raises an error and the taxon is reported as
+# unfitted.
+.remle_extract = function(fit) {
+    output = list(coef = lme4::fixef(fit),
+                  fitted = stats::fitted(fit),
+                  eps = stats::residuals(fit, "pearson", scaled = TRUE),
+                  vcov = as.matrix(stats::vcov(fit)))
+    return(output)
+}
+
+# Fit every taxon at the current sampling fractions. A taxon that cannot be
+# fitted contributes NA. A fixed effect or sample absent from a taxon's fit
+# contributes 0.
+.remle_fit_all = function(struct_list, y, theta, tformula, meta_data,
+                          fix_eff, samp_id, lme_control) {
+    n_tax = nrow(y)
+    n_samp = ncol(y)
+    n_fix_eff = length(fix_eff)
+    grp = struct_list$grp
+    structs = struct_list$structs
+
+    beta = matrix(NA_real_, nrow = n_tax, ncol = n_fix_eff)
+    fitted = matrix(NA_real_, nrow = n_tax, ncol = n_samp)
+    eps = matrix(NA_real_, nrow = n_tax, ncol = n_samp)
+    vcov_hat = vector(mode = "list", length = n_tax)
+    var_hat = matrix(NA_real_, nrow = n_tax, ncol = n_fix_eff)
+    empty_vcov = diag(0.1, nrow = n_fix_eff)
+    colnames(empty_vcov) = fix_eff
+    rownames(empty_vcov) = fix_eff
+    theta_ok = !anyNA(theta)
+
+    for (i in seq_len(n_tax)) {
+        lmod = structs[[grp[i]]]
+        y_crt = y[i, ] - theta
+        fit_i = NULL
+        if (theta_ok) {
+            if (!is.null(lmod)) {
+                fit_i = tryCatch(
+                    suppressWarnings(suppressMessages(
+                        .remle_extract(.lmer_refit(lmod, y_crt[lmod$keep],
+                                                   lme_control))
+                    )),
+                    error = function(e) NULL)
+            }
+        } else {
+            # A sampling fraction that could not be estimated adds missing
+            # responses and changes the model frame, so the taxon is fitted
+            # separately
+            fit_i = tryCatch(
+                suppressWarnings(suppressMessages(
+                    .remle_extract(lme4::lmer(tformula,
+                                              data = data.frame(y_crt = y_crt,
+                                                                meta_data),
+                                              control = lme_control))
+                )),
+                error = function(e) NULL)
+        }
+
+        vcov_i = empty_vcov
+        if (is.null(fit_i)) {
+            vcov_i[] = NA_real_
+        } else {
+            beta_i = rep(0, n_fix_eff)
+            beta_i[match(names(fit_i$coef), fix_eff)] = fit_i$coef
+            beta[i, ] = beta_i
+
+            fitted_i = rep(0, n_samp)
+            fitted_i[match(names(fit_i$fitted), samp_id)] = fit_i$fitted
+            fitted[i, ] = fitted_i
+
+            eps_i = rep(0, n_samp)
+            eps_i[match(names(fit_i$eps), samp_id)] = fit_i$eps
+            eps[i, ] = eps_i
+
+            vcov_i[match(rownames(fit_i$vcov), fix_eff),
+                   match(colnames(fit_i$vcov), fix_eff)] = fit_i$vcov
+        }
+        vcov_hat[[i]] = vcov_i
+        var_hat[i, ] = diag(vcov_i)
+    }
+
+    output = list(beta = beta, fitted = fitted, eps = eps,
                   vcov_hat = vcov_hat, var_hat = var_hat)
     return(output)
 }
@@ -282,90 +468,41 @@
         # Initial values
         theta = rep(0, n_samp)
 
+        # Model structures, one per pattern of usable samples. Subtracting
+        # theta does not change which responses are missing, so the structures
+        # are reused by every iteration
+        struct_list = .lmer_struct_all(y = y, meta_data = meta_data,
+                                       tformula = tformula,
+                                       lme_control = lme_control)
+
         # REML fits
-        fits = lapply(seq_len(n_tax), function(i) {
-            df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-            fit = tryCatch(
-                {
-                    suppressWarnings(suppressMessages(
-                        lmerTest::lmer(tformula, data = df, control = lme_control)
-                    ))
-                },
-                error = function(e) {
-                    NA
-                }
-            )
-            return(fit)
-        })
+        para = .remle_fit_all(struct_list = struct_list, y = y, theta = theta,
+                              tformula = tformula, meta_data = meta_data,
+                              fix_eff = fix_eff, samp_id = samp_id,
+                              lme_control = lme_control)
 
         # Degree of freedom
         dof = NULL
 
         # Coefficients
-        empty_coef = rep(NA, n_fix_eff)
-        names(empty_coef) = fix_eff
-        beta = lapply(fits, function(i) {
-          beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
-          if (inherits(i, "lmerModLmerTest")) {
-            summ_i = summary(i)
-            coef_i = summ_i$coefficients[, "Estimate"]
-          } else {
-            coef_i = empty_coef
-          }
-          beta_i[match(names(coef_i), fix_eff)] = coef_i
-          return(beta_i)
-        })
-        beta = do.call("rbind", beta)
+        beta = para$beta
 
         # Iterative REML
         iterNum = 0
         epsilon = 100
-        empty_fitted = rep(NA, n_samp)
-        names(empty_fitted) = samp_id
         while (epsilon > tol & iterNum < max_iter) {
-            # Updating beta
-            fits = lapply(seq_len(n_tax), function(i) {
-              df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
-              fit = tryCatch(
-                  {
-                      suppressWarnings(suppressMessages(
-                          lmerTest::lmer(tformula,
-                                         data = df,
-                                         control = lme_control)
-                      ))
-                  },
-                  error = function(e) {
-                      NA
-                  }
-              )
-              return(fit)
-            })
-
-            beta_new = lapply(fits, function(i) {
-                beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
-                if (inherits(i, "lmerModLmerTest")) {
-                  summ_i = summary(i)
-                  coef_i = summ_i$coefficients[, "Estimate"]
-                } else {
-                  coef_i = empty_coef
-                }
-                beta_i[match(names(coef_i), fix_eff)] = coef_i
-                return(beta_i)
-            })
-            beta_new = do.call("rbind", beta_new)
+            # Updating beta. The first iteration uses the fits at theta = 0
+            if (iterNum > 0) {
+                para = .remle_fit_all(struct_list = struct_list, y = y,
+                                      theta = theta, tformula = tformula,
+                                      meta_data = meta_data, fix_eff = fix_eff,
+                                      samp_id = samp_id,
+                                      lme_control = lme_control)
+            }
+            beta_new = para$beta
 
             # Updating theta
-            y_crt_hat = lapply(fits, function(i) {
-              y_crt_hat_i = rep(0, n_samp)
-              fitted_i = if (inherits(i, "lmerModLmerTest")) {
-                stats::fitted(i)
-              } else {
-                empty_fitted
-              }
-              y_crt_hat_i[match(names(fitted_i), samp_id)] = fitted_i
-              return(y_crt_hat_i)
-            })
-            y_crt_hat = do.call("rbind", y_crt_hat)
+            y_crt_hat = para$fitted
             theta_new = colMeans(y - y_crt_hat, na.rm = TRUE)
 
             # Iteration
@@ -382,44 +519,11 @@
             }
         }
 
-        # Residuals
-        empty_resid = rep(NA, n_samp)
-        names(empty_resid) = samp_id
-        eps = lapply(fits, function(i) {
-            eps_i = rep(0, n_samp)
-            if (inherits(i, "lmerModLmerTest")) {
-              summ_i = summary(i)
-              resid_i = summ_i$residuals
-            } else {
-              resid_i = empty_resid
-            }
-            eps_i[match(names(resid_i), samp_id)] = resid_i
-            return(eps_i)
-        })
-        eps = do.call("rbind", eps)
-
-        # Variance-covariance matrices
-        empty_vcov = matrix(NA, nrow = n_fix_eff, ncol = n_fix_eff)
-        colnames(empty_vcov) = fix_eff
-        rownames(empty_vcov) = fix_eff
-        vcov_hat = lapply(fits, function(i) {
-            Sigma_hat_i = diag(0.1, nrow = n_fix_eff)
-            colnames(Sigma_hat_i) = fix_eff
-            rownames(Sigma_hat_i) = fix_eff
-            if (inherits(i, "lmerModLmerTest")) {
-              summ_i = summary(i)
-              vcov_hat_i = as.matrix(summ_i$vcov)
-            } else {
-              vcov_hat_i = empty_vcov
-            }
-            Sigma_hat_i[match(rownames(vcov_hat_i), fix_eff),
-                        match(colnames(vcov_hat_i), fix_eff)] = vcov_hat_i
-            return(Sigma_hat_i)
-        })
-        var_hat = lapply(vcov_hat, function(i) {
-            return(diag(i))
-        })
-        var_hat = do.call("rbind", var_hat)
+        # Residuals and variance-covariance matrices
+        fits = NULL
+        eps = para$eps
+        vcov_hat = para$vcov_hat
+        var_hat = para$var_hat
     } else {
         # REML fits
         fits = lapply(seq_len(n_tax), function(i) {
@@ -437,27 +541,23 @@
           return(fit)
         })
 
+        # Model summaries
+        summ_list = lapply(fits, function(i) {
+          if (inherits(i, "lmerModLmerTest")) summary(i) else NULL
+        })
+
         # Degree of freedom
-        dof = lapply(fits, function(i) {
-          if (inherits(i, "lmerModLmerTest")) {
-            summary(i)$coefficients[, "df"]
-          } else {
-            rep(999, n_fix_eff)
-          }
+        dof = lapply(summ_list, function(i) {
+          if (is.null(i)) rep(999, n_fix_eff) else i$coefficients[, "df"]
         })
         dof = do.call("rbind", dof)
 
         # Coefficients
         empty_coef = rep(NA, n_fix_eff)
         names(empty_coef) = fix_eff
-        beta = lapply(fits, function(i) {
+        beta = lapply(summ_list, function(i) {
           beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
-          if (inherits(i, "lmerModLmerTest")) {
-            summ_i = summary(i)
-            coef_i = summ_i$coefficients[, "Estimate"]
-          } else {
-            coef_i = empty_coef
-          }
+          coef_i = if (is.null(i)) empty_coef else i$coefficients[, "Estimate"]
           beta_i[match(names(coef_i), fix_eff)] = coef_i
           return(beta_i)
         })
@@ -466,14 +566,9 @@
         # Residuals
         empty_resid = rep(NA, n_samp)
         names(empty_resid) = samp_id
-        eps = lapply(fits, function(i) {
+        eps = lapply(summ_list, function(i) {
           eps_i = rep(0, n_samp)
-          if (inherits(i, "lmerModLmerTest")) {
-            summ_i = summary(i)
-            resid_i = summ_i$residuals
-          } else {
-            resid_i = empty_resid
-          }
+          resid_i = if (is.null(i)) empty_resid else i$residuals
           eps_i[match(names(resid_i), samp_id)] = resid_i
           return(eps_i)
         })
@@ -483,16 +578,11 @@
         empty_vcov = matrix(NA, nrow = n_fix_eff, ncol = n_fix_eff)
         colnames(empty_vcov) = fix_eff
         rownames(empty_vcov) = fix_eff
-        vcov_hat = lapply(fits, function(i) {
+        vcov_hat = lapply(summ_list, function(i) {
           Sigma_hat_i = diag(0.1, nrow = n_fix_eff)
           colnames(Sigma_hat_i) = fix_eff
           rownames(Sigma_hat_i) = fix_eff
-          if (inherits(i, "lmerModLmerTest")) {
-            summ_i = summary(i)
-            vcov_hat_i = as.matrix(summ_i$vcov)
-          } else {
-            vcov_hat_i = empty_vcov
-          }
+          vcov_hat_i = if (is.null(i)) empty_vcov else as.matrix(i$vcov)
           Sigma_hat_i[match(rownames(vcov_hat_i), fix_eff),
                       match(colnames(vcov_hat_i), fix_eff)] = vcov_hat_i
           return(Sigma_hat_i)
@@ -557,6 +647,10 @@
     if(is.na(kappa2_0)|kappa2_0 == 0) kappa2_0 = 1
 
     # Apply E-M algorithm
+    # Nelder-Mead options
+    nm_opts = nloptr::nl.opts(list())
+    nm_opts["algorithm"] = "NLOPT_LN_NELDERMEAD"
+
     # Store all paras in vectors/matrices
     pi0_vec = pi0_0
     pi1_vec = pi1_0
@@ -583,15 +677,9 @@
         kappa2 = kappa2_vec[length(kappa2_vec)]
 
         # E-step
-        pdf0 = vapply(seq(n_tax), function(i)
-            dnorm(beta[i], delta, sqrt(nu0[i])),
-            FUN.VALUE = double(1))
-        pdf1 = vapply(seq(n_tax), function(i)
-            dnorm(beta[i], delta + l1, sqrt(nu0[i] + kappa1)),
-            FUN.VALUE = double(1))
-        pdf2 = vapply(seq(n_tax), function(i)
-            dnorm(beta[i], delta + l2, sqrt(nu0[i] + kappa2)),
-            FUN.VALUE = double(1))
+        pdf0 = dnorm(beta, delta, sqrt(nu0))
+        pdf1 = dnorm(beta, delta + l1, sqrt(nu0 + kappa1))
+        pdf2 = dnorm(beta, delta + l2, sqrt(nu0 + kappa2))
         r0i = pi0*pdf0/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2)
         r0i[is.na(r0i)] = 0
         r1i = pi1*pdf1/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2)
@@ -615,24 +703,22 @@
 
         # Nelder-Mead simplex algorithm for kappa1 and kappa2
         obj_kappa1 = function(x){
-            log_pdf = log(vapply(seq(n_tax), function(i)
-                dnorm(beta[i], delta+l1, sqrt(nu0[i]+x)),
-                FUN.VALUE = double(1)))
+            log_pdf = log(dnorm(beta, delta + l1, sqrt(nu0 + x)))
             log_pdf[is.infinite(log_pdf)] = 0
             -sum(r1i*log_pdf, na.rm = TRUE)
         }
-        kappa1_new = nloptr::neldermead(x0 = kappa1,
-                                        fn = obj_kappa1, lower = 0)$par
+        kappa1_new = nloptr::nloptr(x0 = kappa1, eval_f = obj_kappa1,
+                                    lb = 0, ub = NULL,
+                                    opts = nm_opts)$solution
 
         obj_kappa2 = function(x){
-            log_pdf = log(vapply(seq(n_tax), function(i)
-                dnorm(beta[i], delta+l2, sqrt(nu0[i]+x)),
-                FUN.VALUE = double(1)))
+            log_pdf = log(dnorm(beta, delta + l2, sqrt(nu0 + x)))
             log_pdf[is.infinite(log_pdf)] = 0
             -sum(r2i*log_pdf, na.rm = TRUE)
         }
-        kappa2_new = nloptr::neldermead(x0 = kappa2,
-                                        fn = obj_kappa2, lower = 0)$par
+        kappa2_new = nloptr::nloptr(x0 = kappa2, eval_f = obj_kappa2,
+                                    lb = 0, ub = NULL,
+                                    opts = nm_opts)$solution
 
         # Merge to the paras vectors/matrices
         pi0_vec = c(pi0_vec, pi0_new)

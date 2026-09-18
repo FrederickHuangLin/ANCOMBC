@@ -249,8 +249,10 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
         warning(warn_txt, call. = FALSE)
     }
 
-    # Add pseudocount and take logarithm.
+    # Add pseudocount and take logarithm. With pseudo = 0, a zero count gives
+    # -Inf, which is recorded as missing.
     y = log(feature_table + pseudo)
+    y[is.infinite(y)] = NA
     options(na.action = "na.pass") # Keep NA's in rows of x
     x = stats::model.matrix(formula(paste0("~", formula)), data = meta_data)
     options(na.action = "na.omit") # Switch it back

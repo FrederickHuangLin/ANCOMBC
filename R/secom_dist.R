@@ -236,6 +236,8 @@ secom_dist = function(data, taxa_are_rows = TRUE,
     }
 
     # ================Sparse estimation on distance correlations================
+    mat_y = t(y_hat)
+
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
       doParallel::registerDoParallel(cl)
@@ -243,7 +245,7 @@ secom_dist = function(data, taxa_are_rows = TRUE,
       foreach::registerDoSEQ()
     }
 
-    res_corr = .sparse_dist(mat = t(y_hat), wins_quant, R, thresh_hard, max_p)
+    res_corr = .sparse_dist(mat = mat_y, wins_quant, R, thresh_hard, max_p)
 
     if (n_cl > 1) {
       parallel::stopCluster(cl)
@@ -251,33 +253,23 @@ secom_dist = function(data, taxa_are_rows = TRUE,
 
     # To prevent FP from taxa with extremely small variances
     if (length(data) == 1) {
-        corr_s = cor(cbind(s_diff_hat, t(y_hat)),
-                     use = "pairwise.complete.obs")[1, -1]
-        fp_ind1 = replicate(nrow(y_hat), corr_s > corr_cut)
-        fp_ind2 = t(replicate(nrow(y_hat), corr_s > corr_cut))
-        fp_ind = (fp_ind1 * fp_ind2 == 1)
+        corr_s = stats::cor(s_diff_hat, mat_y,
+                            use = "pairwise.complete.obs")[1, ]
+        fp_flag = corr_s > corr_cut
+        fp_ind = outer(fp_flag, fp_flag, "&")
         diag(fp_ind) = FALSE
         res_corr$dcorr[fp_ind] = 0
         res_corr$dcorr_fl[fp_ind] = 0
         res_corr$dcorr_p[fp_ind] = 1
     } else {
         for (i in seq_along(data)) {
-            df_s = data.frame(sample_id = names(s_diff_hat[[i]]),
-                              s = s_diff_hat[[i]])
-            rownames(df_s) = NULL
-            df_y = data.frame(sample_id = rownames(t(y_hat)), t(y_hat),
-                              check.names = FALSE)
-            rownames(df_y) = NULL
+            s_i = s_diff_hat[[i]]
+            s_samp = s_i[match(rownames(mat_y), names(s_i))]
 
-            df_merge = df_y
-            df_merge$s = df_s$s[match(df_y$sample_id, df_s$sample_id)]
-            df_merge$sample_id = NULL
-            df_merge = df_merge[c('s', setdiff(names(df_merge), 's'))]
-
-            corr_s = cor(df_merge, use = "pairwise.complete.obs")[1, -1]
-            fp_ind1 = replicate(nrow(y_hat), corr_s > corr_cut)
-            fp_ind2 = t(replicate(nrow(y_hat), corr_s > corr_cut))
-            fp_ind = (fp_ind1 * fp_ind2 == 1)
+            corr_s = stats::cor(s_samp, mat_y,
+                                use = "pairwise.complete.obs")[1, ]
+            fp_flag = corr_s > corr_cut
+            fp_ind = outer(fp_flag, fp_flag, "&")
             diag(fp_ind) = FALSE
             res_corr$dcorr[fp_ind] = 0
             res_corr$dcorr_fl[fp_ind] = 0

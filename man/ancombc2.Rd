@@ -19,6 +19,7 @@ ancombc2(
   p_adj_method = "holm",
   pseudo = 0,
   pseudo_sens = TRUE,
+  conservative = TRUE,
   prv_cut = 0.1,
   lib_cut = 0,
   s0_perc = 0.05,
@@ -110,6 +111,19 @@ complete data (nonzero counts) by default for its analysis, a comprehensive
 evaluation of result robustness is performed by assessing how pseudo-count
 addition to zeros may affect the outcomes. For a detailed discussion on this
 sensitivity analysis, refer to the \code{Details} section.}
+
+\item{conservative}{logical. Whether to add the pseudo-counts before the
+estimation of sampling fractions in the sensitivity analysis. Default is
+\code{TRUE}, which adds the pseudo-count values 0.1, 0.5, and 1 to the
+feature table, re-runs the entire ANCOM-BC2 algorithm for each value, and
+compares the q-values with those obtained on the complete data.
+Setting \code{conservative = FALSE} estimates the sampling fractions once on
+the complete data, adds the pseudo-count values seq(0.01, 0.5, 0.01) to the
+zero counts of the bias-corrected data, re-estimates the fixed effects by
+ordinary least squares for each value, and compares the unadjusted p-values
+with those obtained on the complete data. Relative to the default,
+\code{conservative = FALSE} has higher power and a higher false positive
+rate. This argument applies only when \code{pseudo_sens = TRUE}.}
 
 \item{prv_cut}{a numerical fraction between 0 and 1. Taxa with prevalences
 (the proportion of samples in which the taxon is present)
@@ -336,15 +350,29 @@ pseudo-count can impact the results and lead to an inflated false positive
 rate (\href{https://doi.org/10.1038/nmeth.2897}{Costea et al. (2014)};
 \href{https://doi.org/10.1038/nmeth.2898}{Paulson, Bravo, and Pop (2014)}).
 To address this issue, we conduct a sensitivity analysis to assess the impact
-of different pseudo-counts on zero counts for each taxon. This involves
-adding various pseudo-count values (0.1, 0.5, and 1) to the feature table and
-re-running the ANCOM-BC2 algorithm. The sensitivity score for each taxon is
-calculated as the proportion of times that the q-value exceeds the specified
-significance level (alpha). If all q-values consistently show significance or
-nonsignificance across different pseudo-counts and are consistent with the
-results obtained without adding pseudo-counts to zero counts (using the
-default settings), then the taxon is considered not sensitive to the
-pseudo-count addition.
+of different pseudo-counts on zero counts for each taxon. A taxon is
+considered not sensitive to the pseudo-count addition when the runs with
+pseudo-counts agree with the run on the complete data on the significance of
+the taxon. The \code{conservative} argument specifies how this agreement is
+evaluated.
+
+With \code{conservative = TRUE}, the pseudo-count values 0.1, 0.5, and 1 are
+added to the feature table before the estimation of sampling fractions, and
+the entire ANCOM-BC2 algorithm is re-run for each value. The sensitivity
+score is the proportion of runs, including the run on the complete data,
+whose q-value exceeds the significance level (alpha). The taxon passes the
+sensitivity analysis when this proportion is 0 or 1.
+
+With \code{conservative = FALSE}, the sampling fractions are estimated once
+on the complete data, the pseudo-count values seq(0.01, 0.5, 0.01) are added
+to the zero counts of the bias-corrected data, and the fixed effects are
+re-estimated by ordinary least squares for each value. The sensitivity score
+is the proportion of these runs whose unadjusted p-value exceeds alpha. The
+taxon passes the sensitivity analysis when this proportion is 0 and the
+unadjusted p-value of the run on the complete data is at most alpha, or when
+this proportion is 1 and the unadjusted p-value of the run on the complete
+data exceeds alpha. Relative to the default, \code{conservative = FALSE}
+has higher power and a higher false positive rate.
 
 When performning pairwise directional (or Dunnett's type of) test, the mixed
 directional false discover rate (mdFDR) should be taken into account.

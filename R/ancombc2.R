@@ -39,15 +39,29 @@
 #'rate (\href{https://doi.org/10.1038/nmeth.2897}{Costea et al. (2014)};
 #' \href{https://doi.org/10.1038/nmeth.2898}{Paulson, Bravo, and Pop (2014)}).
 #' To address this issue, we conduct a sensitivity analysis to assess the impact
-#' of different pseudo-counts on zero counts for each taxon. This involves
-#' adding various pseudo-count values (0.1, 0.5, and 1) to the feature table and
-#' re-running the ANCOM-BC2 algorithm. The sensitivity score for each taxon is
-#' calculated as the proportion of times that the q-value exceeds the specified
-#' significance level (alpha). If all q-values consistently show significance or
-#' nonsignificance across different pseudo-counts and are consistent with the
-#' results obtained without adding pseudo-counts to zero counts (using the
-#' default settings), then the taxon is considered not sensitive to the
-#' pseudo-count addition.
+#' of different pseudo-counts on zero counts for each taxon. A taxon is
+#' considered not sensitive to the pseudo-count addition when the runs with
+#' pseudo-counts agree with the run on the complete data on the significance of
+#' the taxon. The \code{conservative} argument specifies how this agreement is
+#' evaluated.
+#'
+#' With \code{conservative = TRUE}, the pseudo-count values 0.1, 0.5, and 1 are
+#' added to the feature table before the estimation of sampling fractions, and
+#' the entire ANCOM-BC2 algorithm is re-run for each value. The sensitivity
+#' score is the proportion of runs, including the run on the complete data,
+#' whose q-value exceeds the significance level (alpha). The taxon passes the
+#' sensitivity analysis when this proportion is 0 or 1.
+#'
+#' With \code{conservative = FALSE}, the sampling fractions are estimated once
+#' on the complete data, the pseudo-count values seq(0.01, 0.5, 0.01) are added
+#' to the zero counts of the bias-corrected data, and the fixed effects are
+#' re-estimated by ordinary least squares for each value. The sensitivity score
+#' is the proportion of these runs whose unadjusted p-value exceeds alpha. The
+#' taxon passes the sensitivity analysis when this proportion is 0 and the
+#' unadjusted p-value of the run on the complete data is at most alpha, or when
+#' this proportion is 1 and the unadjusted p-value of the run on the complete
+#' data exceeds alpha. Relative to the default, \code{conservative = FALSE}
+#' has higher power and a higher false positive rate.
 #'
 #' When performning pairwise directional (or Dunnett's type of) test, the mixed
 #' directional false discover rate (mdFDR) should be taken into account.
@@ -122,6 +136,18 @@
 #' evaluation of result robustness is performed by assessing how pseudo-count
 #' addition to zeros may affect the outcomes. For a detailed discussion on this
 #' sensitivity analysis, refer to the \code{Details} section.
+#' @param conservative logical. Whether to add the pseudo-counts before the
+#' estimation of sampling fractions in the sensitivity analysis. Default is
+#' \code{TRUE}, which adds the pseudo-count values 0.1, 0.5, and 1 to the
+#' feature table, re-runs the entire ANCOM-BC2 algorithm for each value, and
+#' compares the q-values with those obtained on the complete data.
+#' Setting \code{conservative = FALSE} estimates the sampling fractions once on
+#' the complete data, adds the pseudo-count values seq(0.01, 0.5, 0.01) to the
+#' zero counts of the bias-corrected data, re-estimates the fixed effects by
+#' ordinary least squares for each value, and compares the unadjusted p-values
+#' with those obtained on the complete data. Relative to the default,
+#' \code{conservative = FALSE} has higher power and a higher false positive
+#' rate. This argument applies only when \code{pseudo_sens = TRUE}.
 #' @param prv_cut a numerical fraction between 0 and 1. Taxa with prevalences
 #' (the proportion of samples in which the taxon is present)
 #' less than \code{prv_cut} will be excluded in the analysis. For example,
@@ -365,6 +391,7 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                     aggregate_data = NULL, meta_data = NULL,
                     fix_formula, rand_formula = NULL,
                     p_adj_method = "holm", pseudo = 0, pseudo_sens = TRUE,
+                    conservative = TRUE,
                     prv_cut = 0.10, lib_cut = 0, s0_perc = 0.05,
                     group = NULL, struc_zero = FALSE, neg_lb = FALSE,
                     alpha = 0.05, n_cl = 1, verbose = TRUE,
@@ -445,6 +472,10 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
     meta_data = core2$meta_data
 
     # 2. ANCOM-BC2 main analysis
+    # The sensitivity analysis of the trend test uses the global test results
+    global_req = global
+    if (trend) global = TRUE
+
     res_main = .ancombc2_core(data = O1, aggregate_data = O2,
                               meta_data = meta_data, fix_formula = fix_formula,
                               rand_formula = rand_formula,
@@ -481,9 +512,11 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                             "For detailed instructions on performing sensitivity analysis, please refer to the package vignette.",
                             sep = "\n")
         message(message_txt)
+    }
 
+    # Pseudo-count addition before the estimation of sampling fractions
+    if (pseudo_sens && conservative) {
         pseudo_list = c(0.1, 0.5, 1)
-        if (trend) global = TRUE
         iter_control$verbose = FALSE
 
         ss_list = lapply(pseudo_list, function(pseudo_count) {
@@ -623,7 +656,129 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         ss_tab = do.call(data.frame, c(ss_tab_cols, list(check.names = FALSE)))
         }
 
+    # Pseudo-count addition to 0s of the bias-corrected data
+    if (pseudo_sens && !conservative) {
+        pseudo_list = seq(0.01, 0.5, 0.01)
+        n_tax = nrow(O2)
+        fix_eff = gsub("^q_", "",
+                       grep("^q_", colnames(res_main$res), value = TRUE))
+        if (is.null(group)) {
+            group_eff = NULL
+        } else {
+            group_eff = fix_eff[grepl(group, fix_eff) & !grepl(":", fix_eff)]
+        }
+
+        fun_list = list(.ancombc2_sens_fit, .ancombc2_sens_p)
+
+        pseudo_count = NULL
+        ss_list = foreach(pseudo_count = pseudo_list) %dorng% {
+            output = fun_list[[1]](data = O2, samp_frac = res_main$samp_frac,
+                                   meta_data = meta_data,
+                                   fix_formula = fix_formula,
+                                   pseudo = pseudo_count,
+                                   fix_eff = fix_eff, group = group,
+                                   group_eff = group_eff,
+                                   pairwise = pairwise, global = global,
+                                   p_fun = fun_list[[2]])
+        }
+
+        # Proportion of the pseudo-count runs with a p-value above alpha
+        ss_tab_fun = function(sens_col) {
+            ss = vapply(seq_along(sens_col), function(j) {
+                p_pseudo = vapply(ss_list, function(p) p[, sens_col[j]],
+                                  FUN.VALUE = double(n_tax))
+                rowMeans(p_pseudo > alpha)
+            }, FUN.VALUE = double(n_tax))
+            ss = matrix(ss, nrow = n_tax, ncol = length(sens_col))
+            return(ss)
+        }
+
+        # Agreement between the main run and the pseudo-count runs
+        passed_fun = function(ss_tab, p_main) {
+            p_main = as.matrix(p_main)
+            p_main[is.na(p_main)] = 1
+            (ss_tab == 0 & p_main <= alpha) | (ss_tab == 1 & p_main > alpha)
+        }
+
+        # Flag the taxa that are robust to the pseudo-count addition
+        flag_fun = function(res_tab, ss_tab, p_main) {
+            ss_tab_log = passed_fun(ss_tab, p_main)
+            colnames(ss_tab_log) = sub("^ss_(prim|pair|dunn)_", "passed_ss_",
+                                       colnames(ss_tab))
+            res_tab = cbind(res_tab, ss_tab_log)
+            diff_cols = grep("^diff_", names(res_tab), value = TRUE, perl = TRUE)
+            suffixes = sub("^diff_", "", diff_cols)
+            for (suffix in suffixes) {
+                diff_col = paste0("diff_", suffix)
+                passed_col = paste0("passed_ss_", suffix)
+                new_col = paste0("diff_robust_", suffix)
+                res_tab[[new_col]] = res_tab[[diff_col]] & res_tab[[passed_col]]
+            }
+            return(res_tab)
+        }
+
+        ## Primary results
+        ss_tab_prim = ss_tab_fun(fix_eff)
+        colnames(ss_tab_prim) = paste0("ss_prim_", fix_eff)
+        res = flag_fun(res_main$res, ss_tab_prim,
+                       res_main$res[, paste0("p_", fix_eff)])
+
+        ## Global and trend test results
+        if (global) {
+            ss_tab_global = ss_tab_fun("global")
+            colnames(ss_tab_global) = "ss_global"
+
+            ss_tab_log = passed_fun(ss_tab_global, res_main$res_global[, "p_val"])
+            colnames(ss_tab_log) = "passed_ss"
+            res_global = cbind(res_main$res_global, ss_tab_log)
+            res_global[["diff_robust_abn"]] = res_global[["diff_abn"]] &
+                res_global[["passed_ss"]]
+        } else { res_global = NULL }
+
+        if (trend) {
+            ss_tab_trend = ss_tab_fun("global")
+            colnames(ss_tab_trend) = "ss_trend"
+
+            ss_tab_log = passed_fun(ss_tab_trend, res_main$res_trend[, "p_val"])
+            colnames(ss_tab_log) = "passed_ss"
+            res_trend = cbind(res_main$res_trend, ss_tab_log)
+            res_trend[["diff_robust_abn"]] = res_trend[["diff_abn"]] &
+                res_trend[["passed_ss"]]
+        } else { res_trend = NULL }
+
+        ## Pairwise test results
+        if (pairwise) {
+            pair_col = gsub("^q_", "",
+                            grep("^q_", colnames(res_main$res_pair), value = TRUE))
+            ss_tab_pair = ss_tab_fun(pair_col)
+            colnames(ss_tab_pair) = paste0("ss_pair_", pair_col)
+            res_pair = flag_fun(res_main$res_pair, ss_tab_pair,
+                                res_main$res_pair[, paste0("p_", pair_col)])
+        } else { res_pair = NULL }
+
+        ## Dunnet's type of test results
+        if (dunnet) {
+            dunn_col = gsub("^q_", "",
+                            grep("^q_", colnames(res_main$res_dunn), value = TRUE))
+            ss_tab_dunn = ss_tab_fun(dunn_col)
+            colnames(ss_tab_dunn) = paste0("ss_dunn_", dunn_col)
+            res_dunn = flag_fun(res_main$res_dunn, ss_tab_dunn,
+                                res_main$res_dunn[, paste0("p_", dunn_col)])
+        } else { res_dunn = NULL }
+
+        ## Table of all sensitivity analysis results
+        ss_tab_cols = list(taxon = rownames(O2), ss_tab_prim)
+        if (global) ss_tab_cols$ss_tab_global = ss_tab_global
+        if (pairwise) ss_tab_cols$ss_tab_pair = ss_tab_pair
+        if (dunnet) ss_tab_cols$ss_tab_dunn = ss_tab_dunn
+        if (trend) ss_tab_cols$ss_tab_trend = ss_tab_trend
+        ss_tab = do.call(data.frame, c(ss_tab_cols, list(check.names = FALSE)))
+        }
+
     # 4. Outputs
+    # The global test result is reported only when the global test is requested
+    if (!global_req) res_global = NULL
+
     out = list(feature_table = O2,
                bias_correct_log_table = res_main$bias_correct_log_table,
                ss_tab = ss_tab,
@@ -647,3 +802,64 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 
 
 
+# Inference step of the sensitivity analysis for one pseudo-count
+.ancombc2_sens_fit = function(data, samp_frac, meta_data, fix_formula, fix_eff,
+                              pseudo, group, group_eff,
+                              pairwise, global, p_fun) {
+    O = as.matrix(data)
+    O[O == 0] = pseudo
+    o = log(O)
+    y = o - rowMeans(o)
+    y_bias_crt = t(t(y) - samp_frac)
+    Y = data.frame(t(y_bias_crt), check.names = FALSE)
+
+    p_list = lapply(Y, p_fun, meta_data = meta_data,
+                    fix_formula = fix_formula, fix_eff = fix_eff,
+                    group = group, group_eff = group_eff,
+                    pairwise = pairwise, global = global)
+    p_hat = do.call(rbind, p_list)
+    p_hat[is.na(p_hat)] = 1
+    return(p_hat)
+}
+
+# P-values of one taxon from the linear model fitted to the bias-corrected data
+# Fixed effects that are not estimable are assigned a p-value of NA
+.ancombc2_sens_p = function(y, meta_data, fix_formula, fix_eff, group,
+                            group_eff, pairwise, global) {
+    df = data.frame(y = y, meta_data)
+    lm_fit = stats::lm(stats::formula(paste0("y ~ ", fix_formula)), data = df)
+    coef_tab = summary(lm_fit)$coefficients
+    p_val = rep(NA_real_, length(fix_eff))
+    names(p_val) = fix_eff
+    p_val[rownames(coef_tab)] = coef_tab[, "Pr(>|t|)"]
+
+    if (pairwise) {
+        beta_hat = stats::coef(lm_fit)[group_eff]
+        vcov_hat = matrix(NA_real_, nrow = length(fix_eff),
+                          ncol = length(fix_eff),
+                          dimnames = list(fix_eff, fix_eff))
+        vcov_fit = stats::vcov(lm_fit)
+        vcov_hat[rownames(vcov_fit), colnames(vcov_fit)] = vcov_fit
+        dof = lm_fit$df.residual
+        combn_mat = utils::combn(group_eff, 2)
+        pair_p_val = vapply(seq_len(ncol(combn_mat)), function(i) {
+            id1 = combn_mat[2, i]
+            id2 = combn_mat[1, i]
+            beta_diff = beta_hat[id1] - beta_hat[id2]
+            var_diff = vcov_hat[id1, id1] + vcov_hat[id2, id2] -
+                2 * vcov_hat[id1, id2]
+            2 * stats::pt(abs(beta_diff/sqrt(var_diff)), df = dof,
+                          lower.tail = FALSE)
+        }, FUN.VALUE = double(1))
+        names(pair_p_val) = paste(combn_mat[2, ], combn_mat[1, ], sep = "_")
+        p_val = c(p_val, pair_p_val)
+    }
+
+    if (global) {
+        anova_tab = stats::anova(lm_fit)
+        p_val = c(p_val,
+                  global = anova_tab$`Pr(>F)`[rownames(anova_tab) == group])
+    }
+
+    return(p_val)
+}

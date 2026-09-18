@@ -3,18 +3,22 @@
                       tax_keep = NULL, samp_keep = NULL) {
     feature_table = data
 
+    # Prevalence: non-zero samples over samples with an observed value
+    prevalence_fun = function(x) {
+        x = as.matrix(x)
+        rowSums(x != 0, na.rm = TRUE)/rowSums(!is.na(x))
+    }
+
     # Discard taxa with prevalences < prv_cut
     if (is.null(tax_keep)) {
-        prevalence = apply(feature_table, 1, function(x)
-            sum(x != 0, na.rm = TRUE)/length(x[!is.na(x)]))
+        prevalence = prevalence_fun(feature_table)
         tax_keep = which(prevalence >= prv_cut)
     }else if (length(tax_keep) == 0) {
         stop("All taxa contain structural zeros", call. = FALSE)
     } else {
         # Discard taxa with structural zeros
         feature_table = feature_table[tax_keep, , drop = FALSE]
-        prevalence = apply(feature_table, 1, function(x)
-            sum(x != 0, na.rm = TRUE)/length(x[!is.na(x)]))
+        prevalence = prevalence_fun(feature_table)
         tax_keep = which(prevalence >= prv_cut)
     }
 
@@ -48,40 +52,39 @@
     feature_table = data
     tax_name = rownames(data)
     group_data = factor(meta_data[, group])
-    present_table = as.matrix(feature_table)
+    feature_mat = as.matrix(feature_table)
+    present_table = feature_mat
     present_table[is.na(present_table)] = 0
     present_table[present_table != 0] = 1
     n_tax = nrow(feature_table)
     n_group = nlevels(group_data)
 
-    p_hat = matrix(NA, nrow = n_tax, ncol = n_group)
-    rownames(p_hat) = rownames(feature_table)
-    colnames(p_hat) = levels(group_data)
-    for (i in seq_len(n_tax)) {
-        p_hat[i, ] = tapply(present_table[i, ], group_data,
-                            function(x) mean(x, na.rm = TRUE))
-    }
+    # Group indicator matrix (samples x groups). A sample with a missing group
+    # label has an all-zero row and is excluded from every group.
+    grp_int = as.integer(group_data)
+    grp_ok = !is.na(grp_int)
+    G = matrix(0, nrow = ncol(feature_table), ncol = n_group)
+    G[cbind(which(grp_ok), grp_int[grp_ok])] = 1
+    n_g = colSums(G)
 
-    samp_size = matrix(NA, nrow = n_tax, ncol = n_group)
-    rownames(samp_size) = rownames(feature_table)
-    colnames(samp_size) = levels(group_data)
-    for (i in seq_len(n_tax)) {
-        samp_size[i, ] = tapply(as.matrix(feature_table)[i, ], group_data,
-                                function(x) length(x[!is.na(x)]))
-    }
+    # Prevalence per group. present_table has no missing values, so the
+    # per-group mean is the count of present samples over the group size.
+    p_hat = sweep(present_table %*% G, 2, n_g, "/")
+
+    # Per-group count of samples with an observed value
+    samp_size = ((!is.na(feature_mat)) * 1) %*% G
 
     p_hat_lo = p_hat - 1.96 * sqrt(p_hat * (1 - p_hat)/samp_size)
 
-    output = (p_hat == 0)
+    zero_ind = (p_hat == 0)
     # Shall we classify a taxon as a structural zero by its negative lower bound?
-    if (neg_lb) output[p_hat_lo <= 0] = TRUE
+    if (neg_lb) zero_ind[p_hat_lo <= 0] = TRUE
 
-    output = cbind(tax_name, output)
+    output = data.frame(taxon = tax_name, zero_ind,
+                        check.names = FALSE, row.names = NULL)
     colnames(output) = c("taxon",
                          paste0("structural_zero (", group,
-                                " = ", colnames(output)[-1], ")"))
-    output = data.frame(output, check.names = FALSE, row.names = NULL)
-    output[, -1] = apply(output[, -1], 2, as.logical)
+                                " = ", levels(group_data), ")"))
     return(output)
 }
 
@@ -176,8 +179,10 @@
     # Obtain the final estimates for sample-specific biases
     beta1 = t(t(beta1) - delta_em)
     theta_hat = matrix(NA, nrow = nrow(y1), ncol = ncol(y1))
+    n_samp = nrow(x)
     for (i in seq_len(nrow(y1))) {
-        theta_hat[i, ] = y1[i, ] - base::rowSums(t(t(x) * beta1[i, ]), na.rm = TRUE)
+        theta_hat[i, ] = y1[i, ] -
+            base::rowSums(x * rep(beta1[i, ], each = n_samp), na.rm = TRUE)
     }
     theta_hat = colMeans(theta_hat, na.rm = TRUE)
     names(theta_hat) = colnames(y1)

@@ -331,88 +331,103 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
       foreach::registerDoSEQ()
     }
 
-    if (main_cat == 0) {
-        result = foreach(idx1 = seq_len(n_tax), .combine = comb, .multicombine = TRUE) %dopar% {
-            alr_data = apply(comp_table, 1, function(x) x - comp_table[idx1, ])
-            alr_data = cbind(alr_data, meta_data)
+    # The response of the pair (idx1, idx2) is the negative of the response of
+    # the pair (idx2, idx1), so the two fits share the p-value and the effect
+    # size up to sign. Only the pairs with idx2 > idx1 are fitted and the
+    # remaining entries are obtained by reflection. The number of such pairs
+    # decreases with idx1, so reference taxa are assigned to workers in turn.
+    n_wrk = max(1L, min(as.integer(n_cl), n_tax))
+    chunk_idx = split(seq_len(n_tax), rep_len(seq_len(n_wrk), n_tax))
+    chunk_ord = order(unlist(chunk_idx, use.names = FALSE))
+    beta_sign = if (main_cat == 0) -1 else 1
 
-            p_vec = rep(NA, n_tax)
-            beta_vec = rep(NA, n_tax)
+    # Without random effects all additive log-ratio responses share one design,
+    # so the pairs with a common reference taxon are fitted as a single
+    # multi-response least-squares problem.
+    dsg = NULL
+    if (is.null(rand_formula) && all(is.finite(comp_table))) {
+        dsg = .ancom_alr_design(tformula = tformula, meta_data = meta_data,
+                                n_samp = n_samp, main_var = main_var)
+    }
 
-            idx2 = NULL
-            if (is.null(rand_formula)) {
-                for (idx2 in seq_len(n_tax)) {
-                    test_data = data.frame(x = alr_data[, idx2],
-                                           meta_data,
-                                           check.names = FALSE)
-                    lm_fit = suppressWarnings(tfun(tformula, data = test_data))
-                    # The main variable is on the second row
-                    p_vec[idx2] = summary(lm_fit)$coef[2, "Pr(>|t|)"]
-                    beta_vec[idx2] = summary(lm_fit)$coef[2, "t value"]
-                }
-            } else {
-                for (idx2 in seq_len(n_tax)) {
-                    test_data = data.frame(x = alr_data[, idx2],
-                                           meta_data,
-                                           check.names = FALSE)
-                    lme_fit = try(tfun(formula = tformula,
-                                       data = test_data,
-                                       na.action = na.omit,
-                                       control = lme_control),
-                                  silent = TRUE)
-                    if (inherits(lme_fit, "try-error")) {
-                        p_vec[idx2] = NA
-                        beta_vec[idx2] = NA
-                    } else {
-                        summary_fit = summary(lme_fit)
-                        # The main variable is on the second row
-                        p_vec[idx2] = summary_fit$coefficients[2, "Pr(>|t|)"]
-                        beta_vec[idx2] = summary_fit$coefficients[2, "Estimate"]
-                    }
-                }
+    if (!is.null(dsg)) {
+        # Worker processes do not attach ANCOMBC, so the helper is given an
+        # environment that serializes without the package namespace
+        alr_stats = .ancom_alr_stats
+        environment(alr_stats) = baseenv()
+        alr_base = t(comp_table)[dsg$keep, , drop = FALSE]
+
+        result = foreach(idx1 = chunk_idx, .combine = comb,
+                         .multicombine = TRUE) %dopar% {
+            p_mat = matrix(NA_real_, nrow = length(idx1), ncol = n_tax)
+            beta_mat = matrix(NA_real_, nrow = length(idx1), ncol = n_tax)
+
+            for (k in seq_along(idx1)) {
+                ref = idx1[k]
+                if (ref == n_tax) next
+                idx2 = seq.int(ref + 1L, n_tax)
+                stat = alr_stats(y = alr_base[, idx2, drop = FALSE] -
+                                     alr_base[, ref],
+                                 dsg = dsg, main_cat = main_cat)
+                p_mat[k, idx2] = stat$p
+                beta_mat[k, idx2] = stat$beta
             }
 
-            list(p_vec, beta_vec)
+            list(p_mat, beta_mat)
         }
     } else {
-        result = foreach(idx1 = seq_len(n_tax), .combine = comb, .multicombine = TRUE) %dopar% {
-            alr_data = apply(comp_table, 1, function(x) x - comp_table[idx1, ])
-            alr_data = cbind(alr_data, meta_data)
-
-            p_vec = rep(NA, n_tax)
-            beta_vec = rep(NA, n_tax)
+        result = foreach(idx1 = chunk_idx, .combine = comb,
+                         .multicombine = TRUE) %dopar% {
+            p_mat = matrix(NA_real_, nrow = length(idx1), ncol = n_tax)
+            beta_mat = matrix(NA_real_, nrow = length(idx1), ncol = n_tax)
+            comp_t = t(comp_table)
+            test_data = data.frame(x = numeric(n_samp), meta_data,
+                                   check.names = FALSE)
 
             idx2 = NULL
-            if (is.null(rand_formula)) {
-                for (idx2 in seq_len(n_tax)) {
-                    test_data = data.frame(x = alr_data[, idx2],
-                                           meta_data,
-                                           check.names = FALSE)
-                    lm_fit = suppressWarnings(tfun(tformula, data = test_data))
-                    p_vec[idx2] = anova(lm_fit)[main_var, "Pr(>F)"]
-                    beta_vec[idx2] = anova(lm_fit)[main_var, "F value"]
-                }
-            } else {
-                for (idx2 in seq_len(n_tax)) {
-                    test_data = data.frame(x = alr_data[, idx2],
-                                           meta_data,
-                                           check.names = FALSE)
-                    lme_fit = try(tfun(formula = tformula,
-                                       data = test_data,
-                                       na.action = na.omit,
-                                       control = lme_control),
-                                  silent = TRUE)
-                    if (inherits(lme_fit, "try-error")) {
-                        p_vec[idx2] = NA
-                        beta_vec[idx2] = NA
-                    } else {
-                        p_vec[idx2] = anova(lme_fit)[main_var, "Pr(>F)"]
-                        beta_vec[idx2] = anova(lme_fit)[main_var, "F value"]
+            for (k in seq_along(idx1)) {
+                ref = idx1[k]
+                if (ref == n_tax) next
+                if (is.null(rand_formula)) {
+                    for (idx2 in seq.int(ref + 1L, n_tax)) {
+                        test_data$x = comp_t[, idx2] - comp_t[, ref]
+                        lm_fit = suppressWarnings(tfun(tformula, data = test_data))
+                        if (main_cat == 0) {
+                            # The main variable is on the second row
+                            fit_coef = summary(lm_fit)$coef
+                            p_mat[k, idx2] = fit_coef[2, "Pr(>|t|)"]
+                            beta_mat[k, idx2] = fit_coef[2, "t value"]
+                        } else {
+                            fit_aov = anova(lm_fit)
+                            p_mat[k, idx2] = fit_aov[main_var, "Pr(>F)"]
+                            beta_mat[k, idx2] = fit_aov[main_var, "F value"]
+                        }
+                    }
+                } else {
+                    for (idx2 in seq.int(ref + 1L, n_tax)) {
+                        test_data$x = comp_t[, idx2] - comp_t[, ref]
+                        lme_fit = try(tfun(formula = tformula,
+                                           data = test_data,
+                                           na.action = na.omit,
+                                           control = lme_control),
+                                      silent = TRUE)
+                        if (!inherits(lme_fit, "try-error")) {
+                            if (main_cat == 0) {
+                                # The main variable is on the second row
+                                fit_coef = summary(lme_fit)$coefficients
+                                p_mat[k, idx2] = fit_coef[2, "Pr(>|t|)"]
+                                beta_mat[k, idx2] = fit_coef[2, "Estimate"]
+                            } else {
+                                fit_aov = anova(lme_fit)
+                                p_mat[k, idx2] = fit_aov[main_var, "Pr(>F)"]
+                                beta_mat[k, idx2] = fit_aov[main_var, "F value"]
+                            }
+                        }
                     }
                 }
             }
 
-            list(p_vec, beta_vec)
+            list(p_mat, beta_mat)
         }
     }
 
@@ -420,8 +435,12 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
       parallel::stopCluster(cl)
     }
 
-    p_data = result[[1]]
-    beta_data = result[[2]]
+    p_data = result[[1]][chunk_ord, , drop = FALSE]
+    beta_data = result[[2]][chunk_ord, , drop = FALSE]
+
+    lower_ind = lower.tri(p_data)
+    p_data[lower_ind] = t(p_data)[lower_ind]
+    beta_data[lower_ind] = beta_sign * t(beta_data)[lower_ind]
 
     colnames(p_data) = taxon_id
     rownames(p_data) = taxon_id
@@ -462,7 +481,78 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
 }
 
 
+# Design shared by every additive log-ratio response when no random effects are
+# specified. The response is finite for all taxa, so the retained samples, the
+# design matrix and the quantities derived from it are the same for every pair
+# of taxa.
+#
+# Returns NULL when the main variable is not a term of the model, the design is
+# rank deficient, the design has fewer than two columns, or there are no
+# residual degrees of freedom. Each pair is then fitted separately.
+.ancom_alr_design = function(tformula, meta_data, n_samp, main_var) {
+    frame_data = data.frame(x = numeric(n_samp), meta_data, check.names = FALSE)
+    mf = try(stats::model.frame(tformula, data = frame_data,
+                                drop.unused.levels = TRUE), silent = TRUE)
+    if (inherits(mf, "try-error")) return(NULL)
+    mt = attr(mf, "terms")
+    main_term = match(main_var, attr(mt, "term.labels"))
+    if (is.na(main_term)) return(NULL)
+    x = try(stats::model.matrix(mt, mf), silent = TRUE)
+    if (inherits(x, "try-error")) return(NULL)
 
+    n_obs = nrow(x)
+    n_coef = ncol(x)
+    if (n_coef < 2 || n_obs <= n_coef) return(NULL)
+    qr_fit = stats::lm.fit(x, numeric(n_obs))
+    if (qr_fit$rank < n_coef) return(NULL)
+    if (!identical(qr_fit$qr$pivot, seq_len(n_coef))) return(NULL)
 
+    # Rows of the effects matrix carrying the sequential sum of squares of the
+    # main variable
+    main_rows = which(attr(x, "assign") == main_term)
+    if (length(main_rows) == 0L) return(NULL)
 
+    # Inverse cross-product matrix, used for the standard error of the
+    # coefficient on the second row
+    r_inv = chol2inv(qr_fit$qr$qr[seq_len(n_coef), seq_len(n_coef),
+                                  drop = FALSE])
+
+    omit = attr(mf, "na.action")
+    keep = if (is.null(omit)) seq_len(n_samp) else
+        seq_len(n_samp)[-as.integer(omit)]
+
+    list(x = x, keep = keep, n_obs = n_obs, n_coef = n_coef,
+         rdf = n_obs - n_coef, main_rows = main_rows,
+         df_main = length(main_rows), r_inv_22 = r_inv[2, 2])
+}
+
+# Test statistics and p-values for the additive log-ratio responses in the
+# columns of y, all regressed on the design in dsg. With main_cat = 1 the
+# statistic is the F statistic of the main variable and with main_cat = 0 it is
+# the t statistic of the coefficient on the second row of the design.
+.ancom_alr_stats = function(y, dsg, main_cat) {
+    n_obs = dsg$n_obs
+    n_resp = ncol(y)
+    fit = stats::lm.fit(dsg$x, y)
+
+    resid_mat = fit$residuals
+    dim(resid_mat) = c(n_obs, n_resp)
+    rss = .colSums(resid_mat^2, n_obs, n_resp)
+
+    if (main_cat == 1) {
+        eff_mat = fit$effects
+        dim(eff_mat) = c(n_obs, n_resp)
+        ss_main = .colSums(eff_mat[dsg$main_rows, , drop = FALSE]^2,
+                           dsg$df_main, n_resp)
+        f_val = (ss_main/dsg$df_main)/(rss/dsg$rdf)
+        list(p = stats::pf(f_val, dsg$df_main, dsg$rdf, lower.tail = FALSE),
+             beta = f_val)
+    } else {
+        coef_mat = fit$coefficients
+        dim(coef_mat) = c(dsg$n_coef, n_resp)
+        t_val = coef_mat[2, ]/sqrt(dsg$r_inv_22 * (rss/dsg$rdf))
+        list(p = 2 * stats::pt(abs(t_val), dsg$rdf, lower.tail = FALSE),
+             beta = t_val)
+    }
+}
 
