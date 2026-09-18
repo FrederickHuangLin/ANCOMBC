@@ -23,13 +23,13 @@ library(tidyverse)
 
 Analysis of Composition of Microbiomes (ANCOM) [@mandal2015analysis] is a 
 differential abundance (DA) analysis for microbial absolute abundances. 
-It accounts for the compositionality of microbiome data by performing 
-the additive log ratio (ALR) transformation. ANCOM employs a heuristic strategy 
-to declare taxa that are significantly differentially abundant. 
-For a given taxon, the output W statistic represents the number ALR transformed 
-models where the taxon is differentially abundant with regard to the variable 
-of interest. The larger the value of W, the more likely the taxon is 
-differentially abundant. For more details, please refer to the 
+It accounts for the compositionality of microbiome data by performing
+the additive log ratio (ALR) transformation. ANCOM employs a heuristic strategy
+to declare taxa that are significantly differentially abundant.
+For a given taxon, the W statistic is the number of ALR transformed models in
+which the taxon is differentially abundant with respect to the variable
+of interest. The larger the value of W, the stronger the evidence that the
+taxon is differentially abundant. For more details, see the
 [ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663) paper.
 
 # 2. Installation
@@ -68,42 +68,7 @@ format. In this tutorial, we consider the following covariates:
     
     + The reference group: "obese"
 
-```{r}
-data(atlas1006, package = "microbiome")
-
-# Subset to baseline
-pseq = phyloseq::subset_samples(atlas1006, time == 0)
-
-# Re-code the bmi group
-meta_data = microbiome::meta(pseq)
-meta_data$bmi = recode(meta_data$bmi_group,
-                       obese = "obese",
-                       severeobese = "obese",
-                       morbidobese = "obese")
-
-# Note that by default, levels of a categorical variable in R are sorted 
-# alphabetically. In this case, the reference level for `bmi` will be 
-# `lean`. To manually change the reference level, for instance, setting `obese`
-# as the reference level, use:
-meta_data$bmi = factor(meta_data$bmi, levels = c("obese", "overweight", "lean"))
-# You can verify the change by checking:
-# levels(meta_data$bmi)
-
-# Create the region variable
-meta_data$region = recode(as.character(meta_data$nationality),
-                          Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
-                          CentralEurope = "CE", EasternEurope = "EE",
-                          .missing = "unknown")
-
-phyloseq::sample_data(pseq) = meta_data
-
-# Subset to lean, overweight, and obese subjects
-pseq = phyloseq::subset_samples(pseq, bmi %in% c("lean", "overweight", "obese"))
-# Discard "EE" as it contains only 1 subject
-# Discard subjects with missing values of region
-pseq = phyloseq::subset_samples(pseq, ! region %in% c("EE", "unknown"))
-
-print(pseq)
+```{r, child = "children/child_atlas1006.Rmd"}
 ```
 
 ## 3.2 Run `ancom` function using `phyloseq` data
@@ -138,10 +103,9 @@ beta_val = beta_val * (q_val < 0.05)
 beta_pos = apply(abs(beta_val), 2, which.max) 
 beta_max = vapply(seq_along(beta_pos), function(i) 
     beta_val[beta_pos[i], i], FUN.VALUE = double(1))
-# Number of taxa except structural zeros
-n_taxa = ifelse(is.null(out$zero_ind), 
-                nrow(tse), 
-                sum(apply(out$zero_ind[, -1], 1, sum) == 0))
+# Number of taxa included in the ALR comparisons, i.e., the taxa left after
+# filtering and after the removal of taxa with structural zeros
+n_taxa = nrow(out$q_data)
 # Cutoff values for declaring differentially abundant taxa
 cut_off = 0.7 * (n_taxa - 1)
 
@@ -174,37 +138,26 @@ p_w = df_fig_w %>%
 p_w
 ```
 
-## 3.4 Run `ancom` function using `tse` data
+## 3.4 Alternative input formats
+
+The call in Section 3.2 also accepts a `TreeSummarizedExperiment` object or a
+count matrix. Only the data arguments differ; all other arguments are unchanged.
+
+For a `TreeSummarizedExperiment` object, pass `data = tse` and
+`assay_name = "counts"`.
 
 ```{r, eval=FALSE}
 tse = mia::makeTreeSummarizedExperimentFromPhyloseq(pseq)
-
-set.seed(123)
-out = ancom(data = tse, assay_name = "counts",
-            tax_level = "Family", meta_data = NULL,
-            p_adj_method = "holm", prv_cut = 0.10,
-            lib_cut = 1000, main_var = "bmi", adj_formula = "age + region", 
-            rand_formula = NULL, lme_control = NULL, struc_zero = TRUE,
-            neg_lb = TRUE, alpha = 0.05, n_cl = 2, verbose = TRUE)
-
-res = out$res
 ```
 
-## 3.5 Run `ancom` function by directly providing the abundance and metadata
+For a count matrix, aggregation to the analysis level is performed beforehand.
+Pass `data = abundance_data`, `aggregate_data = aggregate_data`, and
+`meta_data = meta_data`, and drop `tax_level`.
 
 ```{r, eval=FALSE}
 abundance_data = microbiome::abundances(pseq)
 aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family"))
 meta_data = microbiome::meta(pseq)
-
-set.seed(123)
-out = ancom(data = abundance_data, aggregate_data = aggregate_data, 
-            meta_data = meta_data, p_adj_method = "holm", prv_cut = 0.10,
-            lib_cut = 1000, main_var = "bmi", adj_formula = "age + region", 
-            rand_formula = NULL, lme_control = NULL, struc_zero = TRUE,
-            neg_lb = TRUE, alpha = 0.05, n_cl = 2, verbose = TRUE)
-
-res = out$res
 ```
 
 # 4. Run ANCOM on a real longitudinal dataset {.tabset}
@@ -263,10 +216,9 @@ beta_val = beta_val * (q_val < 0.05)
 beta_pos = apply(abs(beta_val), 2, which.max) 
 beta_max = vapply(seq_along(beta_pos), function(i) beta_val[beta_pos[i], i],
                   FUN.VALUE = double(1))
-# Number of taxa except structural zeros
-n_taxa = ifelse(is.null(out$zero_ind), 
-                nrow(tse), 
-                sum(apply(out$zero_ind[, -1], 1, sum) == 0))
+# Number of taxa included in the ALR comparisons, i.e., the taxa left after
+# filtering and after the removal of taxa with structural zeros
+n_taxa = nrow(out$q_data)
 # Cutoff values for declaring differentially abundant taxa
 cut_off = 0.7 * (n_taxa - 1)
 
@@ -299,40 +251,26 @@ p_w = df_fig_w %>%
 p_w
 ```
 
-## 4.4 Run `ancom` function using `tse` data
+## 4.4 Alternative input formats
+
+The call in Section 4.2 also accepts a `TreeSummarizedExperiment` object or a
+count matrix. Only the data arguments differ; all other arguments are unchanged.
+
+For a `TreeSummarizedExperiment` object, pass `data = tse` and
+`assay_name = "counts"`.
 
 ```{r, eval=FALSE}
 tse = mia::makeTreeSummarizedExperimentFromPhyloseq(dietswap)
-
-set.seed(123)
-out = ancom(data = tse, assay_name = "counts", tax_level = "Family",
-            p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
-            main_var = "group",
-            adj_formula = "nationality + timepoint", 
-            rand_formula = "(timepoint | subject)", 
-            lme_control = lme4::lmerControl(), 
-            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
-
-res = out$res
 ```
 
-## 4.5 Run `ancom` function by directly providing the abundance and metadata
+For a count matrix, aggregation to the analysis level is performed beforehand.
+Pass `data = abundance_data`, `aggregate_data = aggregate_data`, and
+`meta_data = meta_data`, and drop `tax_level`.
 
 ```{r, eval=FALSE}
 abundance_data = microbiome::abundances(dietswap)
 aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(dietswap, "Family"))
 meta_data = microbiome::meta(dietswap)
-
-set.seed(123)
-out = ancom(data = abundance_data, aggregate_data = aggregate_data,
-            meta_data = meta_data, p_adj_method = "holm", 
-            prv_cut = 0.10, lib_cut = 1000, main_var = "group",
-            adj_formula = "nationality + timepoint", 
-            rand_formula = "(timepoint | subject)", 
-            lme_control = lme4::lmerControl(), 
-            struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 2)
-
-res = out$res
 ```
 
 # Session information

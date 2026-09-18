@@ -126,7 +126,7 @@ check_results = data_sanity_check(data = tse,
 
 Both abundance data and sample metadata are required for this import method.
 
-Note that aggregating taxa to higher taxonomic levels is not supported in this method. Ensure that the data is already aggregated to the desired taxonomic level before proceeding. If aggregation is needed, consider creating a `phyloseq` or `tse` object for importing.
+Aggregation to a higher taxonomic level is not available for this input type: the `tax_level` and `assay_name` arguments are ignored and are therefore omitted below. Aggregate the abundance data to the taxonomic level of interest before the call, or supply a `phyloseq` or `tse` object, for which the function performs the aggregation.
 
 ```{r}
 abundance_data = microbiome::abundances(atlas1006)
@@ -149,8 +149,6 @@ Data sanity and integrity check.
 
 ```{r}
 check_results = data_sanity_check(data = abundance_data,
-                                  assay_name = "counts",
-                                  tax_level = "Family",
                                   meta_data = meta_data,
                                   fix_formula = "age + sex + bmi_group",
                                   group = "bmi_group",
