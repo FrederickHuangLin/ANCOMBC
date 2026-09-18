@@ -185,6 +185,8 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
 
     # run secom_linear function
     set.seed(123)
+    # Setting thresh_len = 20 reduces the running time of the example
+    # Use the default value of 100 for thresh_len in an analysis
     res_linear = secom_linear(data = list(pseq), taxa_are_rows = TRUE,
                               tax_level = "Phylum",
                               aggregate_data = NULL, meta_data = NULL, pseudo = 0,

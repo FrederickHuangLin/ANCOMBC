@@ -159,25 +159,11 @@ covariate of interest (e.g. group). The current version of
 measurements data while allowing for covariate adjustment.
 }
 \details{
-A taxon is considered to have structural zeros in some (>=1)
-groups if it is completely (or nearly completely) missing in these groups.
-For instance, suppose there are three groups: g1, g2, and g3.
-If the counts of taxon A in g1 are 0 but nonzero in g2 and g3,
-then taxon A will be considered to contain structural zeros in g1.
-In this example, taxon A is declared to be differentially abundant between
-g1 and g2, g1 and g3, and consequently, it is globally differentially
-abundant with respect to this group variable.
-Such taxa are not further analyzed using ANCOM, but the results are
-summarized in the overall summary. For more details about the structural
-zeros, please go to the
-\href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II} paper.
-Setting \code{neg_lb = TRUE} indicates that you are using both criteria
-stated in section 3.2 of
-\href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II}
-to detect structural zeros; otherwise, the algorithm will only use the
-equation 1 in section 3.2 for declaring structural zeros. Generally, it is
-recommended to set \code{neg_lb = TRUE} when the sample size per group is
-relatively large (e.g. > 30).
+Taxa with structural zeros in at least one group of \code{main_var}
+are removed from the log-ratio comparisons and are reported in \code{res}
+with \code{W} set to infinity and the detection indicators set to TRUE. The
+detection of structural zeros is controlled by \code{struc_zero} and
+\code{neg_lb}, which are defined in \code{\link{ANCOMBC-concepts}}.
 }
 \examples{
 library(ANCOMBC)
@@ -207,7 +193,7 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
 }
 \seealso{
 \code{\link{ancombc}} \code{\link{ancombc2}}
-\code{\link{data_sanity_check}}
+\code{\link{data_sanity_check}} \code{\link{ANCOMBC-concepts}}
 }
 \author{
 Huang Lin

@@ -58,7 +58,7 @@
 #' contains only two categories, you can also leave the \code{group} parameter
 #' as NULL. Default is NULL.
 #' @param struc_zero logical. Whether to detect structural zeros based on
-#' \code{group}. Default is FALSE. See \code{\link{ancombc2}} for
+#' \code{group}. Default is FALSE. See \code{\link{ANCOMBC-concepts}} for
 #' a more comprehensive discussion on structural zeros.
 #' @param global logical. Whether to perform the global test. Default is FALSE.
 #' @param pairwise logical. Whether to perform the pairwise directional test.
@@ -70,8 +70,8 @@
 #' wise error (FWER) controlling procedure, such as "holm", "hochberg",
 #' "bonferroni", etc (default is "holm") and 2) \code{B}: the number of
 #' bootstrap samples (default is 100). Increase \code{B} will lead to a more
-#' accurate p-values. See \code{\link{ancombc2}} for a more comprehensive
-#' discussion on mdFDR.
+#' accurate p-values. See \code{\link{ANCOMBC-concepts}} for a more
+#' comprehensive discussion on mdFDR.
 #' @param trend logical. Whether to perform trend test. Default is FALSE.
 #' @param trend_control a named list of control parameters for the trend test,
 #' including 1) \code{contrast}: the list of contrast matrices for
@@ -109,6 +109,9 @@
 #'         corresponding inputs. The four logical arguments are set to FALSE
 #'         when \code{group} has fewer than three levels, in which case the
 #'         multi-group comparisons are not identifiable.
+#'
+#' @seealso \code{\link{ancom}} \code{\link{ancombc}} \code{\link{ancombc2}}
+#' \code{\link{ANCOMBC-concepts}}
 #'
 #' @examples
 #' library(ANCOMBC)

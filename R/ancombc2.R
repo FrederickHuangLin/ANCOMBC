@@ -11,25 +11,10 @@
 #' including the global test, pairwise directional test, Dunnett's type of
 #' test, and trend test.
 #'
-#' @details A taxon is considered to have structural zeros in some (>=1)
-#' groups if it is completely (or nearly completely) missing in these groups.
-#' For instance, suppose there are three groups: g1, g2, and g3.
-#' If the counts of taxon A in g1 are 0 but nonzero in g2 and g3,
-#' then taxon A will be considered to contain structural zeros in g1.
-#' In this example, taxon A is declared to be differentially abundant between
-#' g1 and g2, g1 and g3, and consequently, it is globally differentially
-#' abundant with respect to this group variable.
-#' Such taxa are not further analyzed using ANCOM-BC2, but the results are
-#' summarized in the overall summary. For more details about the structural
-#' zeros, please go to the
-#' \href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II} paper.
-#' Setting \code{neg_lb = TRUE} indicates that you are using both criteria
-#' stated in section 3.2 of
-#' \href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II}
-#' to detect structural zeros; otherwise, the algorithm will only use the
-#' equation 1 in section 3.2 for declaring structural zeros. Generally, it is
-#' recommended to set \code{neg_lb = TRUE} when the sample size per group is
-#' relatively large (e.g. > 30).
+#' @details Taxa with structural zeros are excluded from the primary result and
+#' are reported in \code{zero_ind}. The detection of structural zeros is
+#' controlled by \code{struc_zero} and \code{neg_lb}, which are defined in
+#' \code{\link{ANCOMBC-concepts}}.
 #'
 #'Like other differential abundance analysis methods, ANCOM-BC2 applies a log
 #'transformation to the observed counts. However, the presence of zero counts
@@ -70,20 +55,10 @@
 #' concern, since \code{conservative = FALSE} has higher power and a higher
 #' false positive rate.
 #'
-#' When performing pairwise directional (or Dunnett's type of) test, the mixed
-#' directional false discovery rate (mdFDR) should be taken into account.
-#' The mdFDR is the combination of false discovery rate due to multiple testing,
-#' multiple pairwise comparisons, and directional tests within each pairwise
-#' comparison. For example, suppose we have five taxa and three experimental
-#' groups: g1, g2, and g3. Thus, we are performing five tests corresponding to
-#' five taxa. For each taxon, we are also conducting three pairwise comparisons
-#' (g1 vs. g2, g2 vs. g3, and g1 vs. g3). Within each pairwise comparison,
-#' we wish to determine if the abundance has increased or decreased or did not
-#' change (direction of the effect size). Errors could occur in each step.
-#' The overall false discovery rate is controlled by the mdFDR methodology we
-#' adopted from
-#' \href{https://doi.org/10.1111/j.1541-0420.2009.01292.x}{Guo, Sarkar, and Peddada (2010)} and
-#' \href{https://doi.org/10.1186/s12859-016-0937-5}{Grandhi, Guo, and Peddada (2016)}.
+#' The pairwise directional test and the Dunnett's type of test control the
+#' mixed directional false discovery rate (mdFDR) through the two-stage
+#' procedure specified by \code{mdfdr_control}. The mdFDR and the procedure are
+#' defined in \code{\link{ANCOMBC-concepts}}.
 #'
 #' @param data the input data. The \code{data} parameter should be either a
 #' \code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
@@ -345,7 +320,7 @@
 #'         }
 #'
 #' @seealso \code{\link{ancom}} \code{\link{ancombc}}
-#' \code{\link{data_sanity_check}}
+#' \code{\link{data_sanity_check}} \code{\link{ANCOMBC-concepts}}
 #'
 #' @examples
 #' library(ANCOMBC)

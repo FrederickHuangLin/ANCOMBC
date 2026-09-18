@@ -92,7 +92,7 @@ contains only two categories, you can also leave the \code{group} parameter
 as NULL. Default is NULL.}
 
 \item{struc_zero}{logical. Whether to detect structural zeros based on
-\code{group}. Default is FALSE. See \code{\link{ancombc2}} for
+\code{group}. Default is FALSE. See \code{\link{ANCOMBC-concepts}} for
 a more comprehensive discussion on structural zeros.}
 
 \item{global}{logical. Whether to perform the global test. Default is FALSE.}
@@ -108,8 +108,8 @@ false discovery rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
 wise error (FWER) controlling procedure, such as "holm", "hochberg",
 "bonferroni", etc (default is "holm") and 2) \code{B}: the number of
 bootstrap samples (default is 100). Increase \code{B} will lead to a more
-accurate p-values. See \code{\link{ancombc2}} for a more comprehensive
-discussion on mdFDR.}
+accurate p-values. See \code{\link{ANCOMBC-concepts}} for a more
+comprehensive discussion on mdFDR.}
 
 \item{trend}{logical. Whether to perform trend test. Default is FALSE.}
 
@@ -170,6 +170,10 @@ if (requireNamespace("microbiome", quietly = TRUE)) {
     message("The 'microbiome' package is not installed. Please install it to use this example.")
 }
 
+}
+\seealso{
+\code{\link{ancom}} \code{\link{ancombc}} \code{\link{ancombc2}}
+\code{\link{ANCOMBC-concepts}}
 }
 \author{
 Huang Lin

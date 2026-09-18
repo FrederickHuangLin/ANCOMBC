@@ -1,4 +1,4 @@
-version 2.15.xx (last update 2026-09-17)
+version 2.15.xx (last update 2026-09-18)
         + Reduce the running time of ancombc, ancombc2, secom_linear, and
           secom_dist without changing the results
         + Add the 'conservative' argument to ancombc2, which specifies whether
@@ -8,6 +8,8 @@ version 2.15.xx (last update 2026-09-17)
           sensitivity analysis but without the global test
         + Correct documented defaults and return values in the help pages and
           README
+        + Add the help topic ANCOMBC-concepts, which defines structural zeros
+          and the mixed directional false discovery rate once for all functions
 
 version 2.12.xx (last update 2026-04-27)
         + Remove CVXR dependences
