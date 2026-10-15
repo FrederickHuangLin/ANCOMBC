@@ -86,45 +86,48 @@
     list(beta = beta, fitted = fitted, dof = dof)
 }
 
-# Sandwich (Huber-White) variance estimator. For taxon i,
-# V_i = (X'X)^- ( sum_j eps_ij^2 x_j x_j' ) (X'X)^-. Any entry of a term
-# involving a missing value is set to 0.1. The per-sample outer products
-# x_j x_j' do not depend on the taxon, so they are computed once, stored as the
-# rows of an n_samp x p^2 matrix, and accumulated over samples for all taxa
-# together.
+# Sandwich (Huber-White) variance estimator. Both parts of the covariance use
+# the observations available for each taxon, as in the corresponding fit.
+# With X_i restricted to those observations and X_i^+ its pseudoinverse,
+# V_i = X_i^+ diag(eps_i^2) (X_i^+)'. Taxa sharing their observed-sample pattern
+# reuse the same pseudoinverse. Unavailable or non-estimable coefficients retain
+# NA uncertainty instead of an artificial constant or zero variance.
 .sandwich_vcov = function(x, eps, fix_eff) {
     n_tax = nrow(eps)
     n_samp = ncol(eps)
     p = ncol(x)
 
-    x_cc = x[stats::complete.cases(x), ]
-    XTX_inv = MASS::ginv(t(x_cc) %*% x_cc)
-
-    # Row j of XX is the outer product x_j x_j' in column-major order.
-    XX = matrix(NA_real_, nrow = n_samp, ncol = p * p)
-    for (j in seq_len(n_samp)) XX[j, ] = as.vector(x[j, ] %*% t(x[j, ]))
-
-    eps2 = eps^2
-    vcov_hat = vector(mode = "list", length = n_tax)
-    var_hat = matrix(NA, nrow = n_tax, ncol = p)
     dn = list(fix_eff, fix_eff)
+    vcov_hat = rep(list(matrix(NA_real_, nrow = p, ncol = p, dimnames = dn)), n_tax)
+    var_hat = matrix(NA_real_, nrow = n_tax, ncol = p)
+    if (n_tax == 0L) return(list(vcov_hat = vcov_hat, var_hat = var_hat))
 
-    # Accumulate taxa in blocks to bound the size of the temporaries
-    block = max(1L, as.integer(2^17 / (p * p)))
-    for (start in seq.int(1L, n_tax, by = block)) {
-        idx = seq.int(start, min(start + block - 1L, n_tax))
-        sigma2_xxT = matrix(0, nrow = length(idx), ncol = p * p)
-        for (j in seq_len(n_samp)) {
-            term_j = outer(eps2[idx, j], XX[j, ])
-            term_j[is.na(term_j)] = 0.1
-            sigma2_xxT = sigma2_xxT + term_j
-        }
-        for (k in seq_along(idx)) {
-            v_i = XTX_inv %*% matrix(sigma2_xxT[k, ], nrow = p, ncol = p) %*%
-                XTX_inv
+    x_ok = stats::complete.cases(x)
+    use = is.finite(eps) & matrix(x_ok, nrow = n_tax, ncol = n_samp, byrow = TRUE)
+    if (all(use)) {
+        groups = list(seq_len(n_tax))
+    } else {
+        keys = do.call(paste0, asplit(use * 1L, 2L))
+        groups = split(seq_len(n_tax), factor(keys, levels = unique(keys)))
+    }
+
+    for (idx in groups) {
+        rows = use[idx[1L], ]
+        if (!any(rows)) next
+        xr = x[rows, , drop = FALSE]
+        x_inv = MASS::ginv(xr)
+        # A coefficient is estimable only if its coordinate vector belongs to
+        # the row space of the observed design. A pseudoinverse alone would
+        # otherwise give finite uncertainty for arbitrary identifying constraints.
+        projection = x_inv %*% xr
+        estimable = sqrt(colSums((diag(p) - projection)^2)) < sqrt(.Machine$double.eps)
+        for (i in idx) {
+            v_i = tcrossprod(sweep(x_inv, 2, eps[i, rows], "*"))
+            v_i[!estimable, ] = NA_real_
+            v_i[, !estimable] = NA_real_
             dimnames(v_i) = dn
-            vcov_hat[[idx[k]]] = v_i
-            var_hat[idx[k], ] = diag(v_i)
+            vcov_hat[[i]] = v_i
+            var_hat[i, ] = diag(v_i)
         }
     }
     list(vcov_hat = vcov_hat, var_hat = var_hat)

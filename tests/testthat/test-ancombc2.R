@@ -25,7 +25,7 @@ test_that("`ancombc2` function provides expected results", {
                    trend_control = NULL)
     res_prim = out$res
     test_output = round(res_prim$W_age[1], 2)
-    expect_equal(test_output, -5.99)
+    expect_equal(test_output, -9.92)
 })
 
 test_that("`ancombc2` function provides expected results with `conservative = FALSE`", {
