@@ -546,9 +546,12 @@
           if (inherits(i, "lmerModLmerTest")) summary(i) else NULL
         })
 
-        # Degree of freedom
+        # Degree of freedom, aligned by name because taxon-specific fits can
+        # omit fixed effects. Unavailable coefficients retain NA degrees of freedom.
         dof = lapply(summ_list, function(i) {
-          if (is.null(i)) rep(999, n_fix_eff) else i$coefficients[, "df"]
+          if (is.null(i)) rep(NA_real_, n_fix_eff) else {
+            i$coefficients[match(fix_eff, rownames(i$coefficients)), "df"]
+          }
         })
         dof = do.call("rbind", dof)
 
