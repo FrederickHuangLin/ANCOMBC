@@ -229,7 +229,7 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
                        "Please ensure the column names of the feature abundance matrix and the row names of the metadata data frame are consistent.",
                        sep = "\n"))
         }
-        meta_data = meta_data[colnames(feature_table), ]
+        meta_data = meta_data[colnames(feature_table), , drop = FALSE]
     }
     else {
         stop("Unsupported data type. Please provide a 'matrix', 'data.frame', 'phyloseq', or 'tse' object.")
