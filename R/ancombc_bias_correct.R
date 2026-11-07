@@ -648,8 +648,6 @@
 
     # Apply E-M algorithm
     # Nelder-Mead options
-    nm_opts = nloptr::nl.opts(list())
-    nm_opts["algorithm"] = "NLOPT_LN_NELDERMEAD"
 
     # Store all paras in vectors/matrices
     pi0_vec = pi0_0
@@ -701,24 +699,11 @@
                          sum(r2i/(nu0+kappa2), na.rm = TRUE), 0)
         if (is.na(l2_new)) l2_new = 0
 
-        # Nelder-Mead simplex algorithm for kappa1 and kappa2
-        obj_kappa1 = function(x){
-            log_pdf = log(dnorm(beta, delta + l1, sqrt(nu0 + x)))
-            log_pdf[is.infinite(log_pdf)] = 0
-            -sum(r1i*log_pdf, na.rm = TRUE)
-        }
-        kappa1_new = nloptr::nloptr(x0 = kappa1, eval_f = obj_kappa1,
-                                    lb = 0, ub = NULL,
-                                    opts = nm_opts)$solution
-
-        obj_kappa2 = function(x){
-            log_pdf = log(dnorm(beta, delta + l2, sqrt(nu0 + x)))
-            log_pdf[is.infinite(log_pdf)] = 0
-            -sum(r2i*log_pdf, na.rm = TRUE)
-        }
-        kappa2_new = nloptr::nloptr(x0 = kappa2, eval_f = obj_kappa2,
-                                    lb = 0, ub = NULL,
-                                    opts = nm_opts)$solution
+        # A bounded simplex can collapse at zero even when the variance
+        # objective decreases immediately to its right. Search the scalar
+        # variance interval and explicitly retain its boundary/current values.
+        kappa1_new = .ancombc_variance(beta, nu0, r1i, delta + l1, kappa1)
+        kappa2_new = .ancombc_variance(beta, nu0, r2i, delta + l2, kappa2)
 
         # Merge to the paras vectors/matrices
         pi0_vec = c(pi0_vec, pi0_new)
@@ -775,6 +760,24 @@
     output = c(delta_em = delta_em,
                delta_wls = delta_wls,
                var_delta = var_delta)
+}
+
+# Conditional negative log likelihood for a component's extra variance.
+# For t >= max((beta - centre)^2), every derivative term is nonnegative,
+# so a minimizer exists inside this finite interval. Brent's search does not
+# certify global optimality for arbitrary heterogeneous variances.
+.ancombc_variance = function(beta, nu0, weights, centre, current) {
+    if (!any(weights > 0)) return(current)
+    upper = max((beta - centre)^2)
+    if (upper == 0) return(0)
+    objective = function(t) {
+        -sum(weights * dnorm(beta, centre, sqrt(nu0 + t), log = TRUE))
+    }
+    candidate = stats::optimize(objective, interval = c(0, upper),
+                               tol = .Machine$double.eps^0.5)$minimum
+    candidates = c(0, candidate, upper, current)
+    values = vapply(candidates, objective, numeric(1))
+    candidates[which.min(values)]
 }
 
 
