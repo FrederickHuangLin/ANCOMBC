@@ -35,7 +35,7 @@ between a pair of taxa within an ecosystem (e.g., gut) or across ecosystems
 (e.g., gut and tongue). SECOM corrects both sample-specific and taxon-specific 
 biases and obtains a consistent estimator for the correlation matrix of 
 microbial absolute abundances while maintaining the underlying true sparsity.
-For more details, please refer to the 
+For more details, see the
 [SECOM](https://doi.org/10.1038/s41467-022-32243-x) paper.
 
 # 2. Installation
@@ -62,42 +62,7 @@ reported in [@lahti2014tipping]. The dataset is available via the
 microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
 format.
 
-```{r}
-data(atlas1006, package = "microbiome")
-
-# Subset to baseline
-pseq = phyloseq::subset_samples(atlas1006, time == 0)
-
-# Re-code the bmi group
-meta_data = microbiome::meta(pseq)
-meta_data$bmi = recode(meta_data$bmi_group,
-                       obese = "obese",
-                       severeobese = "obese",
-                       morbidobese = "obese")
-
-# Note that by default, levels of a categorical variable in R are sorted 
-# alphabetically. In this case, the reference level for `bmi` will be 
-# `lean`. To manually change the reference level, for instance, setting `obese`
-# as the reference level, use:
-meta_data$bmi = factor(meta_data$bmi, levels = c("obese", "overweight", "lean"))
-# You can verify the change by checking:
-# levels(meta_data$bmi)
-
-# Create the region variable
-meta_data$region = recode(as.character(meta_data$nationality),
-                          Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
-                          CentralEurope = "CE", EasternEurope = "EE",
-                          .missing = "unknown")
-
-phyloseq::sample_data(pseq) = meta_data
-
-# Subset to lean, overweight, and obese subjects
-pseq = phyloseq::subset_samples(pseq, bmi %in% c("lean", "overweight", "obese"))
-# Discard "EE" as it contains only 1 subject
-# Discard subjects with missing values of region
-pseq = phyloseq::subset_samples(pseq, ! region %in% c("EE", "unknown"))
-
-print(pseq)
+```{r, child = "children/child_atlas1006.Rmd"}
 ```
 
 # 4. Run SECOM on a Single Ecosystem
@@ -279,9 +244,14 @@ heat_dist_fl = df_dist %>%
 heat_dist_fl
 ```
 
-## 4.3 Run secom functions using the `tse` object
+## 4.3 Alternative input formats
 
-One can also run SECOM function using the `TreeSummarizedExperiment` object.
+The calls in Section 4.1 also accept `TreeSummarizedExperiment` objects or
+count matrices. Only the data arguments differ; all other arguments are
+unchanged.
+
+For a `TreeSummarizedExperiment` object, pass `data = list(tse)` and
+`assay_name = "counts"`.
 
 ```{r, eval=FALSE}
 tse = mia::makeTreeSummarizedExperimentFromPhyloseq(atlas1006)
@@ -293,71 +263,31 @@ tse$bmi = recode(tse$bmi_group,
 tse = tse[, tse$bmi %in% c("lean", "overweight", "obese")]
 tse$bmi = factor(tse$bmi, levels = c("obese", "overweight", "lean"))
 tse$region = recode(as.character(tse$nationality),
-                    Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
+                    Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE",
                     CentralEurope = "CE", EasternEurope = "EE",
                     .missing = "unknown")
 tse = tse[, ! tse$region %in% c("EE", "unknown")]
-
-set.seed(123)
-# Linear relationships
-res_linear = secom_linear(data = list(tse), taxa_are_rows = TRUE,
-                          assay_name = "counts", tax_level = "Phylum", 
-                          aggregate_data = NULL, meta_data = NULL, pseudo = 0, 
-                          prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                          wins_quant = c(0.05, 0.95), method = "pearson", 
-                          soft = FALSE, thresh_len = 20, n_cv = 10, 
-                          thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
-
-# Nonlinear relationships
-res_dist = secom_dist(data = list(tse), taxa_are_rows = TRUE,
-                      assay_name = "counts", tax_level = "Phylum", 
-                      aggregate_data = NULL, meta_data = NULL, pseudo = 0, 
-                      prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                      wins_quant = c(0.05, 0.95), R = 1000, 
-                      thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 ```
 
-## 4.4 Run secom functions by directly providing the abundance and metadata
-
-Please ensure that you provide the following: 1) The abundance data at its lowest 
-possible taxonomic level. 2) The aggregated data at the desired taxonomic level; 
-if no aggregation is performed, it can be the same as the original abundance data.
-3) The sample metadata.
+For count matrices, three objects are supplied: the abundance data at the
+lowest available taxonomic level, the data aggregated to the taxonomic level of
+the analysis, and the sample metadata. If no aggregation is performed, the
+aggregated data are the same as the abundance data. Pass
+`data = list(abundance_data)`, `aggregate_data = list(aggregate_data)`, and
+`meta_data = list(meta_data)`, and drop `tax_level`.
 
 ```{r, eval=FALSE}
 abundance_data = microbiome::abundances(pseq)
 aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Phylum"))
 meta_data = microbiome::meta(pseq)
-
-set.seed(123)
-# Linear relationships
-res_linear = secom_linear(data = list(abundance_data), 
-                          taxa_are_rows = TRUE,
-                          aggregate_data = list(aggregate_data), 
-                          meta_data = list(meta_data), 
-                          pseudo = 0, 
-                          prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                          wins_quant = c(0.05, 0.95), method = "pearson", 
-                          soft = FALSE, thresh_len = 20, n_cv = 10, 
-                          thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
-
-# Nonlinear relationships
-res_dist = secom_dist(data = list(abundance_data), 
-                      taxa_are_rows = TRUE,
-                      aggregate_data = list(aggregate_data), 
-                      meta_data = list(meta_data), 
-                      pseudo = 0,  
-                      prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                      wins_quant = c(0.05, 0.95), R = 1000, 
-                      thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 ```
 
 # 5. Run SECOM on Multiple Ecosystems
 
 ## 5.1 Data manipulation
 
-To compute correlations whithin and across different ecosystems, one needs to
-make sure that there are samples in common across these ecosystems.
+Correlations within and across ecosystems are computed on the samples that the
+ecosystems have in common, so the sample names must overlap.
 
 ```{r}
 # Select subjects from "CE" and "NE"
@@ -450,7 +380,7 @@ heat_linear_th
 ### Pearson correlation with p-value filtering
 
 ```{r, fig.width=8, fig.height=8}
-corr_linear = res_linear$corr_th
+corr_linear = res_linear$corr_fl
 cooccur_linear = res_linear$mat_cooccur
 
 # Filter by co-occurrence
@@ -549,9 +479,14 @@ heat_dist_fl = df_dist %>%
 heat_dist_fl
 ```
 
-## 5.4 Run secom functions using the `tse` object
+## 5.4 Alternative input formats
 
-One can also run SECOM function using the `TreeSummarizedExperiment` object.
+The calls in Section 5.2 also accept `TreeSummarizedExperiment` objects or
+count matrices. Only the data arguments differ; all other arguments are
+unchanged.
+
+For `TreeSummarizedExperiment` objects, pass `data = list(CE = tse1, NE = tse2)`
+and `assay_name = c("counts", "counts")`.
 
 ```{r, eval=FALSE}
 # Select subjects from "CE" and "NE"
@@ -561,36 +496,12 @@ tse2 = tse[, tse$region == "NE"]
 # Rename samples to ensure there is an overlap of samples between CE and NE
 colnames(tse1) = paste0("Sample-", seq_len(ncol(tse1)))
 colnames(tse2) = paste0("Sample-", seq_len(ncol(tse2)))
-
-set.seed(123)
-# Linear relationships
-res_linear = secom_linear(data = list(CE = tse1, NE = tse2), 
-                          taxa_are_rows = TRUE,
-                          assay_name = c("counts", "counts"),
-                          tax_level = c("Phylum", "Phylum"), 
-                          aggregate_data = NULL, meta_data = NULL, pseudo = 0, 
-                          prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                          wins_quant = c(0.05, 0.95), method = "pearson", 
-                          soft = FALSE, thresh_len = 20, n_cv = 10, 
-                          thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
-
-# Nonlinear relationships
-res_dist = secom_dist(data = list(CE = tse1, NE = tse2),
-                      taxa_are_rows = TRUE,
-                      assay_name = c("counts", "counts"),
-                      tax_level = c("Phylum", "Phylum"), 
-                      aggregate_data = NULL, meta_data = NULL, pseudo = 0, 
-                      prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                      wins_quant = c(0.05, 0.95), R = 1000, 
-                      thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 ```
 
-## 5.5 Run secom functions by directly providing the abundance and metadata
-
-Please ensure that you provide the following: 1) The abundance data at its lowest 
-possible taxonomic level. 2) The aggregated data at the desired taxonomic level; 
-if no aggregation is performed, it can be the same as the original abundance data.
-3) The sample metadata.
+For count matrices, pass
+`data = list(CE = abundance_data1, NE = abundance_data2)`,
+`aggregate_data = list(aggregate_data1, aggregate_data2)`, and
+`meta_data = list(meta_data1, meta_data2)`, and drop `tax_level`.
 
 ```{r, eval=FALSE}
 ce_idx = which(meta_data$region == "CE")
@@ -609,28 +520,6 @@ colnames(abundance_data1) = paste0("Sample-", seq_len(sample_size1))
 colnames(abundance_data2) = paste0("Sample-", seq_len(sample_size2))
 rownames(meta_data1) = paste0("Sample-", seq_len(sample_size1))
 rownames(meta_data2) = paste0("Sample-", seq_len(sample_size2))
-
-set.seed(123)
-# Linear relationships
-res_linear = secom_linear(data = list(CE = abundance_data1, NE = abundance_data2), 
-                          taxa_are_rows = TRUE,
-                          aggregate_data = list(aggregate_data1, aggregate_data2), 
-                          meta_data = list(meta_data1, meta_data2), 
-                          pseudo = 0, 
-                          prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                          wins_quant = c(0.05, 0.95), method = "pearson", 
-                          soft = FALSE, thresh_len = 20, n_cv = 10, 
-                          thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
-
-# Nonlinear relationships
-res_dist = secom_dist(data = list(CE = abundance_data1, NE = abundance_data2), 
-                      taxa_are_rows = TRUE,
-                      aggregate_data = list(aggregate_data1, aggregate_data2), 
-                      meta_data = list(meta_data1, meta_data2), 
-                      pseudo = 0,  
-                      prv_cut = 0.5, lib_cut = 1000, corr_cut = 0.5, 
-                      wins_quant = c(0.05, 0.95), R = 1000, 
-                      thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 ```
 
 # Session information

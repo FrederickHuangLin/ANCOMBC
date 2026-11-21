@@ -31,6 +31,7 @@ library(ANCOMBC)
 ?ancom
 ?secom_linear
 ?secom_dist
+?data_sanity_check
 ```
 
 ## Highlight of the most recent update
@@ -43,7 +44,7 @@ The new versions of `ancom`, `ancombc`, and `ancombc2` support the inclusion of 
 
 For users: Unless the primary focus of your study is power, we highly recommend keeping the sensitivity analysis turned on (default setting), as it significantly reduces false positives.
 
-For researchers: We have noted some recent papers critiquing ANCOM-BC2 for not adequately controlling false positives. However, these critiques failed to account for our sensitivity analysis feature. Comparing ANCOM-BC2 without utilizing its embedded features, such as sensitivity analysis, is not a fair evaluation. We emphasize this point in our latest update.
+For researchers: the sensitivity analysis is part of the ANCOM-BC2 procedure and is enabled by default. Results reported for ANCOM-BC2 depend on whether it was run with `pseudo_sens = TRUE` or `pseudo_sens = FALSE`, and on the setting of `conservative`. Report these settings when comparing ANCOM-BC2 with other methods.
 
 **3. Why did the sensitivity analysis results change between versions of ANCOM-BC2?**
 
@@ -55,7 +56,7 @@ This change was made based on feedback from collaborators. In our experience:
 + The previous approach generally has higher statistical power. 
 + The current approach provides better protection against false discoveries, though at the cost of somewhat reduced power. 
 
-Both approaches are valid, as long as you clearly report which version of ANCOM-BC2 was used in your analysis. If your primary goal is to maximize discoveries, or if you need the interaction term to function properly, we recommend using the latest version of ANCOM-BC2 while disabling the sensitivity analysis. 
+Both approaches are available in the current version and are selected by the `conservative` argument of `ancombc2`. The default, `conservative = TRUE`, uses the behavior introduced in 2.10.1, and `conservative = FALSE` uses the pre-2.10.1 behavior. If your primary goal is to maximize discoveries, set `conservative = FALSE` rather than turning the sensitivity analysis off, and report the setting you used. 
 
 Note: We agree that the current pseudo-count-based sensitivity analysis is not ideal. In a future major update, we plan to replace this approach with an imputation-based strategy, which we expect will provide a more principled way to deal with zeros.
 
@@ -67,7 +68,7 @@ A: The `formula` and `group` arguments serve different purposes in the `ancombc`
 
 1. `formula`: This argument is used to specify the variables in your experiment that can potentially influence microbial abundances. It is essential to include all relevant variables in the `formula` to ensure proper adjustment and accurate results. For example, if you have a continuous variable like `age` as your main variable of interest, and you have additional categorical variables that need adjustment but are not directly related to your research question, you can include them in the `formula` while leaving `group` as NULL.
 
-2. `group`: The `group` argument is optional and should only be specified if you want to detect structural zeros (presence/absence test) or perform multi-group comparisons, such as the global test, pairwise directional test, Dunnett's type of test, or trend test. If your variable of interest is a categorical variable with more than three levels and you want to conduct multi-group comparisons, you should include the `group` argument. It is important to note that `group` is not the same as `main_var` in `ancom`. In `ancombc` and `ancombc2`, `group` is used for multi-group comparisons and correction of p-values for multiple comparisons.
+2. `group`: The `group` argument is optional and should only be specified if you want to detect structural zeros (presence/absence test) or perform multi-group comparisons, such as the global test, pairwise directional test, Dunnett's type of test, or trend test. If your variable of interest is a categorical variable with three or more levels and you want to conduct multi-group comparisons, you should include the `group` argument. It is important to note that `group` is not the same as `main_var` in `ancom`. In `ancombc` and `ancombc2`, `group` is used for multi-group comparisons and correction of p-values for multiple comparisons.
 
 Remember not to include the `main_var` in the `adj_formula` in `ancom`, but always include `group` in the `formula` or `fix_formula` (in `ancombc` and `ancombc2`, respectively) if `group` is not NULL. This ensures that the appropriate adjustments and comparisons are made in the analysis.
 
@@ -77,7 +78,7 @@ A: There are a couple of reasons why certain taxa may be absent from the primary
 
 1. Prevalence Exclusion: Taxa with prevalences below the specified threshold (`prv_cut`) will be excluded from the analysis. The `prv_cut` value determines the minimum prevalence required for a taxon to be considered in the analysis. If a taxon's prevalence falls below this threshold, it will not be included in the primary results.
 
-2. Structural Zeros: Taxa that exhibit structural zeros, meaning they consistently have zero counts across all samples, will be considered significant only by the presence/absence test. The ANCOM-BC and ANCOM-BC2 methodologies are not designed to detect significant differences in taxa with structural zeros. As a result, these taxa are summarized separately and not included in the primary results of `ancombc` or `ancombc2`.
+2. Structural Zeros: Taxa that exhibit structural zeros, as defined in question 12 below, are declared differentially abundant by the presence/absence test rather than by the regression model. In `ancombc2`, these taxa are excluded from the primary results and summarized separately. In `ancombc`, these taxa are retained in the primary results, with their standard errors, p-values, and adjusted p-values for the `group` variable set to 0 and `diff_abn` set to TRUE.
 
 To access the results of the presence/absence test, you can refer to the `zero_ind` output. This will provide information on the taxa that exhibit structural zeros.
 
@@ -178,8 +179,8 @@ matrix(c(1, 0, 0, 0,
 
 For more in-depth discussions, you can refer to this [post](https://github.com/FrederickHuangLin/ANCOMBC/issues/204).
 
-**12. Q: OMG, I am still very confused at structural zeros. What are they? What do the `struc_zero` and `neg_lb` arguments do?**
+**12. Q: What are structural zeros, and what do the `struc_zero` and `neg_lb` arguments do?**
 
-A: A taxon is considered to have structural zeros in some (>=1) groups if it is completely or nearly completely absent in those groups. For example, if there are three groups, g1, g2, and g3, and the counts of taxon A are 0 in g1 but non-zero in g2 and g3, taxon A will be considered to contain structural zeros in g1. In this scenario, taxon A is declared to be differentially abundant between g1 and g2, g1 and g3, and is consequently globally differentially abundant with respect to the group variable. Such taxa are not further analyzed using ANCOM-BC or ANCOM-BC2, but the results are summarized in the `zero_ind`. You can treat the detection of structural zeros as performing a presence/absence test.
+A: A taxon is considered to have structural zeros in some (>=1) groups if it is completely or nearly completely absent in those groups. For example, if there are three groups, g1, g2, and g3, and the counts of taxon A are 0 in g1 but non-zero in g2 and g3, taxon A will be considered to contain structural zeros in g1. In this scenario, taxon A is declared to be differentially abundant between g1 and g2, g1 and g3, and is consequently globally differentially abundant with respect to the group variable. Such taxa are reported in the `zero_ind` output of both `ancombc` and `ancombc2`, and question 2 above describes how each function treats them in the primary results. You can treat the detection of structural zeros as performing a presence/absence test.
 
 The detection of structural zeros is based on a separate paper, [ANCOM-II](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5682008/). Specifically, setting `neg_lb = TRUE` indicates that both criteria stated in section 3.2 of [ANCOM-II](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5682008/) are used to detect structural zeros. Alternatively, setting `neg_lb = FALSE` will only use equation 1 in section 3.2 of [ANCOM-II](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5682008/) to declare structural zeros, making it a more conservative approach. As the OTU/ASV table is usually very sparse, it is recommended to choose `neg_lb = FALSE` to prevent false discoveries. However, if you have a more dense table such as a family level table with a sufficiently large sample size, using `neg_lb = TRUE` may be a better idea. It is important to note that `neg_lb` has no function if `struc_zero` is set to `FALSE`. Therefore, there are three possible combinations: `struc_zero = FALSE` (regardless of `neg_lb`), `struc_zero = TRUE, neg_lb = FALSE`, or `struc_zero = TRUE, neg_lb = TRUE`.

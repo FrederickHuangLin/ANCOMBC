@@ -1,0 +1,37 @@
+```{r}
+data(atlas1006, package = "microbiome")
+
+# Subset to baseline
+pseq = phyloseq::subset_samples(atlas1006, time == 0)
+
+# Re-code the bmi group
+meta_data = microbiome::meta(pseq)
+meta_data$bmi = recode(meta_data$bmi_group,
+                       obese = "obese",
+                       severeobese = "obese",
+                       morbidobese = "obese")
+
+# Note that by default, levels of a categorical variable in R are sorted 
+# alphabetically. In this case, the reference level for `bmi` will be 
+# `lean`. To manually change the reference level, for instance, setting `obese`
+# as the reference level, use:
+meta_data$bmi = factor(meta_data$bmi, levels = c("obese", "overweight", "lean"))
+# You can verify the change by checking:
+# levels(meta_data$bmi)
+
+# Create the region variable
+meta_data$region = recode(as.character(meta_data$nationality),
+                          Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
+                          CentralEurope = "CE", EasternEurope = "EE",
+                          .missing = "unknown")
+
+phyloseq::sample_data(pseq) = meta_data
+
+# Subset to lean, overweight, and obese subjects
+pseq = phyloseq::subset_samples(pseq, bmi %in% c("lean", "overweight", "obese"))
+# Discard "EE" as it contains only 1 subject
+# Discard subjects with missing values of region
+pseq = phyloseq::subset_samples(pseq, ! region %in% c("EE", "unknown"))
+
+print(pseq)
+```

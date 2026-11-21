@@ -28,11 +28,11 @@ options(DT.options = list(
 
 Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC) [@lin2020analysis] 
 is a methodology of differential abundance (DA) analysis for microbial absolute
-abundances. ANCOM-BC estimates the unknown sampling fractions, corrects 
-the bias induced by their differences through a log linear regression model 
-including the estimated sampling fraction as an offset terms, and identifies 
-taxa that are differentially abundant according to the variable of interest. 
-For more details, please refer to the 
+abundances. ANCOM-BC estimates the unknown sampling fractions, corrects
+the bias induced by their differences through a log linear regression model
+including the estimated sampling fraction as an offset term, and identifies
+taxa that are differentially abundant according to the variable of interest.
+For more details, see the
 [ANCOM-BC](https://doi.org/10.1038/s41467-020-17041-7) paper.
 
 # 2. Installation
@@ -69,42 +69,7 @@ format. In this tutorial, we consider the following covariates:
     
     + The reference group: "obese"
 
-```{r}
-data(atlas1006, package = "microbiome")
-
-# Subset to baseline
-pseq = phyloseq::subset_samples(atlas1006, time == 0)
-
-# Re-code the bmi group
-meta_data = microbiome::meta(pseq)
-meta_data$bmi = recode(meta_data$bmi_group,
-                       obese = "obese",
-                       severeobese = "obese",
-                       morbidobese = "obese")
-
-# Note that by default, levels of a categorical variable in R are sorted 
-# alphabetically. In this case, the reference level for `bmi` will be 
-# `lean`. To manually change the reference level, for instance, setting `obese`
-# as the reference level, use:
-meta_data$bmi = factor(meta_data$bmi, levels = c("obese", "overweight", "lean"))
-# You can verify the change by checking:
-# levels(meta_data$bmi)
-
-# Create the region variable
-meta_data$region = recode(as.character(meta_data$nationality),
-                          Scandinavia = "NE", UKIE = "NE", SouthEurope = "SE", 
-                          CentralEurope = "CE", EasternEurope = "EE",
-                          .missing = "unknown")
-
-phyloseq::sample_data(pseq) = meta_data
-
-# Subset to lean, overweight, and obese subjects
-pseq = phyloseq::subset_samples(pseq, bmi %in% c("lean", "overweight", "obese"))
-# Discard "EE" as it contains only 1 subject
-# Discard subjects with missing values of region
-pseq = phyloseq::subset_samples(pseq, ! region %in% c("EE", "unknown"))
-
-print(pseq)
+```{r, child = "children/child_atlas1006.Rmd"}
 ```
 
 # 4 ANCOM-BC Implementation
@@ -123,12 +88,13 @@ res = out$res
 res_global = out$res_global
 ```
 
-Tests for interactions are supported by specifying the interactions in the `fix_formula`. 
-Please ensure that interactions between variables are included using the `*` operator, 
-as the `:` operator is not recognized by the `ancombc` function and will result in an error.
+Tests for interactions are supported by specifying the interactions in
+`formula`. Interactions between variables must be written with the `*` operator,
+as the `:` operator is not recognized by the `ancombc` function and results in
+an error.
 
-Additionally, when the `group` variable contains interaction terms, only the main effect 
-will be considered in multi-group comparisons.
+When the `group` variable is involved in an interaction term, only its main
+effect is used in multi-group comparisons.
 
 ```{r, eval=FALSE}
 out = ancombc(data = pseq, tax_level = "Family", 
@@ -144,11 +110,12 @@ res_global = out$res_global
 
 ## 4.2 ANCOMBC primary result {.tabset}
 
-Result from the ANCOM-BC log-linear model to determine taxa that are 
-differentially abundant according to the covariate of interest. It contains: 
-1) log fold changes; 2) standard errors; 3) test statistics; 4) p-values; 
-5) adjusted p-values; 6) indicators whether the taxon is differentially 
-abundant (TRUE) or not (FALSE).
+The primary result of the ANCOM-BC log-linear model identifies the taxa that are
+differentially abundant with respect to the covariate of interest. For each
+taxon and each covariate it reports the log fold change (lfc, on the natural
+log scale), its standard error (se), the test statistic $W = \text{lfc}/\text{se}$,
+the p-value, the adjusted p-value, and the indicator of differential
+abundance (TRUE or FALSE).
 
 ### LFC
 
@@ -195,7 +162,7 @@ tab_p %>%
 ### Adjusted p-values
 
 ```{r}
-tab_q = res$q
+tab_q = res$q_val
 colnames(tab_q) = col_name
 tab_q %>% 
   datatable(caption = "Adjusted p-values from the Primary Result") %>%
@@ -213,25 +180,23 @@ tab_diff %>%
 
 ### Bias-corrected abundances
 
-To obtain bias-corrected abundances, the following steps can be taken:
+Bias-corrected abundances are obtained in two steps.
 
-Step 1: Calculate the estimated sample-specific sampling fractions, 
-in log scale.
+Step 1: Take the estimated sampling fractions, on the log scale.
 
-Step 2: Correct the log observed abundances by subtracting the estimated 
-sampling fraction from the log observed abundances of each sample.
+Step 2: Subtract the estimated sampling fraction of each sample from the log
+observed abundances of that sample.
 
-It is important to note that we can only estimate sampling fractions up to an 
-additive constant, meaning that only the difference between bias-corrected 
-abundances is meaningful. Additionally, taxon-specific biases are not taken into 
-account in the calculation of bias-corrected abundances, as it is assumed that 
-these biases vary across taxa but remain constant across samples within a taxon.
+Sampling fractions are estimated up to an additive constant, so that only
+differences between bias-corrected abundances are interpretable. Taxon-specific
+biases are not removed in this calculation, because they are assumed to vary
+across taxa but to remain constant across the samples within a taxon.
 
 ```{r}
 samp_frac = out$samp_frac
 # Replace NA with 0
 samp_frac[is.na(samp_frac)] = 0 
-# Add pesudo-count (1) to avoid taking the log of 0
+# Add a pseudo-count (1) to avoid taking the log of 0
 log_obs_abn = log(out$feature_table + 1)
 # Adjust the log observed abundances
 log_corr_abn = t(t(log_obs_abn) - samp_frac)
@@ -307,13 +272,13 @@ p_bmi
 
 ## 4.3 ANCOMBC global test result {.tabset}
 
-Result from the ANCOM-BC global test to determine taxa that are 
-differentially abundant between at least two groups across three or more 
-different groups. In this example, we want to identify taxa that are 
-differentially abundant between at least two regions across CE, NE, SE, and US.
-The result contains: 1) test statistics; 2) p-values; 3) adjusted p-values; 
-4) indicators whether the taxon is differentially abundant (TRUE) or not 
-(FALSE).
+The ANCOM-BC global test identifies taxa that are differentially abundant
+between at least two groups when three or more groups are compared. The group
+variable of this analysis is `bmi`, so the test identifies taxa that are
+differentially abundant between at least two of the categories obese,
+overweight, and lean. For each taxon the result reports the test statistic, the
+p-value, the adjusted p-value, and the indicator of differential abundance
+(TRUE or FALSE).
 
 ### Test statistics
 
@@ -363,7 +328,7 @@ df_bmi = tab_lfc %>%
 
 df_heat = df_bmi %>%
     pivot_longer(cols = -one_of("Taxon"),
-                 names_to = "region", values_to = "value") %>%
+                 names_to = "group", values_to = "value") %>%
     mutate(value = round(value, 2))
 df_heat$Taxon = factor(df_heat$Taxon, levels = sort(sig_taxa))
 
@@ -371,12 +336,12 @@ lo = floor(min(df_heat$value))
 up = ceiling(max(df_heat$value))
 mid = (lo + up)/2
 p_heat = df_heat %>%
-  ggplot(aes(x = region, y = Taxon, fill = value)) + 
+  ggplot(aes(x = group, y = Taxon, fill = value)) +
   geom_tile(color = "black") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        na.value = "white", midpoint = mid, limit = c(lo, up),
                        name = NULL) +
-  geom_text(aes(region, Taxon, label = value), color = "black", size = 4) +
+  geom_text(aes(group, Taxon, label = value), color = "black", size = 4) +
   labs(x = NULL, y = NULL, 
        title = "Log fold changes for globally significant taxa") +
   theme_minimal() +
@@ -384,38 +349,26 @@ p_heat = df_heat %>%
 p_heat
 ```
 
-## 4.4 Run `ancombc` function using the `tse` object
+## 4.4 Alternative input formats
+
+The call in Section 4.1 also accepts a `TreeSummarizedExperiment` object or a
+count matrix. Only the data arguments differ; all other arguments are unchanged.
+
+For a `TreeSummarizedExperiment` object, pass `data = tse` and
+`assay_name = "counts"`.
 
 ```{r, eval=FALSE}
 tse = mia::makeTreeSummarizedExperimentFromPhyloseq(pseq)
-
-out = ancombc(data = tse, assay_name = "counts", tax_level = "Family", 
-              formula = "age + region + bmi", 
-              p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
-              group = "bmi", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
-              max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE,
-              n_cl = 1, verbose = TRUE)
-
-res = out$res
-res_global = out$res_global
 ```
 
-## 4.5 Run `ancombc` function by directly providing the abundance and metadata
+For a count matrix, aggregation to the analysis level is performed beforehand.
+Pass `data = abundance_data`, `aggregate_data = aggregate_data`, and
+`meta_data = meta_data`, and drop `tax_level`.
 
 ```{r, eval=FALSE}
 abundance_data = microbiome::abundances(pseq)
 aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family"))
 meta_data = microbiome::meta(pseq)
-
-out = ancombc(data = abundance_data, aggregate_data = aggregate_data, 
-              meta_data = meta_data, formula = "age + region + bmi", 
-              p_adj_method = "holm", prv_cut = 0.10, lib_cut = 1000, 
-              group = "bmi", struc_zero = TRUE, neg_lb = TRUE, tol = 1e-5, 
-              max_iter = 100, conserve = TRUE, alpha = 0.05, global = TRUE,
-              n_cl = 1, verbose = TRUE)
-
-res = out$res
-res_global = out$res_global
 ```
 
 # Session information

@@ -36,7 +36,7 @@
 #' @param tax_level character. The taxonomic level of interest. The input data
 #' can be agglomerated at different taxonomic levels based on your research
 #' interest. Default is NULL, i.e., do not perform agglomeration, and the
-#' SECOM anlysis will be performed at the lowest taxonomic level of the
+#' SECOM analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
 #' @param rank alias for \code{tax_level}.
 #' @param aggregate_data The abundance data that has been aggregated to the desired
@@ -73,13 +73,14 @@
 #' Default is 1000.
 #' @param thresh_hard Numeric. Pairwise correlation coefficients
 #' (in their absolute value) that are less than or equal to \code{thresh_hard}
-#' will be set to 0. Default is 0.3.
+#' will be set to 0. Default is 0, i.e. do not apply hard thresholding.
 #' @param max_p numeric. Obtain the sparse correlation matrix by
 #' p-value filtering. Pairwise correlation coefficients with p-value greater
 #' than \code{max_p} will be set to 0s. Default is 0.005.
 #' @param n_cl numeric. The number of nodes to be forked. For details, see
 #' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
 #' @param verbose logical. Whether to display detailed progress messages.
+#' Default is TRUE.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -94,10 +95,11 @@
 #'         \item{ \code{dcorr_p}, the p-value matrix corresponding to the sample
 #'         distance correlation matrix \code{dcorr}.}
 #'         \item{ \code{dcorr_fl}, the sparse correlation matrix obtained by
-#'         p-value filtering based on the cutoff specified in \code{max_p}.}
+#'         p-value filtering \code{dcorr} based on the cutoff specified in
+#'         \code{max_p}, followed by hard thresholding at \code{thresh_hard}.}
 #'         }
 #'
-#' @seealso \code{\link{secom_linear}}
+#' @seealso \code{\link{secom_linear}} \code{\link{data_sanity_check}}
 #'
 #' @examples
 #' library(ANCOMBC)
@@ -106,7 +108,7 @@
 #'     # subset to baseline
 #'     pseq = phyloseq::subset_samples(atlas1006, time == 0)
 #'
-#'     # run secom_linear function
+#'     # run secom_dist function
 #'     set.seed(123)
 #'     res_dist = secom_dist(data = list(pseq), taxa_are_rows = TRUE,
 #'                           tax_level = "Phylum",

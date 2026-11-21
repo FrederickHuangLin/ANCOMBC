@@ -6,25 +6,11 @@
 #' \code{ancom} function implements ANCOM in cross-sectional and repeated
 #' measurements data while allowing for covariate adjustment.
 #'
-#' @details A taxon is considered to have structural zeros in some (>=1)
-#' groups if it is completely (or nearly completely) missing in these groups.
-#' For instance, suppose there are three groups: g1, g2, and g3.
-#' If the counts of taxon A in g1 are 0 but nonzero in g2 and g3,
-#' then taxon A will be considered to contain structural zeros in g1.
-#' In this example, taxon A is declared to be differentially abundant between
-#' g1 and g2, g1 and g3, and consequently, it is globally differentially
-#' abundant with respect to this group variable.
-#' Such taxa are not further analyzed using ANCOM, but the results are
-#' summarized in the overall summary. For more details about the structural
-#' zeros, please go to the
-#' \href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II} paper.
-#' Setting \code{neg_lb = TRUE} indicates that you are using both criteria
-#' stated in section 3.2 of
-#' \href{https://doi.org/10.3389/fmicb.2017.02114}{ANCOM-II}
-#' to detect structural zeros; otherwise, the algorithm will only use the
-#' equation 1 in section 3.2 for declaring structural zeros. Generally, it is
-#' recommended to set \code{neg_lb = TRUE} when the sample size per group is
-#' relatively large (e.g. > 30).
+#' @details Taxa with structural zeros in at least one group of \code{main_var}
+#' are removed from the log-ratio comparisons and are reported in \code{res}
+#' with \code{W} set to infinity and the detection indicators set to TRUE. The
+#' detection of structural zeros is controlled by \code{struc_zero} and
+#' \code{neg_lb}, which are defined in \code{\link{ANCOMBC-concepts}}.
 #'
 #' @param data the input data. The \code{data} parameter should be either a
 #' \code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
@@ -42,8 +28,6 @@
 #' as the estimation of sampling fractions requires a large number of taxa.
 #' @param taxa_are_rows logical. Whether taxa are positioned in the rows of the
 #' feature table. Default is TRUE.
-#' It is recommended to use low taxonomic levels, such as OTU or species level,
-#' as the estimation of sampling fractions requires a large number of taxa.
 #' @param assay_name character. Name of the count table in the data object
 #' (only applicable if data object is a \code{(Tree)SummarizedExperiment}).
 #' Default is "counts".
@@ -55,7 +39,7 @@
 #' includes "Kingdom", "Phylum" "Class", "Order", "Family" "Genus" "Species" etc.
 #' See \code{?mia::taxonomyRanks} for more details.
 #' Default is NULL, i.e., do not perform agglomeration, and the
-#' ANCOM-BC2 analysis will be performed at the lowest taxonomic level of the
+#' ANCOM analysis will be performed at the lowest taxonomic level of the
 #' input \code{data}.
 #' @param rank alias for \code{tax_level}.
 #' @param aggregate_data The abundance data that has been aggregated to the desired
@@ -80,6 +64,7 @@
 #' sizes. Samples with library sizes less than \code{lib_cut} will be
 #' excluded in the analysis. Default is 0, i.e. do not discard any sample.
 #' @param main_var character. The name of the main variable of interest.
+#' This argument is required and has no default.
 #' @param adj_formula  character string representing the formula for
 #' covariate adjustment. Please note that you should NOT include the
 #' \code{main_var} in the formula. Default is \code{NULL}.
@@ -97,6 +82,7 @@
 #' @param n_cl numeric. The number of nodes to be forked. For details, see
 #' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
 #' @param verbose logical. Whether to display detailed progress messages.
+#' Default is TRUE.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -130,6 +116,7 @@
 #'         }
 #'
 #' @seealso \code{\link{ancombc}} \code{\link{ancombc2}}
+#' \code{\link{data_sanity_check}} \code{\link{ANCOMBC-concepts}}
 #'
 #' @examples
 #' library(ANCOMBC)
@@ -211,7 +198,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
     main_class = class(main_val)
     if (main_class == "character") {
         if (length(unique(main_val)) == length(main_val)) {
-            warn_txt = sprintf(paste("The class of main varible is:",
+            warn_txt = sprintf(paste("The class of main variable is:",
                                      main_class,
                                      "but it contains too many categories.",
                                      "Perhaps it should be numeric?",
@@ -222,7 +209,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
         } else if (length(unique(main_val)) == 2) {
             main_cat = 0
         } else {
-            stop_txt = sprintf(paste("The class of main varible is:",
+            stop_txt = sprintf(paste("The class of main variable is:",
                                      main_class,
                                      "but it contains < 2 categories",
                                      sep = "\n"))
@@ -230,7 +217,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
         }
     } else if (main_class == "factor") {
         if (nlevels(main_val) == length(main_val)) {
-            warn_txt = sprintf(paste("The class of main varible is:",
+            warn_txt = sprintf(paste("The class of main variable is:",
                                      main_class,
                                      "but it contains too many categories.",
                                      "Perhaps it should be numeric?",
@@ -241,7 +228,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
         } else if (nlevels(main_val) == 2) {
             main_cat = 0
         } else {
-            stop_txt = sprintf(paste("The class of main varible is:",
+            stop_txt = sprintf(paste("The class of main variable is:",
                                      main_class,
                                      "but it contains < 2 categories",
                                      sep = "\n"))
