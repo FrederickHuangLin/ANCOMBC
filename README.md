@@ -22,10 +22,31 @@ if (!requireNamespace("BiocManager", quietly=TRUE))
 BiocManager::install("ANCOMBC")
 ```
 
+## To install the development version of ANCOMBC
+
+The development version on GitHub contains ANCOM-BC3 (`ancombc3`). It
+includes compiled code, so a C compiler is required (Rtools on Windows, the
+Xcode command line tools on macOS).
+
+```r
+if (!requireNamespace("remotes", quietly=TRUE))
+    install.packages("remotes")
+remotes::install_github("MATRIX-Research-Lab/ANCOMBC", ref = "devel")
+```
+
+`ancombc3` also requires the package `torch` and its LibTorch library, which
+are not installed with ANCOMBC:
+
+```r
+install.packages("torch")
+torch::install_torch()
+```
+
 ## Usage
 
 ```r
 library(ANCOMBC)
+?ancombc3
 ?ancombc2
 ?ancombc 
 ?ancom

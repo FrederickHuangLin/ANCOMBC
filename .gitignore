@@ -7,3 +7,6 @@
 .Rproj.user
 .positai
 ANCOMBC-RELEASE_3_19/
+src/*.o
+src/*.so
+src/*.dll

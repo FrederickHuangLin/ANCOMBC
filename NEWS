@@ -1,3 +1,15 @@
+version 2.15.4 (last update 2026-11-21)
+        + Add the function ancombc3 (ANCOM-BC3): differential abundance,
+          differential prevalence, and omnibus tests under a zero-inflated
+          Poisson-log-normal model, with the global test, pairwise
+          comparisons, the Dunnett's type of test, the trend test, and
+          repeated measures; ancombc3 requires the package torch, which is
+          listed in Suggests
+        + Add ancombc3_default_settings, plot_ancombc3_training, and the
+          print and summary methods for the result of ancombc3
+        + Add compiled code (src) for the second stage of ancombc3
+        + Add the vignette ANCOM-BC3 Tutorial
+
 version 2.15.3 (last update 2026-11-21)
         + Preserve single-column metadata (PR #343 by @hyperpolymath)
         + Align mixed-model degrees of freedom by coefficient name (PR #342

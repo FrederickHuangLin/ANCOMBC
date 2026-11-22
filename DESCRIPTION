@@ -2,7 +2,7 @@ Package: ANCOMBC
 Type: Package
 Title: Microbiome differential abundance and correlation analyses with bias
     correction
-Version: 2.15.3
+Version: 2.15.4
 Description: ANCOMBC is a package containing differential abundance (DA) and 
     correlation analyses for microbiome data. Specifically, the package includes 
     Analysis of Compositions of Microbiomes with Bias Correction 2 (ANCOM-BC2),
@@ -25,11 +25,12 @@ License: Artistic-2.0
 Imports: 
     stats, DescTools, Hmisc, MASS, Matrix, Rdpack, doParallel,
     doRNG, energy, foreach, gtools, lme4, lmerTest, multcomp,
-    nloptr, parallel, utils, quadprog
+    nloptr, parallel, utils, quadprog, graphics, methods, mvtnorm,
+    tools, withr
 Suggests: mia (>= 1.18.0), 
     BiocStyle, DT, S4Vectors, SingleCellExperiment, SummarizedExperiment, 
     TreeSummarizedExperiment, dplyr, knitr, magrittr, microbiome, 
-    phyloseq, rmarkdown, testthat, tidyr, tidyverse
+    phyloseq, rmarkdown, testthat, tidyr, tidyverse, cli, torch
 biocViews: 
     DifferentialExpression, 
     Microbiome, 
@@ -41,7 +42,7 @@ URL: https://github.com/MATRIX-Research-Lab/ANCOMBC
 VignetteBuilder: knitr
 RdMacros: Rdpack
 Encoding: UTF-8
-RoxygenNote: 7.3.3
 Depends: 
     R (>= 4.5.0)
 LazyData: false
+Config/roxygen2/version: 8.1.1
