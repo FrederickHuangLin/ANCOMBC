@@ -15,14 +15,17 @@
         x = x[group_ind, group_ind, drop = FALSE]
     })
 
-    # Wald-type global statistic per taxon
-    n_grp = ncol(beta_hat_sub)
+    # Wald-type global statistic per taxon, based on the group coefficients
+    # that are estimable for the taxon
     use_chisq = is.null(dof)
     W_vec = rep(NA_real_, n_tax)
     p_vec = rep(1, n_tax)
     for (i in seq_len(n_tax)) {
-        beta_hat_sub_i = beta_hat_sub[i, ]
-        vcov_hat_sub_i = vcov_hat_sub[[i]]
+        est_i = !is.na(beta_hat_sub[i, ])
+        n_grp = sum(est_i)
+        if (n_grp == 0) next
+        beta_hat_sub_i = beta_hat_sub[i, est_i]
+        vcov_hat_sub_i = vcov_hat_sub[[i]][est_i, est_i, drop = FALSE]
 
         suppressWarnings(W_global <- try(t(beta_hat_sub_i) %*%
                                              MASS::ginv(vcov_hat_sub_i) %*%
@@ -72,10 +75,20 @@
   colnames(output) = c("taxon", "W", "p_val", "q_val", "diff_abn")
   output$taxon = tax_id
 
-  # Perform LRT
-  reduce_fix_formula = gsub("\\*", "+", fix_formula)
-  reduce_fix_formula = gsub(pattern = paste0("\\+\\s*", group),
-                            replacement = "", x = reduce_fix_formula)
+  # Perform LRT. The reduced model omits every fixed-effect term that
+  # involves the group variable, main effect and interactions. When no other
+  # term remains, it contains the intercept only
+  fix_terms = stats::terms(stats::formula(paste0("~ ", fix_formula)))
+  term_labels = attr(fix_terms, "term.labels")
+  term_factors = attr(fix_terms, "factors")
+  group_var = vapply(rownames(term_factors), function(v)
+    group %in% all.vars(str2lang(v)), FUN.VALUE = logical(1))
+  term_keep = colSums(term_factors[group_var, , drop = FALSE]) == 0
+  reduce_fix_formula = if (any(term_keep)) {
+    paste(term_labels[term_keep], collapse = " + ")
+  } else {
+    "1"
+  }
   reduce_formula = formula(paste0("y ~ ",
                                   reduce_fix_formula,
                                   "+ ", rand_formula))
@@ -179,17 +192,22 @@
 
     suppressWarnings(W_global <- apply(W, 1, function(x) max(abs(x), na.rm = TRUE)))
 
-    # rt() recycles df, so the draws fill dof in column-major order
+    # The draws fill dof in column-major order. A missing df gives a missing
+    # draw and does not consume random numbers.
     dof_vec = as.vector(dof)
+    dof_ok = !is.na(dof_vec)
     W_global_null = matrix(NA, nrow = n_tax, ncol = B)
     for (b in seq_len(B)) {
-        W_null_b = matrix(rt(length(dof_vec), df = dof_vec),
-                          nrow = nrow(dof), ncol = ncol(dof))
-        W_global_null_b = apply(W_null_b, 1, function(x)
-            max(abs(x), na.rm = TRUE))
+        W_null_b = rep(NA_real_, length(dof_vec))
+        W_null_b[dof_ok] = rt(sum(dof_ok), df = dof_vec[dof_ok])
+        W_null_b = matrix(W_null_b, nrow = nrow(dof), ncol = ncol(dof))
+        suppressWarnings(W_global_null_b <- apply(W_null_b, 1, function(x)
+            max(abs(x), na.rm = TRUE)))
         W_global_null[, b] = W_global_null_b
     }
     p_global = 1/B * rowSums(W_global_null > W_global, na.rm = TRUE)
+    # A taxon without an observed test statistic is not rejected
+    p_global[is.na(W_global) | W_global == -Inf] = 1
 
     q_global = p.adjust(p_global, method = p_adj_method)
     q_global[is.na(q_global)] = 1
@@ -262,11 +280,13 @@
                                    vcov_hat = vcov_hat_sub[[i]]))
     }
 
+    # A taxon without a constrained estimate has l = -Inf
     l = matrix(NA, nrow = n_tax, ncol = n_trend)
     for (i in seq_len(n_trend)) {
         beta_hat_opt_i = beta_hat_opt_all[, grepl(trend_name[i], colnames(beta_hat_opt_all))]
         node_i = node[[i]]
-        l[, i] = apply(beta_hat_opt_i, 1, function(x) fun_list[[2]](x, node_i))
+        suppressWarnings(l[, i] <- apply(beta_hat_opt_i, 1, function(x)
+            fun_list[[2]](x, node_i)))
     }
     W_trend = apply(l, 1, function(x) max(x, na.rm = TRUE))
     names(W_trend) = tax_id
@@ -311,6 +331,10 @@
     W_trend_null = as.matrix(W_trend_null)
 
     p_trend = 1/B * rowSums(W_trend_null > W_trend, na.rm = TRUE)
+    # A taxon without a test statistic is not rejected
+    no_trend = W_trend == -Inf
+    W_trend[no_trend] = NA
+    p_trend[no_trend] = 1
 
     q_trend = p.adjust(p_trend, method = p_adj_method)
     q_trend[is.na(q_trend)] = 1

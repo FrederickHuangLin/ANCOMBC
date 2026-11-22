@@ -166,6 +166,10 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
     message("'ancom' has been fully evolved to 'ancombc2'. \n",
             "Explore the enhanced capabilities of our refined method!")
 
+    # Aliases take effect when the main arguments are not supplied
+    if (!missing(assay.type) && missing(assay_name)) assay_name = assay.type
+    if (!missing(rank) && missing(tax_level)) tax_level = rank
+
     # 1. Data pre-processing
     # Data sanity check
     check_results = data_sanity_check(data = data,
@@ -313,6 +317,11 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
 
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
+      # Stop the cluster on exit, including exit by an error
+      on.exit({
+          parallel::stopCluster(cl)
+          foreach::registerDoSEQ()
+      }, add = TRUE)
       doParallel::registerDoParallel(cl)
     } else {
       foreach::registerDoSEQ()
@@ -416,10 +425,6 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
 
             list(p_mat, beta_mat)
         }
-    }
-
-    if (n_cl > 1) {
-      parallel::stopCluster(cl)
     }
 
     p_data = result[[1]][chunk_ord, , drop = FALSE]

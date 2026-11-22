@@ -35,11 +35,12 @@
     O1 = core1$feature_table
     s_diff_hat = .s_diff_est(O1)
 
-    # Data pre-processing
+    # Data pre-processing. The aggregated table keeps the samples retained
+    # for the estimation of the sampling fraction differences
     samp_keep = names(s_diff_hat)
     core2 = .data_core(data = aggregate_data, meta_data = meta_data,
                        prv_cut = prv_cut, lib_cut = lib_cut,
-                       tax_keep = NULL, samp_keep = NULL)
+                       tax_keep = NULL, samp_keep = samp_keep)
     O2 = core2$feature_table
     O2 = O2 + pseudo
     o = log(O2)

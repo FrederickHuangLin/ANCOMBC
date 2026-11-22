@@ -126,7 +126,7 @@ A: Yes, the new versions of `ancom`, `ancombc`, and `ancombc2` support the inclu
 
 **8. Q: Can the ANCOM-BC methodology be applied to other data types such as functional abundances, RNA-seq, or single-cell RNA data?**
 
-A: The ANCOM-BC methodology can be applied to other data types as long as they are considered compositional. However, it is essential to be aware that the methodology has been primarily benchmarked and validated using microbiome data. For more discussions, you can refer to this [post](https://github.com/FrederickHuangLin/ANCOMBC/issues/196). 
+A: The ANCOM-BC methodology can be applied to other data types as long as they are considered compositional. However, it is essential to be aware that the methodology has been primarily benchmarked and validated using microbiome data. For more discussions, you can refer to this [post](https://github.com/MATRIX-Research-Lab/ANCOMBC/issues/196). 
 
 **9. Q: What does "not a positive definite matrix" mean in fitting the `ancombc2` mixed effects model? How can I debug this issue?**
 
@@ -177,7 +177,7 @@ matrix(c(1, 0, 0, 0,
    byrow = TRUE)
 ```
 
-For more in-depth discussions, you can refer to this [post](https://github.com/FrederickHuangLin/ANCOMBC/issues/204).
+For more in-depth discussions, you can refer to this [post](https://github.com/MATRIX-Research-Lab/ANCOMBC/issues/204).
 
 **12. Q: What are structural zeros, and what do the `struc_zero` and `neg_lb` arguments do?**
 

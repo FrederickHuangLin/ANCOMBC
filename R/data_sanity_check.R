@@ -370,16 +370,16 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
         }
 
         if (any(size_per_group < 2)) {
-            stop_txt = sprintf(paste("Sample size per group should be >= 2",
-                                     "Small sample size detected for the following group(s): ",
-                                     paste(names(size_per_group)[which(size_per_group < 2)], collapse = ", "),
-                                     sep = "\n"))
+            stop_txt = paste("Sample size per group should be >= 2",
+                             "Small sample size detected for the following group(s): ",
+                             .name_list(names(size_per_group)[which(size_per_group < 2)]),
+                             sep = "\n")
             stop(stop_txt, call. = FALSE)
         } else if (any(size_per_group < 5)) {
-            warn_txt = sprintf(paste("Small sample size detected for the following group(s): ",
-                                     paste(names(size_per_group)[which(size_per_group < 5)], collapse = ", "),
-                                     "Variance estimation would be unstable when the sample size is < 5 per group",
-                                     sep = "\n"))
+            warn_txt = paste("Small sample size detected for the following group(s): ",
+                             .name_list(names(size_per_group)[which(size_per_group < 5)]),
+                             "Variance estimation would be unstable when the sample size is < 5 per group",
+                             sep = "\n")
             warning(warn_txt, call. = FALSE)
         }
     } else {
@@ -388,6 +388,16 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
                                  sep = "\n"))
         warning(warn_txt, call. = FALSE)
         cat("\n")
+    }
+
+    # The multi-group comparisons test the coefficients of the group variable
+    if (!is.null(group) && !is.null(fix_formula) &&
+        any(c(global, pairwise, dunnet, trend)) && !group %in% vars) {
+        stop_txt = paste0("The group variable `", group, "` is not included in the formula \n",
+                          "The multi-group comparisons (global/pairwise/dunnet/trend) ",
+                          "test the coefficients of the group variable, ",
+                          "so please add `", group, "` to the formula")
+        stop(stop_txt, call. = FALSE)
     }
 
     if (verbose) {

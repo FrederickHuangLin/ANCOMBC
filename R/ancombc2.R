@@ -142,10 +142,15 @@
 #' less than \code{prv_cut} will be excluded in the analysis. For example,
 #' if there are 100 samples, and a taxon has nonzero counts present in less than
 #' 100*prv_cut samples, it will not be considered in the analysis.
-#' Default is 0.10.
+#' Prevalences are computed from all samples, before samples are filtered by
+#' \code{lib_cut}. Default is 0.10.
 #' @param lib_cut a numerical threshold for filtering samples based on library
 #' sizes. Samples with library sizes less than \code{lib_cut} will be
-#' excluded in the analysis. Default is 0, i.e. do not discard any sample.
+#' excluded in the analysis. The library size of a sample is its total count
+#' over the taxa retained by \code{prv_cut}, so the prevalence filter is
+#' applied first. When \code{tax_level} is specified, samples are selected at
+#' the original taxonomic level, and the aggregated data retain the same
+#' samples. Default is 0, i.e. do not discard any sample.
 #' @param s0_perc a numerical fraction between 0 and 1. Inspired by
 #' \href{https://doi.org/10.1073/pnas.091062498}{Significance
 #' Analysis of Microarrays (SAM)} methodology, a small positive constant is
@@ -412,9 +417,18 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                     trend_control = list(contrast = NULL,
                                          node = NULL,
                                          B = 100)){
+    # Aliases take effect when the main arguments are not supplied
+    if (!missing(assay.type) && missing(assay_name)) assay_name = assay.type
+    if (!missing(rank) && missing(tax_level)) tax_level = rank
+
     # Run with cluster
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
+      # Stop the cluster on exit, including exit by an error
+      on.exit({
+          parallel::stopCluster(cl)
+          foreach::registerDoSEQ()
+      }, add = TRUE)
       doParallel::registerDoParallel(cl)
     } else {
       foreach::registerDoSEQ()
@@ -797,11 +811,6 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                res_pair = res_pair,
                res_dunn = res_dunn,
                res_trend = res_trend)
-
-    # Ensure cluster cleanup
-    if (n_cl > 1) {
-        parallel::stopCluster(cl)
-        }
 
     return(out)
 }

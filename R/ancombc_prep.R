@@ -161,6 +161,7 @@
     if (verbose) {
         message("Estimating sample-specific biases ...")
     }
+    .check_bias_input(beta = beta1, var_hat = var_hat1)
     fun_list = list(.bias_em)
 
     bias1 = foreach(i = seq_len(ncol(beta1)), .combine = rbind) %dorng% {
@@ -176,7 +177,11 @@
     delta_wls = bias1$delta_wls
     var_delta = bias1$var_delta
 
-    # Obtain the final estimates for sample-specific biases
+    # Obtain the final estimates for sample-specific biases. A coefficient that
+    # is not estimable for a fitted taxon is set to 0 before its bias is
+    # subtracted
+    na_coef = is.na(beta1) & rowSums(!is.na(beta1)) > 0
+    beta1[na_coef] = 0
     beta1 = t(t(beta1) - delta_em)
     theta_hat = matrix(NA, nrow = nrow(y1), ncol = ncol(y1))
     n_samp = nrow(x)
@@ -188,10 +193,10 @@
     names(theta_hat) = colnames(y1)
 
     if (any(is.na(theta_hat))) {
-        warn_txt = sprintf(paste("Estimation of sampling fractions failed for the following samples:",
-                                 paste(names(which(is.na(theta_hat))), collapse = ", "),
-                                 "These samples may have an excessive number of zero values",
-                                 sep = "\n"))
+        warn_txt = paste("Estimation of sampling fractions failed for the following samples:",
+                         .name_list(names(which(is.na(theta_hat)))),
+                         "These samples may have an excessive number of zero values",
+                         sep = "\n")
         warning(warn_txt, call. = FALSE)
     }
 

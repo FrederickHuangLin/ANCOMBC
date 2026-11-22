@@ -1,3 +1,35 @@
+version 2.15.3 (last update 2026-11-21)
+        + Preserve single-column metadata (PR #343 by @hyperpolymath)
+        + Align mixed-model degrees of freedom by coefficient name (PR #342
+          by @xec-cm)
+        + Assign a screening p-value of 1 in the Dunnett's type of test to
+          taxa whose mixed model cannot be fitted (#321, #340, #266)
+        + Fix the 'subscript out of bounds' error in ancombc2 with
+          rand_formula when the mixed model cannot be built for the last
+          pattern of missing values
+        + Make the mixed-model check before the random-effects fit
+          independent of the order of the taxa (#294, #271, #323)
+        + Fix the random-effects global test, and the pairwise test that uses
+          it, when the group variable is the first or only term of
+          fix_formula (#262, #210, #312)
+        + Fix the errors in messages that list many names or names containing
+          '%' (#243)
+        + Apply the aliases rank and assay.type in ancom, ancombc, ancombc2,
+          secom_linear, and secom_dist (#319)
+        + Use the same samples for the original and the aggregated tables in
+          secom_linear and secom_dist (#316)
+        + Stop with an informative error when no fixed effect can be
+          estimated from the nonzero samples of any taxon (#257)
+        + Stop the cluster when a parallel run ends with an error
+        + Stop with a clear message when a multi-group test is requested and
+          the group variable is not in the formula (#308)
+        + Exclude taxa with zero first-stage variances from the bias
+          estimation instead of stopping, and document the order in which
+          prv_cut and lib_cut are applied (#309, #325)
+        + Report a coefficient that is not estimable for a taxon as NA
+          instead of 0, so that it does not enter the pairwise, Dunnett's
+          type, or trend tests (#298)
+
 version 2.15.xx (last update 2026-09-18)
         + Reduce the running time of ancombc, ancombc2, secom_linear, and
           secom_dist without changing the results

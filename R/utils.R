@@ -1,3 +1,13 @@
+# Comma-separated list of names for a message. A list longer than max_n is
+# shown by its first max_n names and the number of the remaining names.
+.name_list = function(x, max_n = 10) {
+    x = as.character(x)
+    n = length(x)
+    if (n <= max_n) return(paste(x, collapse = ", "))
+    paste0(paste(x[seq_len(max_n)], collapse = ", "),
+           ", ... and ", n - max_n, " more")
+}
+
 # The function to extract off-diagonol elements
 .odiag = function(x) x[col(x) != row(x)]
 
@@ -95,6 +105,10 @@
 }
 
 .constrain_est = function(beta_hat, vcov_hat, contrast) {
+    # A taxon with a coefficient that is not estimable has no constrained
+    # estimate
+    if (anyNA(beta_hat) || anyNA(vcov_hat)) return(rep(NA_real_, length(beta_hat)))
+
     P = .safe_inverse_spd(vcov_hat)
     
     Dmat = 2 * P

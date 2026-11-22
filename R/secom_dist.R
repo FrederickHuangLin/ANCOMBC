@@ -143,6 +143,9 @@ secom_dist = function(data, taxa_are_rows = TRUE,
                       corr_cut = 0.5, wins_quant = c(0.05, 0.95), R = 1000,
                       thresh_hard = 0, max_p = 0.005, n_cl = 1,
                       verbose = TRUE) {
+    # Aliases take effect when the main arguments are not supplied
+    if (!missing(assay.type) && missing(assay_name)) assay_name = assay.type
+    if (!missing(rank) && missing(tax_level)) tax_level = rank
 
     # ===========Sampling fraction and absolute abundance estimation============
     if (length(data) == 1) {
@@ -242,16 +245,17 @@ secom_dist = function(data, taxa_are_rows = TRUE,
 
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
+      # Stop the cluster on exit, including exit by an error
+      on.exit({
+          parallel::stopCluster(cl)
+          foreach::registerDoSEQ()
+      }, add = TRUE)
       doParallel::registerDoParallel(cl)
     } else {
       foreach::registerDoSEQ()
     }
 
     res_corr = .sparse_dist(mat = mat_y, wins_quant, R, thresh_hard, max_p)
-
-    if (n_cl > 1) {
-      parallel::stopCluster(cl)
-    }
 
     # To prevent FP from taxa with extremely small variances
     if (length(data) == 1) {

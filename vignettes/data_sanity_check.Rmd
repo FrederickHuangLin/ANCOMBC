@@ -1,15 +1,29 @@
 ---
 title: "Tutorial on Data Sanity and Integrity Checks"
-author: 
-  - Menglu Liang$^1$, Huang Lin$^1$
-  - $^1$University of Maryland, College Park, MD 20742 
+author:
+  - name: Menglu Liang
+    affiliation: University of Maryland, College Park, MD 20742
+  - name: Huang Lin
+    email: huanglinfrederick@gmail.com
+    affiliation: University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: rmarkdown::html_vignette
+package: ANCOMBC
+abstract: >
+  This vignette illustrates the `data_sanity_check` function, which verifies
+  the data types and the structure of the input data and the agreement of
+  sample names between the metadata and the feature table. Examples are
+  given for `phyloseq`, `TreeSummarizedExperiment`, and `matrix` or
+  `data.frame` inputs.
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
 bibliography: bibliography.bib
 vignette: >
   %\VignetteIndexEntry{Tutorial on Data Sanity and Integrity Checks}
   %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, message = FALSE, warning = FALSE, comment = NA}
@@ -19,11 +33,11 @@ library(ANCOMBC)
 library(tidyverse)
 ```
 
-# 1. Introduction
+# Introduction
 
 The `data_sanity_check` function performs essential validations on the input data to ensure its integrity before further processing. It verifies data types, confirms the structure of the input data, and checks for consistency between sample names in the metadata and the feature table, safeguarding against common data input errors.
 
-# 2. Installation
+# Installation
 
 Download package. 
 
@@ -39,14 +53,14 @@ Load the package.
 library(ANCOMBC)
 ```
 
-# 3. Examples
+# Examples
 
-## 3.1 Import a `phyloseq` object
+## Import a `phyloseq` object
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
 HITChip for 1006 western adults with no reported health complications, 
 reported in [@lahti2014tipping]. The dataset is available via the 
-microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+`r BiocStyle::Biocpkg("microbiome")` R package [@lahti2017tools] in `r BiocStyle::Biocpkg("phyloseq")` [@mcmurdie2013phyloseq] 
 format. 
 
 ```{r}
@@ -91,7 +105,7 @@ check_results = data_sanity_check(data = atlas1006,
                                   verbose = TRUE)
 ```
 
-## 3.2 Import a `tse` object
+## Import a `tse` object
 
 ```{r}
 tse = mia::convertFromPhyloseq(atlas1006)
@@ -122,7 +136,7 @@ check_results = data_sanity_check(data = tse,
                                   verbose = TRUE)
 ```
 
-## 3.3 Import a `matrix` or `data.frame`
+## Import a `matrix` or `data.frame`
 
 Both abundance data and sample metadata are required for this import method.
 
@@ -157,13 +171,13 @@ check_results = data_sanity_check(data = abundance_data,
                                   verbose = TRUE)
 ```
 
-# Session information
+# Session information {.unnumbered}
 
 ```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
 sessionInfo()
 ```
 
-# References
+# References {.unnumbered}
 
 
 

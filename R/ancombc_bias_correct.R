@@ -5,7 +5,8 @@
 # factor; tformula and meta_data define that per-taxon model.
 #
 # Returns, aligned to the taxa of Ymat:
-#   beta    taxa x covariate coefficients, NA for an unfitted taxon
+#   beta    taxa x covariate coefficients, NA for an unfitted taxon and for a
+#           coefficient that is not estimable from the taxon's samples
 #   fitted  taxa x sample fitted values, 0 for a sample dropped from the fit
 #   dof     residual degrees of freedom per taxon, 999 when not estimable
 .lm_fit_all = function(x, Ymat, meta_data, tformula) {
@@ -29,7 +30,7 @@
         df = data.frame(y_crt = Ymat[i, ], meta_data)
         fit = suppressWarnings(try(stats::lm(tformula, data = df), silent = TRUE))
         if (inherits(fit, "lm")) {
-            bi = rep(0, p)
+            bi = rep(NA_real_, p)
             ci = stats::coef(fit)
             bi[match(names(ci), fix_eff)] = ci
             beta[i, ] <<- bi
@@ -147,10 +148,10 @@
                          data = data.frame(y_crt = rnorm(n = n_samp), meta_data))
 
     if (any(is.na(lm_smoke$coefficients))) {
-        stop_txt = sprintf(paste("Estimation failed for the following covariates:",
-                                 paste(names(which(is.na(lm_smoke$coefficients))), collapse = ", "),
-                                 "Please ensure that these covariates do not have missing values and check for multicollinearity before re-estimating the model",
-                                 sep = "\n"))
+        stop_txt = paste("Estimation failed for the following covariates:",
+                         .name_list(names(which(is.na(lm_smoke$coefficients)))),
+                         "Please ensure that these covariates do not have missing values and check for multicollinearity before re-estimating the model",
+                         sep = "\n")
         stop(stop_txt, call. = FALSE)
     }
 
@@ -319,11 +320,12 @@
     structs = vector(mode = "list", length = n_grp)
     for (g in seq_len(n_grp)) {
         df = data.frame(y_crt = y[match(g, grp), ], meta_data)
-        structs[[g]] = tryCatch(
+        # Single-bracket assignment keeps a NULL element in its slot
+        structs[g] = list(tryCatch(
             suppressWarnings(suppressMessages(
                 .lmer_struct(tformula, df, lme_control)
             )),
-            error = function(e) NULL)
+            error = function(e) NULL))
     }
     return(list(grp = grp, structs = structs))
 }
@@ -340,8 +342,8 @@
 }
 
 # Fit every taxon at the current sampling fractions. A taxon that cannot be
-# fitted contributes NA. A fixed effect or sample absent from a taxon's fit
-# contributes 0.
+# fitted contributes NA. A fixed effect absent from a taxon's fit contributes
+# NA to beta, and a sample absent from it contributes 0 to fitted and eps.
 .remle_fit_all = function(struct_list, y, theta, tformula, meta_data,
                           fix_eff, samp_id, lme_control) {
     n_tax = nrow(y)
@@ -391,7 +393,7 @@
         if (is.null(fit_i)) {
             vcov_i[] = NA_real_
         } else {
-            beta_i = rep(0, n_fix_eff)
+            beta_i = rep(NA_real_, n_fix_eff)
             beta_i[match(names(fit_i$coef), fix_eff)] = fit_i$coef
             beta[i, ] = beta_i
 
@@ -432,10 +434,10 @@
                          data = data.frame(y = rnorm(n = n_samp), meta_data))
 
     if (any(is.na(lm_smoke$coefficients))) {
-      stop_txt = sprintf(paste("Estimation failed for the following covariates:",
-                               paste(names(which(is.na(lm_smoke$coefficients))), collapse = ", "),
-                               "Please ensure that these covariates do not have missing values and check for multicollinearity before re-estimating the model",
-                               sep = "\n"))
+      stop_txt = paste("Estimation failed for the following covariates:",
+                       .name_list(names(which(is.na(lm_smoke$coefficients)))),
+                       "Please ensure that these covariates do not have missing values and check for multicollinearity before re-estimating the model",
+                       sep = "\n")
       stop(stop_txt, call. = FALSE)
     }
 
@@ -446,20 +448,24 @@
       stop(stop_txt, call. = FALSE)
     }
 
-    # Test for the fitting of linear mixed-effects model
+    # Test for the fitting of linear mixed-effects model. The response is the
+    # sample mean over taxa, which is observed in every sample with at least
+    # one nonzero count, so the test does not depend on the order of the taxa
     tryCatch({
         # Try to run the lmerTest model
-        result <- lmerTest::lmer(formula = tformula,
-                                 data = data.frame(y_crt = y[1, ], meta_data),
-                                 control = lme_control)
+        y_check = colMeans(y, na.rm = TRUE)
+        result <- suppressWarnings(suppressMessages(
+            lmerTest::lmer(formula = tformula,
+                           data = data.frame(y_crt = y_check, meta_data),
+                           control = lme_control)))
     },
     error = function(e) {
         # This block will be executed if there's an error in the above code
-        message <- sprintf(paste("Encountering the error for `lmerTest` package.",
-                                 "Please try to select one of your taxa and use its raw counts to fix the same linear mixed-effects model using `lmerTest` without the `ANCOMBC` package.",
-                                 "Load all necessary packages EXCEPT `ANCOMBC`, and see if the error arises due to package incompatibility or other issues.",
-                                 "The error message from `lmerTest` is as follows:",
-                                 e$message, sep = "\n"))
+        message <- paste("Encountering the error for `lmerTest` package.",
+                         "Please try to select one of your taxa and use its raw counts to fix the same linear mixed-effects model using `lmerTest` without the `ANCOMBC` package.",
+                         "Load all necessary packages EXCEPT `ANCOMBC`, and see if the error arises due to package incompatibility or other issues.",
+                         "The error message from `lmerTest` is as follows:",
+                         e$message, sep = "\n")
         stop(message, call. = FALSE)
     })
 
@@ -555,11 +561,11 @@
         })
         dof = do.call("rbind", dof)
 
-        # Coefficients
+        # Coefficients. A fixed effect omitted from a taxon's fit is NA
         empty_coef = rep(NA, n_fix_eff)
         names(empty_coef) = fix_eff
         beta = lapply(summ_list, function(i) {
-          beta_i = rep(0, length(fix_eff)) # prevent errors of missing values
+          beta_i = rep(NA_real_, length(fix_eff))
           coef_i = if (is.null(i)) empty_coef else i$coefficients[, "Estimate"]
           beta_i[match(names(coef_i), fix_eff)] = coef_i
           return(beta_i)
@@ -613,6 +619,40 @@
     return(output)
 }
 
+# Check the input of the E-M estimation of the biases. Taxa with zero
+# variances are excluded from the estimation by .bias_em and are reported in a
+# message. A fixed effect without a taxon that has both an estimate and a
+# nonzero variance is not estimable from any taxon; its bias is NA and a
+# message reports it. The function stops when no fixed effect is estimable.
+.check_bias_input = function(beta, var_hat) {
+    var_zero = !is.na(beta) & !is.na(var_hat) & var_hat == 0
+    for (j in which(colSums(var_zero) > 0)) {
+        message_txt = paste("Zero variances have been detected for the following taxa:",
+                            .name_list(rownames(var_hat)[var_zero[, j]]),
+                            paste0("These taxa are excluded from the estimation of the sample-specific bias for: ",
+                                   colnames(var_hat)[j]),
+                            sep = "\n")
+        message(message_txt)
+    }
+
+    n_ok = colSums(!is.na(beta) & !is.na(var_hat) & !var_zero)
+    if (all(n_ok == 0)) {
+        stop_txt = paste("The sample-specific bias cannot be estimated for the following coefficients:",
+                         .name_list(colnames(beta)[n_ok == 0]),
+                         "No taxon provides an estimate of these coefficients from its nonzero samples.",
+                         "A likely cause is a factor level that occurs only in samples in which every taxon is zero, or a feature table in which each taxon is observed in a single batch.",
+                         "Please check the fixed effects against the nonzero counts of the taxa",
+                         sep = "\n")
+        stop(stop_txt, call. = FALSE)
+    } else if (any(n_ok == 0)) {
+        message_txt = paste("The following coefficients are not estimable from the nonzero samples of any taxon:",
+                            .name_list(colnames(beta)[n_ok == 0]),
+                            "Their estimates are reported as NA",
+                            sep = "\n")
+        message(message_txt)
+    }
+}
+
 # E-M algorithm
 .bias_em = function(beta, var_hat, tol, max_iter) {
     nu0 = var_hat
@@ -620,12 +660,14 @@
     beta = beta[neither_na]
     nu0 = nu0[neither_na]
 
-    if (any(nu0 == 0)) {
-        stop_txt = sprintf(paste("Zero variances have been detected for the following taxa:",
-                                 paste(names(which(nu0 == 0)), collapse = ", "),
-                                 "Please remove these taxa or select a more parsimonious model",
-                                 sep = "\n"))
-        stop(stop_txt, call. = FALSE)
+    # Taxa with zero variances are excluded from the estimation
+    beta = beta[nu0 != 0]
+    nu0 = nu0[nu0 != 0]
+
+    # A coefficient that is not estimable from any taxon has no bias estimate
+    if (length(beta) == 0) {
+        output = c(delta_em = NA_real_, delta_wls = NA_real_, var_delta = 0)
+        return(output)
     }
 
     # Initials

@@ -194,8 +194,17 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
     message("'ancombc' has been fully evolved to 'ancombc2'. \n",
             "Explore the enhanced capabilities of our refined method!")
 
+    # Aliases take effect when the main arguments are not supplied
+    if (!missing(assay.type) && missing(assay_name)) assay_name = assay.type
+    if (!missing(rank) && missing(tax_level)) tax_level = rank
+
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
+      # Stop the cluster on exit, including exit by an error
+      on.exit({
+          parallel::stopCluster(cl)
+          foreach::registerDoSEQ()
+      }, add = TRUE)
       doParallel::registerDoParallel(cl)
     } else {
       foreach::registerDoSEQ()
@@ -279,6 +288,7 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
     if (verbose) {
         message("Estimating sample-specific biases ...")
     }
+    .check_bias_input(beta = beta, var_hat = var_hat)
     fun_list = list(.bias_em)
     bias = foreach(i = seq_len(ncol(beta)), .combine = rbind) %dorng% {
         output = fun_list[[1]](beta = beta[, i],
@@ -308,8 +318,15 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
     }else{ se_hat = sqrt(var_hat) }
 
     theta_hat = matrix(NA, nrow = n_tax, ncol = ncol(y))
+    # A coefficient that is not estimable for a fitted taxon is set to 0
+    # before its bias is subtracted
+    beta_na = -delta_em
+    beta_na[is.na(beta_na)] = 0
     for (i in seq_len(n_tax)) {
-        theta_hat[i, ] = y[i, ] - x %*% beta_hat[i, ]
+        beta_hat_i = beta_hat[i, ]
+        na_i = is.na(beta_hat_i)
+        if (!all(na_i)) beta_hat_i[na_i] = beta_na[na_i]
+        theta_hat[i, ] = y[i, ] - x %*% beta_hat_i
     }
     theta_hat = colMeans(theta_hat, na.rm = TRUE)
 
@@ -395,10 +412,6 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
     out = list(feature_table = feature_table, zero_ind = zero_ind,
                samp_frac = theta_hat, delta_em = delta_em,
                delta_wls = delta_wls, res = res, res_global = res_global)
-
-    if (n_cl > 1) {
-      parallel::stopCluster(cl)
-    }
 
     return(out)
 }

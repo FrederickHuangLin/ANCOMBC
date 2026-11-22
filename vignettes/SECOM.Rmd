@@ -1,15 +1,27 @@
 ---
 title: "SECOM Tutorial"
-author: 
-  - Huang Lin$^1$
-  - $^1$University of Maryland, College Park, MD 20742
+author:
+  - name: Huang Lin
+    email: huanglinfrederick@gmail.com
+    affiliation: University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: rmarkdown::html_vignette
+package: ANCOMBC
+abstract: >
+  This vignette illustrates estimation of linear and nonlinear correlations
+  among microbial absolute abundances with the Sparse Estimation of
+  Correlations among Microbiomes (SECOM) methodology, implemented in the
+  `secom_linear` and `secom_dist` functions. Correlations are estimated
+  within a single ecosystem and across multiple ecosystems.
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
 bibliography: bibliography.bib
 vignette: >
   %\VignetteIndexEntry{SECOM Tutorial}
   %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, message = FALSE, warning = FALSE, comment = NA}
@@ -27,7 +39,7 @@ get_upper_tri = function(cormat){
 }
 ```
 
-# 1. Introduction
+# Introduction
 
 Sparse Estimation of Correlations among Microbiomes (SECOM) [@lin2022linear]
 is a methodology that aims to detect both linear and nonlinear relationships 
@@ -38,7 +50,7 @@ microbial absolute abundances while maintaining the underlying true sparsity.
 For more details, see the
 [SECOM](https://doi.org/10.1038/s41467-022-32243-x) paper.
 
-# 2. Installation
+# Installation
 
 Download package. 
 
@@ -54,20 +66,20 @@ Load the package.
 library(ANCOMBC)
 ```
 
-# 3. Example Data 
+# Example Data 
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
 HITChip for 1006 western adults with no reported health complications, 
 reported in [@lahti2014tipping]. The dataset is available via the 
-microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+`r BiocStyle::Biocpkg("microbiome")` R package [@lahti2017tools] in `r BiocStyle::Biocpkg("phyloseq")` [@mcmurdie2013phyloseq] 
 format.
 
 ```{r, child = "children/child_atlas1006.Rmd"}
 ```
 
-# 4. Run SECOM on a Single Ecosystem
+# Run SECOM on a Single Ecosystem
 
-## 4.1 Run secom functions using the `phyloseq` object
+## Run secom functions using the `phyloseq` object
 
 ```{r}
 set.seed(123)
@@ -104,9 +116,9 @@ res_linear2 = secom_linear(data = list(pseq), taxa_are_rows = TRUE,
                            thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 ```
 
-## 4.2 Visualizations {.tabset}
+## Visualizations {.tabset}
 
-### Pearson correlation with thresholding
+### Pearson correlation with thresholding {.unnumbered}
 
 ```{r}
 corr_linear = res_linear$corr_th
@@ -152,7 +164,7 @@ heat_linear_th = df_linear %>%
 heat_linear_th
 ```
 
-### Pearson correlation with p-value filtering
+### Pearson correlation with p-value filtering {.unnumbered}
 
 ```{r}
 corr_linear = res_linear$corr_fl
@@ -198,7 +210,7 @@ heat_linear_fl = df_linear %>%
 heat_linear_fl
 ```
 
-### Distance correlation with p-value filtering
+### Distance correlation with p-value filtering {.unnumbered}
 
 ```{r}
 corr_dist = res_dist$dcorr_fl
@@ -244,7 +256,7 @@ heat_dist_fl = df_dist %>%
 heat_dist_fl
 ```
 
-## 4.3 Alternative input formats
+## Alternative input formats
 
 The calls in Section 4.1 also accept `TreeSummarizedExperiment` objects or
 count matrices. Only the data arguments differ; all other arguments are
@@ -282,9 +294,9 @@ aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Phylum
 meta_data = microbiome::meta(pseq)
 ```
 
-# 5. Run SECOM on Multiple Ecosystems
+# Run SECOM on Multiple Ecosystems
 
-## 5.1 Data manipulation
+## Data manipulation
 
 Correlations within and across ecosystems are computed on the samples that the
 ecosystems have in common, so the sample names must overlap.
@@ -300,7 +312,7 @@ print(pseq1)
 print(pseq2)
 ```
 
-## 5.2 Run secom functions using the `phyloseq` object
+## Run secom functions using the `phyloseq` object
 
 ```{r}
 set.seed(123)
@@ -324,9 +336,9 @@ res_dist = secom_dist(data = list(CE = pseq1, NE = pseq2),
                       thresh_hard = 0.3, max_p = 0.005, n_cl = 2)
 ```
 
-## 5.3 Visualizations {.tabset}
+## Visualizations {.tabset}
 
-### Pearson correlation with thresholding
+### Pearson correlation with thresholding {.unnumbered}
 
 ```{r, fig.width=8, fig.height=8}
 corr_linear = res_linear$corr_th
@@ -377,7 +389,7 @@ heat_linear_th = df_linear %>%
 heat_linear_th
 ```
 
-### Pearson correlation with p-value filtering
+### Pearson correlation with p-value filtering {.unnumbered}
 
 ```{r, fig.width=8, fig.height=8}
 corr_linear = res_linear$corr_fl
@@ -428,7 +440,7 @@ heat_linear_fl = df_linear %>%
 heat_linear_fl
 ```
 
-### Distance correlation with p-value filtering
+### Distance correlation with p-value filtering {.unnumbered}
 
 ```{r, fig.width=8, fig.height=8}
 corr_dist = res_dist$dcorr_fl
@@ -479,7 +491,7 @@ heat_dist_fl = df_dist %>%
 heat_dist_fl
 ```
 
-## 5.4 Alternative input formats
+## Alternative input formats
 
 The calls in Section 5.2 also accept `TreeSummarizedExperiment` objects or
 count matrices. Only the data arguments differ; all other arguments are
@@ -522,13 +534,13 @@ rownames(meta_data1) = paste0("Sample-", seq_len(sample_size1))
 rownames(meta_data2) = paste0("Sample-", seq_len(sample_size2))
 ```
 
-# Session information
+# Session information {.unnumbered}
 
 ```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
 sessionInfo()
 ```
 
-# References
+# References {.unnumbered}
 
 
 

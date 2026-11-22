@@ -177,6 +177,10 @@ secom_linear = function(data, taxa_are_rows = TRUE,
                         verbose = TRUE) {
     method = match.arg(method)
 
+    # Aliases take effect when the main arguments are not supplied
+    if (!missing(assay.type) && missing(assay_name)) assay_name = assay.type
+    if (!missing(rank) && missing(tax_level)) tax_level = rank
+
     # ===========Sampling fraction and absolute abundance estimation============
     if (length(data) == 1) {
         # Data sanity check
@@ -275,6 +279,11 @@ secom_linear = function(data, taxa_are_rows = TRUE,
 
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
+      # Stop the cluster on exit, including exit by an error
+      on.exit({
+          parallel::stopCluster(cl)
+          foreach::registerDoSEQ()
+      }, add = TRUE)
       doParallel::registerDoParallel(cl)
     } else {
       foreach::registerDoSEQ()
@@ -288,10 +297,6 @@ secom_linear = function(data, taxa_are_rows = TRUE,
         stop_txt = paste0("The specified correlation coefficient type is not valid \n",
                           "Please choose either 'pearson' or 'spearman' as the type of correlation coefficient")
         stop(stop_txt, call. = FALSE)
-    }
-
-    if (n_cl > 1) {
-      parallel::stopCluster(cl)
     }
 
     # To prevent false positives from taxa with extremely small variances

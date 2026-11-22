@@ -1,15 +1,29 @@
 ---
 title: "ANCOM-BC2 Tutorial"
-author: 
-  - Huang Lin$^1$
-  - $^1$University of Maryland, College Park, MD 20742
+author:
+  - name: Huang Lin
+    email: huanglinfrederick@gmail.com
+    affiliation: University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: rmarkdown::html_vignette
+package: ANCOMBC
+abstract: >
+  This vignette illustrates differential abundance analysis with the
+  Analysis of Compositions of Microbiomes with Bias Correction 2 (ANCOM-BC2)
+  methodology, implemented in the `ancombc2` function, for cross-sectional
+  and longitudinal data. The primary analysis, the global test, multiple
+  pairwise comparisons, Dunnett-type comparisons, and pattern analysis are
+  presented, followed by an evaluation of power and false discovery rate on
+  simulated data and of the p-value distribution on permuted data.
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
 bibliography: bibliography.bib
 vignette: >
   %\VignetteIndexEntry{ANCOM-BC2 Tutorial}
   %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, message = FALSE, warning = FALSE, comment = NA}
@@ -29,7 +43,7 @@ options(DT.options = list(
 # remotes::install_github("joey711/phyloseq", force = TRUE)
 ```
 
-# 1. Introduction
+# Introduction
 
 Analysis of Compositions of Microbiomes with Bias Correction 2 (ANCOM-BC2) is
 a methodology for performing differential abundance (DA) analysis of microbiome
@@ -103,7 +117,7 @@ g1 and g2, g1 and g3, and consequently, it is globally differentially abundant
 with respect to this group variable. Such taxa are not further analyzed using
 ANCOM-BC2, but the results are summarized in a separate table.
 
-# 2. Installation
+# Installation
 
 Download the package.
 
@@ -119,7 +133,7 @@ Load the package.
 library(ANCOMBC)
 ```
 
-# 3. Input formats and a minimal call
+# Input formats and a minimal call
 
 The `ancombc2` function accepts three input formats.
 
@@ -146,14 +160,14 @@ output = ancombc2(data = pseq, tax_level = "Family",
                   fix_formula = "age + region + bmi", group = "bmi")
 ```
 
-# 4. Run ANCOM-BC2 on a real cross-sectional dataset
+# Run ANCOM-BC2 on a real cross-sectional dataset
 
-## 4.1 Import example data
+## Import example data
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with
 HITChip for 1006 western adults with no reported health complications,
 reported in [@lahti2014tipping]. The dataset is available via the
-`microbiome` R package [@lahti2017tools] in `phyloseq` [@mcmurdie2013phyloseq]
+`r BiocStyle::Biocpkg("microbiome")` R package [@lahti2017tools] in `r BiocStyle::Biocpkg("phyloseq")` [@mcmurdie2013phyloseq]
 format. In this tutorial, we consider the following covariates:
 
 * Continuous covariates: "age"
@@ -169,7 +183,7 @@ format. In this tutorial, we consider the following covariates:
 ```{r, child = "children/child_atlas1006.Rmd"}
 ```
 
-## 4.2 Run `ancombc2` function using the `phyloseq` object
+## Run `ancombc2` function using the `phyloseq` object
 
 The p-values are adjusted by the Holm-Bonferroni method rather than by the
 Benjamini-Hochberg procedure. The Holm-Bonferroni method is valid under any
@@ -231,7 +245,7 @@ head(output_interact$res) %>%
     datatable(caption = "Example of including interaction terms")
 ```
 
-## 4.3 How to read the output
+## How to read the output
 
 The primary result `output$res` is a data frame with one row per taxon. Its
 columns are grouped by prefix, and the suffix of a column name is the fixed
@@ -273,7 +287,7 @@ the pattern analysis (`output$res_trend`) use the same column groups. The
 global test and the pattern analysis report one test per taxon, so their
 indicator columns are `diff_abn`, `passed_ss`, and `diff_robust_abn`.
 
-## 4.4 Structural zeros (taxon presence/absence)
+## Structural zeros (taxon presence/absence)
 
 ```{r}
 tab_zero = output$zero_ind
@@ -281,7 +295,7 @@ tab_zero %>%
     datatable(caption = "The detection of structural zeros")
 ```
 
-## 4.5 ANCOM-BC2 primary analysis {.tabset}
+## ANCOM-BC2 primary analysis {.tabset}
 
 The primary output identifies the taxa that are differentially abundant with
 respect to each fixed effect. The column groups are defined in Section 4.3.
@@ -290,7 +304,7 @@ respect to each fixed effect. The column groups are defined in Section 4.3.
 res_prim = output$res
 ```
 
-### Results for age
+### Results for age {.unnumbered}
 
 In the waterfall plot below, each bar is a log fold change, on the natural log
 scale. The taxon labels in green mark the taxa whose `diff_robust` indicator is
@@ -327,7 +341,7 @@ fig_age = df_fig_age %>%
 fig_age
 ```
 
-### Results for bmi
+### Results for bmi {.unnumbered}
 
 In the heatmap below, each cell is a log fold change, on the natural log scale.
 The entries in green mark the comparisons whose `diff_robust` indicator is TRUE.
@@ -384,7 +398,7 @@ fig_bmi = df_fig_bmi %>%
 fig_bmi
 ```
 
-## 4.6 ANCOM-BC2 global test
+## ANCOM-BC2 global test
 
 The ANCOM-BC2 global test identifies taxa that are differentially abundant
 between at least two groups when three or more groups are compared. Here the
@@ -438,7 +452,7 @@ fig_global = df_fig_global %>%
 fig_global
 ```
 
-## 4.7 ANCOM-BC2 multiple pairwise comparisons
+## ANCOM-BC2 multiple pairwise comparisons
 
 The ANCOM-BC2 pairwise directional test identifies taxa that are differentially
 abundant between any two groups within a set of three or more groups, while
@@ -507,7 +521,7 @@ fig_pair = df_fig_pair %>%
 fig_pair
 ```
 
-## 4.8 ANCOM-BC2 multiple pairwise comparisons against a pre-specified group (Dunnett's type of test)
+## ANCOM-BC2 multiple pairwise comparisons against a pre-specified group (Dunnett's type of test)
 
 The Dunnett's test [@dunnett1955multiple; @dunnett1991step; @dunnett1992step]
 compares several experimental groups against a control or reference group. The
@@ -574,7 +588,7 @@ fig_dunn = df_fig_dunn %>%
 fig_dunn
 ```
 
-## 4.9 ANCOM-BC2 pattern analysis {.tabset}
+## ANCOM-BC2 pattern analysis {.tabset}
 
 In certain experiments, groups inherently follow an order, such as in
 dose-response studies. In these cases, we're interested in discerning if
@@ -666,7 +680,7 @@ fig_trend = df_fig_trend %>%
 fig_trend
 ```
 
-## 4.10 Alternative input formats
+## Alternative input formats
 
 The call in Section 4.2 also accepts a `TreeSummarizedExperiment` object or a
 count matrix. Only the data arguments differ; all other arguments are unchanged.
@@ -703,9 +717,9 @@ aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family
 meta_data = microbiome::meta(pseq)
 ```
 
-# 5. Run ANCOM-BC2 on a real longitudinal dataset {.tabset}
+# Run ANCOM-BC2 on a real longitudinal dataset {.tabset}
 
-## 5.1 Import example data
+## Import example data
 
 A two-week diet swap study between western (USA) and traditional (rural Africa)
 diets [@lahti2014tipping]. The dataset is available via the
@@ -716,7 +730,7 @@ format.
 data(dietswap, package = "microbiome")
 ```
 
-## 5.2 Run `ancombc2` function using the `phyloseq` object
+## Run `ancombc2` function using the `phyloseq` object
 
 In this tutorial, we consider the following fixed effects:
 
@@ -790,7 +804,7 @@ output = ancombc2(data = dietswap, tax_level = "Family",
                                        B = 10))
 ```
 
-## 5.3 ANCOM-BC2 primary analysis
+## ANCOM-BC2 primary analysis
 
 ```{r}
 res_prim = output$res %>%
@@ -799,7 +813,7 @@ res_prim[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Primary Analysis")
 ```
 
-## 5.4 ANCOM-BC2 global test
+## ANCOM-BC2 global test
 
 ```{r}
 res_global = output$res_global %>%
@@ -808,7 +822,7 @@ res_global[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Global Test")
 ```
 
-## 5.5 ANCOM-BC2 multiple pairwise comparisons
+## ANCOM-BC2 multiple pairwise comparisons
 
 ```{r}
 res_pair = output$res_pair %>%
@@ -817,7 +831,7 @@ res_pair[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Multiple Pairwise Comparisons")
 ```
 
-## 5.6 ANCOM-BC2 Dunnett's type of test
+## ANCOM-BC2 Dunnett's type of test
 
 ```{r}
 res_dunn = output$res_dunn %>%
@@ -826,7 +840,7 @@ res_dunn[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Dunnett's Type of Test")
 ```
 
-## 5.7 ANCOM-BC2 pattern analysis
+## ANCOM-BC2 pattern analysis
 
 ```{r}
 res_trend = output$res_trend %>%
@@ -835,7 +849,7 @@ res_trend[1:6, ] %>%
     datatable(caption = "ANCOM-BC2 Pattern Analysis")
 ```
 
-## 5.8 Alternative input formats
+## Alternative input formats
 
 The call in Section 5.2 also accepts a `TreeSummarizedExperiment` object or a
 count matrix. Only the data arguments differ; all other arguments are unchanged.
@@ -857,7 +871,7 @@ aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(dietswap, "Fa
 meta_data = microbiome::meta(dietswap)
 ```
 
-# 6. Bias-corrected log abundances
+# Bias-corrected log abundances
 
 The estimation of sampling fractions in ANCOM-BC2 is limited to an additive
 constant, so that only differences between bias-corrected log abundances are
@@ -879,13 +893,13 @@ round(bias_correct_log_table[, 1:6], 2) %>%
   datatable(caption = "Bias-corrected log abundances")
 ```
 
-# 7. Run ANCOM-BC2 on a simulated dataset {.tabset}
+# Run ANCOM-BC2 on a simulated dataset {.tabset}
 
 The remaining two sections evaluate the operating characteristics of ANCOM-BC2:
 power and FDR on simulated data with known differentially abundant taxa, and
 the distribution of the p-values on a dataset with a permuted group label.
 
-## 7.1 Generate simulated data
+## Generate simulated data
 
 1. The simulated data contain one continuous covariate, cont_cov, and one
 categorical covariate, cat_cov, with three levels: "1", "2", and "3". The group
@@ -964,7 +978,7 @@ log_otu_data = log_otu_data + fmd$seq_eff
 otu_data = round(exp(log_otu_data))
 ```
 
-## 7.2 Run `ancombc2` function
+## Run `ancombc2` function
 
 ```{r}
 set.seed(123)
@@ -987,7 +1001,7 @@ res_prim = output$res
 res_pair = output$res_pair
 ```
 
-## 7.3 Power and FDR
+## Power and FDR
 
 A taxon is counted as a true positive for a pairwise comparison when the sign of
 its estimated log fold change agrees with the sign of the true log fold change
@@ -1038,7 +1052,7 @@ tab_summ %>%
     datatable(caption = "Power/FDR Comparison")
 ```
 
-## 7.4 Sensitivity analysis with `conservative = FALSE`
+## Sensitivity analysis with `conservative = FALSE`
 
 The `conservative` argument sets the stage at which the pseudo-counts are added.
 Let $\alpha$ denote the significance level.
@@ -1120,9 +1134,9 @@ against
 default. The taxa whose sensitivity flags differ between the two settings are
 not significant in the pairwise directional test.
 
-# 8. Benchmark the performance of ANCOM-BC2 on a permuted null dataset
+# Benchmark the performance of ANCOM-BC2 on a permuted null dataset
 
-## 8.1 Permute the `bmi` label
+## Permute the `bmi` label
 
 The `bmi` label of the HITChip Atlas dataset imported in Section 4.1 is
 permuted across samples. After the permutation the data are null for `bmi`: a
@@ -1138,7 +1152,7 @@ meta_data_perm$bmi = sample(meta_data_perm$bmi)
 phyloseq::sample_data(pseq_perm) = meta_data_perm
 ```
 
-## 8.2 Run `ancombc2` function 
+## Run `ancombc2` function 
 
 ```{r}
 set.seed(123)
@@ -1149,7 +1163,7 @@ output = ancombc2(data = pseq_perm, tax_level = "Genus",
                   group = "bmi", struc_zero = TRUE, neg_lb = TRUE)
 ```
 
-## 8.3 Visualization
+## Visualization
 
 The p-values of ANCOM-BC2 on the permuted data are close to uniform, with and
 without the sensitivity analysis. Discarding the significant p-values of the
@@ -1199,10 +1213,10 @@ fig_p = df_p %>%
 fig_p
 ```
 
-# Session information
+# Session information {.unnumbered}
 
 ```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
 sessionInfo()
 ```
 
-# References
+# References {.unnumbered}

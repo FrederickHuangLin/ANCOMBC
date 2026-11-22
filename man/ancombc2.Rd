@@ -137,11 +137,16 @@ each setting.}
 less than \code{prv_cut} will be excluded in the analysis. For example,
 if there are 100 samples, and a taxon has nonzero counts present in less than
 100*prv_cut samples, it will not be considered in the analysis.
-Default is 0.10.}
+Prevalences are computed from all samples, before samples are filtered by
+\code{lib_cut}. Default is 0.10.}
 
 \item{lib_cut}{a numerical threshold for filtering samples based on library
 sizes. Samples with library sizes less than \code{lib_cut} will be
-excluded in the analysis. Default is 0, i.e. do not discard any sample.}
+excluded in the analysis. The library size of a sample is its total count
+over the taxa retained by \code{prv_cut}, so the prevalence filter is
+applied first. When \code{tax_level} is specified, samples are selected at
+the original taxonomic level, and the aggregated data retain the same
+samples. Default is 0, i.e. do not discard any sample.}
 
 \item{s0_perc}{a numerical fraction between 0 and 1. Inspired by
 \href{https://doi.org/10.1073/pnas.091062498}{Significance

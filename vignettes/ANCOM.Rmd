@@ -1,15 +1,27 @@
 ---
 title: "ANCOM Tutorial"
-author: 
-  - Huang Lin$^1$
-  - $^1$University of Maryland, College Park, MD 20742
+author:
+  - name: Huang Lin
+    email: huanglinfrederick@gmail.com
+    affiliation: University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: rmarkdown::html_vignette
+package: ANCOMBC
+abstract: >
+  This vignette illustrates differential abundance analysis with the
+  Analysis of Composition of Microbiomes (ANCOM) methodology, implemented in
+  the `ancom` function. The analysis is applied to a cross-sectional dataset
+  and a longitudinal dataset, and the W statistics are displayed
+  graphically.
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
 bibliography: bibliography.bib
 vignette: >
   %\VignetteIndexEntry{ANCOM Tutorial}
   %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, message = FALSE, warning = FALSE, comment = NA}
@@ -19,7 +31,7 @@ library(ANCOMBC)
 library(tidyverse)
 ```
 
-# 1. Introduction
+# Introduction
 
 Analysis of Composition of Microbiomes (ANCOM) [@mandal2015analysis] is a 
 differential abundance (DA) analysis for microbial absolute abundances. 
@@ -32,7 +44,7 @@ of interest. The larger the value of W, the stronger the evidence that the
 taxon is differentially abundant. For more details, see the
 [ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663) paper.
 
-# 2. Installation
+# Installation
 
 Download package. 
 
@@ -48,14 +60,14 @@ Load the package.
 library(ANCOMBC)
 ```
 
-# 3. Run ANCOM on a real cross-sectional dataset {.tabset}
+# Run ANCOM on a real cross-sectional dataset {.tabset}
 
-## 3.1 Import example data
+## Import example data
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
 HITChip for 1006 western adults with no reported health complications, 
 reported in [@lahti2014tipping]. The dataset is available via the 
-microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+`r BiocStyle::Biocpkg("microbiome")` R package [@lahti2017tools] in `r BiocStyle::Biocpkg("phyloseq")` [@mcmurdie2013phyloseq] 
 format. In this tutorial, we consider the following covariates:
 
 * Continuous covariates: "age"
@@ -71,7 +83,7 @@ format. In this tutorial, we consider the following covariates:
 ```{r, child = "children/child_atlas1006.Rmd"}
 ```
 
-## 3.2 Run `ancom` function using `phyloseq` data
+## Run `ancom` function using `phyloseq` data
 
 ```{r}
 set.seed(123)
@@ -92,7 +104,7 @@ res = out$res
 #             neg_lb = FALSE, alpha = 0.05, n_cl = 2, verbose = TRUE)
 ```
 
-## 3.3 Scatter plot for W statistics
+## Scatter plot for W statistics
 
 ```{r}
 q_val = out$q_data
@@ -138,7 +150,7 @@ p_w = df_fig_w %>%
 p_w
 ```
 
-## 3.4 Alternative input formats
+## Alternative input formats
 
 The call in Section 3.2 also accepts a `TreeSummarizedExperiment` object or a
 count matrix. Only the data arguments differ; all other arguments are unchanged.
@@ -160,9 +172,9 @@ aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family
 meta_data = microbiome::meta(pseq)
 ```
 
-# 4. Run ANCOM on a real longitudinal dataset {.tabset}
+# Run ANCOM on a real longitudinal dataset {.tabset}
 
-## 4.1 Import example data
+## Import example data
 
 A two-week diet swap study between western (USA) and traditional (rural Africa) 
 diets [@lahti2014tipping]. The dataset is available via the 
@@ -190,7 +202,7 @@ data(dietswap, package = "microbiome")
 print(dietswap)
 ```
 
-## 4.2 Run `ancom` function using `phyloseq` data
+## Run `ancom` function using `phyloseq` data
 
 ```{r}
 set.seed(123)
@@ -205,7 +217,7 @@ out = ancom(data = dietswap, tax_level = "Family",
 res = out$res
 ```
 
-## 4.3 Visualization for W statistics
+## Visualization for W statistics
 
 ```{r}
 q_val = out$q_data
@@ -251,7 +263,7 @@ p_w = df_fig_w %>%
 p_w
 ```
 
-## 4.4 Alternative input formats
+## Alternative input formats
 
 The call in Section 4.2 also accepts a `TreeSummarizedExperiment` object or a
 count matrix. Only the data arguments differ; all other arguments are unchanged.
@@ -273,13 +285,13 @@ aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(dietswap, "Fa
 meta_data = microbiome::meta(dietswap)
 ```
 
-# Session information
+# Session information {.unnumbered}
 
 ```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
 sessionInfo()
 ```
 
-# References
+# References {.unnumbered}
 
 
 

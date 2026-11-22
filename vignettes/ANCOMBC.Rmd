@@ -1,15 +1,27 @@
 ---
 title: "ANCOM-BC Tutorial"
-author: 
-  - Huang Lin$^1$
-  - $^1$University of Maryland, College Park, MD 20742
+author:
+  - name: Huang Lin
+    email: huanglinfrederick@gmail.com
+    affiliation: University of Maryland, College Park, MD 20742
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: rmarkdown::html_vignette
+package: ANCOMBC
+abstract: >
+  This vignette illustrates differential abundance analysis with the
+  Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC)
+  methodology, implemented in the `ancombc` function. The primary analysis,
+  the global test, and the bias-corrected abundances are presented for a
+  cross-sectional dataset.
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
 bibliography: bibliography.bib
 vignette: >
   %\VignetteIndexEntry{ANCOM-BC Tutorial}
   %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, message = FALSE, warning = FALSE, comment = NA}
@@ -24,7 +36,7 @@ options(DT.options = list(
   '#000', 'color': '#fff'});","}")))
 ```
 
-# 1. Introduction
+# Introduction
 
 Analysis of Compositions of Microbiomes with Bias Correction (ANCOM-BC) [@lin2020analysis] 
 is a methodology of differential abundance (DA) analysis for microbial absolute
@@ -35,7 +47,7 @@ taxa that are differentially abundant according to the variable of interest.
 For more details, see the
 [ANCOM-BC](https://doi.org/10.1038/s41467-020-17041-7) paper.
 
-# 2. Installation
+# Installation
 
 Download package. 
 
@@ -51,12 +63,12 @@ Load the package.
 library(ANCOMBC)
 ```
 
-# 3. Example Data
+# Example Data
 
 The HITChip Atlas dataset contains genus-level microbiota profiling with 
 HITChip for 1006 western adults with no reported health complications, 
 reported in [@lahti2014tipping]. The dataset is available via the 
-microbiome R package [@lahti2017tools] in phyloseq [@mcmurdie2013phyloseq] 
+`r BiocStyle::Biocpkg("microbiome")` R package [@lahti2017tools] in `r BiocStyle::Biocpkg("phyloseq")` [@mcmurdie2013phyloseq] 
 format. In this tutorial, we consider the following covariates:
 
 * Continuous covariates: "age"
@@ -72,9 +84,9 @@ format. In this tutorial, we consider the following covariates:
 ```{r, child = "children/child_atlas1006.Rmd"}
 ```
 
-# 4 ANCOM-BC Implementation
+# ANCOM-BC Implementation
 
-## 4.1 Run `ancombc` function using the `phyloseq` object
+## Run `ancombc` function using the `phyloseq` object
 
 ```{r}
 out = ancombc(data = pseq, tax_level = "Family", 
@@ -108,7 +120,7 @@ res = out$res
 res_global = out$res_global
 ```
 
-## 4.2 ANCOMBC primary result {.tabset}
+## ANCOMBC primary result {.tabset}
 
 The primary result of the ANCOM-BC log-linear model identifies the taxa that are
 differentially abundant with respect to the covariate of interest. For each
@@ -117,7 +129,7 @@ log scale), its standard error (se), the test statistic $W = \text{lfc}/\text{se
 the p-value, the adjusted p-value, and the indicator of differential
 abundance (TRUE or FALSE).
 
-### LFC
+### LFC {.unnumbered}
 
 ```{r}
 tab_lfc = res$lfc
@@ -129,7 +141,7 @@ tab_lfc %>%
   formatRound(col_name[-1], digits = 2)
 ```
 
-### SE
+### SE {.unnumbered}
 
 ```{r}
 tab_se = res$se
@@ -139,7 +151,7 @@ tab_se %>%
   formatRound(col_name[-1], digits = 2)
 ```
 
-### Test statistic
+### Test statistic {.unnumbered}
 
 ```{r}
 tab_w = res$W
@@ -149,7 +161,7 @@ tab_w %>%
   formatRound(col_name[-1], digits = 2)
 ```
 
-### P-values
+### P-values {.unnumbered}
 
 ```{r}
 tab_p = res$p_val
@@ -159,7 +171,7 @@ tab_p %>%
   formatRound(col_name[-1], digits = 2)
 ```
 
-### Adjusted p-values
+### Adjusted p-values {.unnumbered}
 
 ```{r}
 tab_q = res$q_val
@@ -169,7 +181,7 @@ tab_q %>%
   formatRound(col_name[-1], digits = 2)
 ```
 
-### Differentially abundant taxa
+### Differentially abundant taxa {.unnumbered}
 
 ```{r}
 tab_diff = res$diff_abn
@@ -178,7 +190,7 @@ tab_diff %>%
   datatable(caption = "Differentially Abundant Taxa from the Primary Result")
 ```
 
-### Bias-corrected abundances
+### Bias-corrected abundances {.unnumbered}
 
 Bias-corrected abundances are obtained in two steps.
 
@@ -205,7 +217,7 @@ round(log_corr_abn[, 1:6], 2) %>%
   datatable(caption = "Bias-corrected log observed abundances")
 ```
 
-### Visualization for age
+### Visualization for age {.unnumbered}
 
 ```{r}
 df_lfc = data.frame(res$lfc[, -1] * res$diff_abn[, -1], check.names = FALSE) %>%
@@ -243,7 +255,7 @@ p_age = ggplot(data = df_fig_age,
 p_age
 ```
 
-### Visualization for BMI
+### Visualization for BMI {.unnumbered}
 
 ```{r}
 df_fig_bmi = df_lfc %>% 
@@ -270,7 +282,7 @@ p_bmi = df_fig_bmi %>%
 p_bmi
 ```
 
-## 4.3 ANCOMBC global test result {.tabset}
+## ANCOMBC global test result {.tabset}
 
 The ANCOM-BC global test identifies taxa that are differentially abundant
 between at least two groups when three or more groups are compared. The group
@@ -280,7 +292,7 @@ overweight, and lean. For each taxon the result reports the test statistic, the
 p-value, the adjusted p-value, and the indicator of differential abundance
 (TRUE or FALSE).
 
-### Test statistics
+### Test statistics {.unnumbered}
 
 ```{r}
 tab_w = res_global[, c("taxon", "W")]
@@ -289,7 +301,7 @@ tab_w %>% datatable(caption = "Test Statistics
       formatRound(c("W"), digits = 2)
 ```
 
-### P-values
+### P-values {.unnumbered}
 
 ```{r}
 tab_p = res_global[, c("taxon", "p_val")]
@@ -298,7 +310,7 @@ tab_p %>% datatable(caption = "P-values
       formatRound(c("p_val"), digits = 2)
 ```
 
-### Adjusted p-values
+### Adjusted p-values {.unnumbered}
 
 ```{r}
 tab_q = res_global[, c("taxon", "q_val")]
@@ -307,7 +319,7 @@ tab_q %>% datatable(caption = "Adjusted p-values
       formatRound(c("q_val"), digits = 2)
 ```
 
-### Differentially abundant taxa
+### Differentially abundant taxa {.unnumbered}
 
 ```{r}
 tab_diff = res_global[, c("taxon", "diff_abn")]
@@ -315,7 +327,7 @@ tab_diff %>% datatable(caption = "Differentially Abundant Taxa
                        from the Global Test Result")
 ```
 
-### Visualization
+### Visualization {.unnumbered}
 
 ```{r}
 sig_taxa = res_global %>%
@@ -349,7 +361,7 @@ p_heat = df_heat %>%
 p_heat
 ```
 
-## 4.4 Alternative input formats
+## Alternative input formats
 
 The call in Section 4.1 also accepts a `TreeSummarizedExperiment` object or a
 count matrix. Only the data arguments differ; all other arguments are unchanged.
@@ -371,13 +383,13 @@ aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family
 meta_data = microbiome::meta(pseq)
 ```
 
-# Session information
+# Session information {.unnumbered}
 
 ```{r sessionInfo, message = FALSE, warning = FALSE, comment = NA}
 sessionInfo()
 ```
 
-# References
+# References {.unnumbered}
 
 
 
