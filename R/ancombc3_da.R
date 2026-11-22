@@ -619,7 +619,7 @@
   ok <- FALSE
   on.exit(if (!ok) parallel::stopCluster(cl), add = TRUE)
   # The workers use the library paths of the calling session.
-  parallel::clusterCall(cl, .libPaths, .libPaths())
+  parallel::clusterCall(cl, do.call, what = ".libPaths", args = list(.libPaths()))
   # Environment variables of the worker processes only.
   parallel::clusterCall(cl, Sys.setenv, OMP_NUM_THREADS = "1", MKL_NUM_THREADS = "1",
                         OPENBLAS_NUM_THREADS = "1")

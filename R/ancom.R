@@ -317,6 +317,8 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
 
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
+      # The workers use the library paths of the calling session
+      parallel::clusterCall(cl, do.call, what = ".libPaths", args = list(.libPaths()))
       # Stop the cluster on exit, including exit by an error
       on.exit({
           parallel::stopCluster(cl)
