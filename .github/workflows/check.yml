@@ -85,9 +85,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          deps <- remotes::dev_package_deps(dependencies = TRUE)
-          BiocManager::install(c(deps$package, "BiocCheck", "rcmdcheck"),
-                               update = FALSE, ask = FALSE)
+          d <- read.dcf("DESCRIPTION")
+          fields <- intersect(c("Depends", "Imports", "Suggests"), colnames(d))
+          pk <- unlist(strsplit(d[, fields], ","))
+          pk <- trimws(sub("\\(.*", "", pk))
+          base <- rownames(installed.packages(priority = "base"))
+          pk <- setdiff(pk[nzchar(pk)], c("R", base))
+          need <- setdiff(c(pk, "BiocCheck"), rownames(installed.packages()))
+          BiocManager::install(need, update = FALSE, ask = FALSE)
+          missing <- setdiff(c(pk, "BiocCheck"), rownames(installed.packages()))
+          if (length(missing) > 0) {
+            stop("Not installed: ", paste(missing, collapse = ", "))
+          }
         shell: Rscript {0}
 
       - name: Install LibTorch
