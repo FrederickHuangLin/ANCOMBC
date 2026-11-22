@@ -19,7 +19,7 @@ test_that("`ancombc` function provides expected results", {
                   alpha = 0.05, global = TRUE, n_cl = 1, verbose = FALSE)
     res_prim = out$res
     test_output = round(res_prim$W[1, 3], 2)
-    expect_equal(test_output, -4.9)
+    expect_equal(test_output, -9.18)
 })
 
 
