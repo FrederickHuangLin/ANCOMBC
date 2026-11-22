@@ -74,9 +74,9 @@ ancombc3_normalize_input <- function(data,
                                      taxa_are_rows = TRUE,
                                      assay_name = "counts") {
   if (inherits(data, "phyloseq")) {
-    otu <- as(phyloseq::otu_table(data), "matrix")
+    otu <- methods::as(phyloseq::otu_table(data), "matrix")
     if (phyloseq::taxa_are_rows(data)) otu <- t(otu)
-    metadata <- as.data.frame(phyloseq::sample_data(data))
+    metadata <- methods::as(phyloseq::sample_data(data), "data.frame")
   } else if (inherits(data, "SummarizedExperiment")) {
     otu <- as.matrix(SummarizedExperiment::assay(data, assay_name))
     otu <- t(otu)

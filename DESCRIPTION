@@ -26,7 +26,7 @@ Imports:
     stats, DescTools, Hmisc, MASS, Matrix, Rdpack, doParallel,
     doRNG, energy, foreach, gtools, lme4, lmerTest, multcomp,
     nloptr, parallel, utils, quadprog, graphics, methods, mvtnorm,
-    tools, withr
+    withr
 Suggests: mia (>= 1.18.0), 
     BiocStyle, DT, S4Vectors, SingleCellExperiment, SummarizedExperiment, 
     TreeSummarizedExperiment, dplyr, knitr, magrittr, microbiome, 
