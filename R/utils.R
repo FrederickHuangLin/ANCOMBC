@@ -53,7 +53,8 @@
                                        vcov_hat = input_list$vcov_hat,
                                        dof = dof,
                                        p_adj_method = "BH",
-                                       alpha = input_list$alpha)
+                                       alpha = input_list$alpha,
+                                       global_p = input_list$global_p)
       } else {
         res_screen = .ancombc_global_LRT(full_model = input_list$full_model,
                                          fix_formula = input_list$fix_formula,
@@ -72,7 +73,8 @@
                                   B = input_list$B,
                                   dof = dof,
                                   p_adj_method = "BH",
-                                  alpha = input_list$alpha)
+                                  alpha = input_list$alpha,
+                                  dunnet_null = input_list$dunnet_null)
     }
     R = sum(res_screen$diff_abn)
 
@@ -205,3 +207,65 @@
     all(eigenvals > -1e-10)
 }
 
+
+# Validate a method_control list. Entries that are not supplied take the values
+# in defaults; an entry that is not in defaults is an error.
+.check_method_control = function(method_control, defaults) {
+    if (is.null(method_control)) method_control = list()
+    if (!is.list(method_control) ||
+        (length(method_control) > 0 && is.null(names(method_control)))) {
+        stop("`method_control` should be a named list", call. = FALSE)
+    }
+    unknown = setdiff(names(method_control), names(defaults))
+    if (length(unknown) > 0) {
+        stop("Unknown entries in `method_control`: ",
+             paste(unknown, collapse = ", "),
+             "\nThe available entries are: ",
+             paste(names(defaults), collapse = ", "), call. = FALSE)
+    }
+    out = defaults
+    out[names(method_control)] = method_control
+    choices = list(vcov = c("pooled", "observed"),
+                   global_p = c("two_sided", "upper"),
+                   failed_taxa = c("include", "exclude"),
+                   dunnet_null = c("all", "estimable"))
+    for (nm in intersect(names(out), names(choices))) {
+        v = out[[nm]]
+        if (!is.character(v) || length(v) != 1 || !v %in% choices[[nm]]) {
+            stop(sprintf("`method_control$%s` should be one of: %s", nm,
+                         paste0("\"", choices[[nm]], "\"", collapse = ", ")),
+                 call. = FALSE)
+        }
+    }
+    if ("sens_parallel" %in% names(out)) {
+        v = out$sens_parallel
+        if (!is.logical(v) || length(v) != 1 || is.na(v)) {
+            stop("`method_control$sens_parallel` should be TRUE or FALSE",
+                 call. = FALSE)
+        }
+    }
+    out
+}
+
+# Columns of the pairwise comparison results selected by pairs, a list of
+# pairs of levels of the group variable. Each comparison is the later level in
+# levels(group) minus the earlier level, as in the full set of pairwise
+# comparisons, whose columns are the group coefficients (level versus the
+# reference level) followed by their differences "<later>_<earlier>".
+.pair_columns = function(x, group, group_levels, pairs) {
+    if (is.null(pairs)) return(NULL)
+    covariates = colnames(x)
+    group_ind = grepl(group, covariates, fixed = TRUE) &
+        !grepl(":", covariates, fixed = TRUE)
+    coef_name = covariates[group_ind]
+    names(coef_name) = group_levels[-1]
+    unique(vapply(pairs, function(pr) {
+        idx = sort(match(pr, group_levels))
+        if (idx[1] == 1L) {
+            coef_name[[group_levels[idx[2]]]]
+        } else {
+            paste(coef_name[[group_levels[idx[2]]]],
+                  coef_name[[group_levels[idx[1]]]], sep = "_")
+        }
+    }, FUN.VALUE = character(1)))
+}

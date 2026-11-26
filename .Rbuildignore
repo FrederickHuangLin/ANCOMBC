@@ -2,7 +2,6 @@
 ^\.Rproj\.user$
 ^data-raw$
 ^\.positai$
-^\.claude$
 ^benchmarks$
 ^ANCOMBC-RELEASE_3_19$
 ^\.gitignore$

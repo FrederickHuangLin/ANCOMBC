@@ -1,3 +1,36 @@
+version 2.15.4 (last update 2026-11-25)
+        + Compute the inverse cross-product matrix of the sandwich variance
+          from the Moore-Penrose inverse of the design matrix in ancombc and
+          ancombc2, so that standard errors remain accurate when a covariate
+          has a large mean relative to its spread (for example calendar year
+          or age in days)
+        + Test a main variable with three or more levels in ancom by the F
+          test given the terms of adj_formula (#275)
+        + Test the group variable given all other terms of fix_formula in the
+          sensitivity analysis of the global test of ancombc2 with
+          conservative = FALSE
+        + Report as NA, and exclude from the bias estimation, a coefficient
+          that is not estimable from the samples used for a taxon, such as the
+          coefficient of a level when the taxon is absent from the reference
+          level, in ancombc and ancombc2
+        + Update the variances of the E-M algorithm with stats::optimize
+          instead of a Nelder-Mead search, which removes the nloptr
+          dependency (PR #344 by @hyperpolymath)
+        + Add the argument method_control to ancombc and ancombc2. Its
+          defaults reproduce the earlier results. It selects the covariance
+          estimator computed from the samples of each taxon (vcov =
+          "observed"; #338, #238, #272, #293; PR #341 by @xec-cm), the upper
+          tail p-value of the global test (global_p = "upper"), the exclusion
+          of taxa whose fit fails from the sampling fractions (failed_taxa =
+          "exclude"), the null distribution of the Dunnett's type of test over
+          the estimable coefficients (dunnet_null = "estimable"), and parallel
+          refits of the sensitivity analysis (sens_parallel = TRUE; PR #322 by
+          @zjardyn)
+        + Add the entry pairs to mdfdr_control of ancombc2, which restricts
+          the pairwise directional test to selected pairs of levels (#195)
+        + Support variable names that are not syntactically valid, quoted
+          with backticks in the formula (#139)
+
 version 2.15.3 (last update 2026-11-21)
         + Preserve single-column metadata (PR #343 by @hyperpolymath)
         + Align mixed-model degrees of freedom by coefficient name (PR #342

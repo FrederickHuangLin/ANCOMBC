@@ -18,7 +18,9 @@ test_that("`ancom` function provides expected results", {
                 struc_zero = TRUE, neg_lb = TRUE, alpha = 0.05, n_cl = 1)
     res = out$res
     test_output = res$W[1]
-    expect_equal(test_output, 18)
+    # bmi_group has three levels, so each log-ratio is tested by the F test of
+    # bmi_group given age and nationality
+    expect_equal(test_output, 10)
 })
 
 

@@ -58,7 +58,58 @@
 #' The pairwise directional test and the Dunnett's type of test control the
 #' mixed directional false discovery rate (mdFDR) through the two-stage
 #' procedure specified by \code{mdfdr_control}. The mdFDR and the procedure are
-#' defined in \code{\link{ANCOMBC-concepts}}.
+#' defined in \code{\link{ANCOMBC-concepts}}. By default, the pairwise
+#' directional test compares every pair of levels of \code{group}. The entry
+#' \code{pairs} of \code{mdfdr_control} restricts the test to selected pairs,
+#' for example \code{pairs = list(c("B", "A"), c("C", "B"))}. Each comparison is
+#' reported as the later level in \code{levels(group)} minus the earlier level,
+#' whatever the order within the pair, and only the selected comparisons are
+#' counted in the mdFDR adjustment.
+#'
+#' A coefficient that is not estimable from the samples used for a taxon, for
+#' example the coefficient of a level when the taxon is absent from the
+#' reference level and \code{pseudo = 0}, is reported as NA and does not enter
+#' the estimation of its bias. The sequential F test of the sensitivity analysis
+#' of the global test under \code{conservative = FALSE} tests \code{group}
+#' after all other terms of \code{fix_formula}.
+#'
+#' The argument \code{method_control} selects alternative estimators and tests.
+#' The defaults reproduce the results of earlier versions.
+#' \itemize{
+#' \item{ \code{vcov}: the covariance matrix of the fixed effects in models
+#' without random effects. With \code{"pooled"} (default), the sandwich
+#' estimator uses the design matrix of all samples with complete covariates,
+#' and each sample excluded for a taxon contributes a constant term. With
+#' \code{"observed"}, the sandwich estimator (HC0) of each taxon uses only
+#' the samples used for that taxon, and coefficients that are not estimable
+#' from these samples receive NA. The two estimators coincide when
+#' \code{pseudo > 0}. Under \code{pseudo = 0} the \code{"pooled"} estimator
+#' tends to underestimate the standard errors of taxa with many zeros, so the
+#' primary results \code{p}, \code{q}, and \code{diff} are anticonservative
+#' for these taxa; \code{diff_robust} is protected by the sensitivity
+#' analysis.}
+#' \item{ \code{global_p}: the p-value of the global test and of the global
+#' screening step of the pairwise directional test in models without random
+#' effects. With \code{"two_sided"} (default), the p-value is twice the smaller
+#' tail probability of the Wald statistic \eqn{W}. With \code{"upper"}, it is
+#' the upper tail probability of \eqn{W/k} under the F distribution with
+#' \eqn{k} and the residual degrees of freedom, where \eqn{k} is the number of
+#' estimable group coefficients, which is the usual p-value of a Wald test.}
+#' \item{ \code{failed_taxa}: with \code{"include"} (default), a taxon whose
+#' initial fit failed for every coefficient contributes its centered log counts
+#' to the estimation of the sampling fractions; with \code{"exclude"}, it does
+#' not contribute, as in \code{ancombc}.}
+#' \item{ \code{dunnet_null}: the null distribution of the screening step of
+#' the Dunnett's type of test. With \code{"all"} (default), the simulated
+#' maximum of a taxon includes every group coefficient; with
+#' \code{"estimable"}, it includes only the coefficients with an observed
+#' test statistic, matching the observed maximum.}
+#' \item{ \code{sens_parallel}: logical. Whether the three refits of the
+#' sensitivity analysis under \code{conservative = TRUE} run in parallel when
+#' \code{n_cl > 1}. Default is FALSE. The results are reproducible under
+#' \code{set.seed}, but the Monte Carlo components (Dunnett's type of test and
+#' trend test) use different random numbers than the sequential refits.}
+#' }
 #'
 #' @param data the input data. The \code{data} parameter should be either a
 #' \code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
@@ -202,14 +253,24 @@
 #' wise error (FWER) controlling procedure, such as "holm", "hochberg",
 #' "bonferroni", etc (default is "holm") and 2) \code{B}: the number of
 #' bootstrap samples (default is 100). Increase \code{B} will lead to a more
-#' accurate p-values. See \code{Details} for a more comprehensive discussion on
-#' mdFDR.
+#' accurate p-values. 3) \code{pairs}: a list of pairs of levels of
+#' \code{group} to be compared in the pairwise directional test (default is
+#' \code{NULL}, all pairs). See \code{Details} for a more comprehensive
+#' discussion on mdFDR.
 #' @param trend_control a named list of control parameters for the trend test,
 #' including 1) \code{contrast}: the list of contrast matrices for
 #' constructing inequalities, 2) \code{node}: the list of positions for the
 #' nodal parameter, and 3) \code{B}: the number of bootstrap samples
 #' (default is 100). Increase \code{B} will lead to a more accurate p-values.
 #' See \code{vignette} for the corresponding trend test examples.
+#' @param method_control a named list selecting alternative estimators and
+#' tests, including 1) \code{vcov}: \code{"pooled"} (default) or
+#' \code{"observed"}, 2) \code{global_p}: \code{"two_sided"} (default) or
+#' \code{"upper"}, 3) \code{failed_taxa}: \code{"include"} (default) or
+#' \code{"exclude"}, 4) \code{dunnet_null}: \code{"all"} (default) or
+#' \code{"estimable"}, and 5) \code{sens_parallel}: \code{FALSE} (default)
+#' or \code{TRUE}. Entries that are not supplied take their default values.
+#' See \code{Details}.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -392,7 +453,6 @@
 #' @importFrom doParallel registerDoParallel
 #' @importFrom doRNG %dorng%
 #' @importFrom MASS ginv
-#' @importFrom nloptr neldermead
 #' @importFrom Rdpack reprompt
 #'
 #' @export
@@ -413,13 +473,26 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                                         verbose = FALSE),
                     em_control = list(tol = 1e-5, max_iter = 100),
                     lme_control = lme4::lmerControl(),
-                    mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+                    mdfdr_control = list(fwer_ctrl_method = "holm", B = 100,
+                                         pairs = NULL),
                     trend_control = list(contrast = NULL,
                                          node = NULL,
-                                         B = 100)){
+                                         B = 100),
+                    method_control = list(vcov = "pooled",
+                                          global_p = "two_sided",
+                                          failed_taxa = "include",
+                                          dunnet_null = "all",
+                                          sens_parallel = FALSE)){
     # Aliases take effect when the main arguments are not supplied
     if (!missing(assay.type) && missing(assay_name)) assay_name = assay.type
     if (!missing(rank) && missing(tax_level)) tax_level = rank
+    method_control = .check_method_control(
+        method_control,
+        defaults = list(vcov = "pooled", global_p = "two_sided",
+                        failed_taxa = "include", dunnet_null = "all",
+                        sens_parallel = FALSE))
+    core_control = method_control[c("vcov", "global_p", "failed_taxa",
+                                    "dunnet_null")]
 
     # Run with cluster
     if (n_cl > 1) {
@@ -460,6 +533,7 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
     global = check_results$global
     pairwise = check_results$pairwise
     dunnet = check_results$dunnet
+    mdfdr_control = check_results$mdfdr_control
     trend = check_results$trend
     trend_control = check_results$trend_control
 
@@ -508,7 +582,8 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                               em_control = em_control,
                               lme_control = lme_control,
                               mdfdr_control = mdfdr_control,
-                              trend_control = trend_control)
+                              trend_control = trend_control,
+                              method_control = core_control)
 
     # 3. Sensitivity analysis for pseudo-count addition to 0s
     if (!pseudo_sens) {
@@ -539,7 +614,7 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         pseudo_list = c(0.1, 0.5, 1)
         iter_control$verbose = FALSE
 
-        ss_list = lapply(pseudo_list, function(pseudo_count) {
+        refit = function(pseudo_count) {
             res_pseudo = .ancombc2_core(data = O1, aggregate_data = O2,
                                         meta_data = meta_data,
                                         fix_formula = fix_formula,
@@ -554,9 +629,19 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
                                         iter_control = iter_control,
                                         em_control = em_control,
                                         lme_control = lme_control,
-                                        mdfdr_control = mdfdr_control)
+                                        mdfdr_control = mdfdr_control,
+                                        method_control = core_control)
             return(res_pseudo)
-        })
+        }
+        if (n_cl > 1 && method_control$sens_parallel) {
+            refit_list = list(refit)
+            pseudo_count = NULL
+            ss_list = foreach(pseudo_count = pseudo_list) %dorng% {
+                suppressWarnings(refit_list[[1]](pseudo_count))
+            }
+        } else {
+            ss_list = lapply(pseudo_list, refit)
+        }
 
         # Combine main results with sensitivity analysis results
         ss_list = c(list(res_main), ss_list)
@@ -685,7 +770,8 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         if (is.null(group)) {
             group_eff = NULL
         } else {
-            group_eff = fix_eff[grepl(group, fix_eff) & !grepl(":", fix_eff)]
+            group_eff = fix_eff[grepl(group, fix_eff, fixed = TRUE) &
+                                    !grepl(":", fix_eff, fixed = TRUE)]
         }
 
         fun_list = list(.ancombc2_sens_fit, .ancombc2_sens_p)
@@ -841,7 +927,7 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
 # Fixed effects that are not estimable are assigned a p-value of NA
 .ancombc2_sens_p = function(y, meta_data, fix_formula, fix_eff, group,
                             group_eff, pairwise, global) {
-    df = data.frame(y = y, meta_data)
+    df = data.frame(y = y, meta_data, check.names = FALSE)
     lm_fit = stats::lm(stats::formula(paste0("y ~ ", fix_formula)), data = df)
     coef_tab = summary(lm_fit)$coefficients
     p_val = rep(NA_real_, length(fix_eff))
@@ -870,10 +956,14 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         p_val = c(p_val, pair_p_val)
     }
 
+    # F test of the group term given all other terms
     if (global) {
-        anova_tab = stats::anova(lm_fit)
-        p_val = c(p_val,
-                  global = anova_tab$`Pr(>F)`[rownames(anova_tab) == group])
+        term_labels = attr(stats::terms(lm_fit), "term.labels")
+        group_term = term_labels[vapply(term_labels, function(l)
+            identical(all.vars(str2lang(l)), group) && !grepl(":", l, fixed = TRUE),
+            FUN.VALUE = logical(1))]
+        drop_tab = stats::drop1(lm_fit, scope = group_term, test = "F")
+        p_val = c(p_val, global = drop_tab[group_term, "Pr(>F)"])
     }
 
     return(p_val)

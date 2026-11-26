@@ -15,6 +15,29 @@
 #' detection of structural zeros is controlled by \code{struc_zero} and
 #' \code{neg_lb}, which are defined in \code{\link{ANCOMBC-concepts}}.
 #'
+#' A coefficient that is not estimable from the samples used for a taxon, for
+#' example the coefficient of a level when the taxon is absent from the
+#' reference level and \code{pseudo = 0}, is reported as NA and does not enter
+#' the estimation of its bias.
+#'
+#' The argument \code{method_control} selects alternative estimators and tests.
+#' The defaults reproduce the results of earlier versions.
+#' \itemize{
+#' \item{ \code{vcov}: the covariance matrix of the coefficients. With
+#' \code{"pooled"} (default), the sandwich estimator uses the design matrix of
+#' all samples with complete covariates, and each sample excluded for a taxon
+#' (a zero count when \code{pseudo = 0}, or a missing covariate) contributes a
+#' constant term. With \code{"observed"}, the sandwich estimator (HC0) of each
+#' taxon uses only the samples used for that taxon, and coefficients that are
+#' not estimable from these samples receive NA.}
+#' \item{ \code{global_p}: the p-value of the global test. With
+#' \code{"two_sided"} (default), the p-value is twice the smaller tail
+#' probability of the Wald statistic \eqn{W} under the chi-square distribution
+#' with \eqn{k} degrees of freedom, where \eqn{k} is the number of estimable
+#' group coefficients. With \code{"upper"}, it is the upper tail probability,
+#' which is the usual p-value of a Wald test.}
+#' }
+#'
 #' @param data the input data. The \code{data} parameter should be either a
 #' \code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
 #' object. Both \code{phyloseq} and \code{TreeSummarizedExperiment} objects
@@ -97,6 +120,11 @@
 #' \code{?parallel::makeCluster}. Default is 1 (no parallel computing).
 #' @param verbose logical. Whether to generate verbose output during the
 #' ANCOM-BC fitting process. Default is TRUE.
+#' @param method_control a named list selecting alternative estimators and
+#' tests, including 1) \code{vcov}: \code{"pooled"} (default) or
+#' \code{"observed"}, and 2) \code{global_p}: \code{"two_sided"} (default) or
+#' \code{"upper"}. Entries that are not supplied take their default values.
+#' See \code{Details}.
 #'
 #' @return a \code{list} with components:
 #'         \itemize{
@@ -177,7 +205,6 @@
 #' @importFrom doParallel registerDoParallel
 #' @importFrom doRNG %dorng%
 #' @importFrom MASS ginv
-#' @importFrom nloptr neldermead
 #' @importFrom Rdpack reprompt
 #'
 #' @export
@@ -190,13 +217,18 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
                    lib_cut = 0, group = NULL, struc_zero = FALSE,
                    neg_lb = FALSE, tol = 1e-05, max_iter = 100,
                    conserve = FALSE, alpha = 0.05, global = FALSE,
-                   n_cl = 1, verbose = TRUE){
+                   n_cl = 1, verbose = TRUE,
+                   method_control = list(vcov = "pooled",
+                                         global_p = "two_sided")){
     message("'ancombc' has been fully evolved to 'ancombc2'. \n",
             "Explore the enhanced capabilities of our refined method!")
 
     # Aliases take effect when the main arguments are not supplied
     if (!missing(assay.type) && missing(assay_name)) assay_name = assay.type
     if (!missing(rank) && missing(tax_level)) tax_level = rank
+    method_control = .check_method_control(
+        method_control,
+        defaults = list(vcov = "pooled", global_p = "two_sided"))
 
     if (n_cl > 1) {
       cl = parallel::makeCluster(n_cl)
@@ -279,10 +311,18 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
 
     para = .iter_mle(x = x, y = y, meta_data = meta_data,
                      formula = formula, theta = NULL, tol = tol,
-                     max_iter = max_iter, verbose = FALSE)
+                     max_iter = max_iter, verbose = FALSE,
+                     vcov = method_control$vcov)
     beta = para$beta
     vcov_hat = para$vcov_hat
     var_hat = para$var_hat
+
+    # A coefficient that is not estimable from the samples of a taxon, such as
+    # the coefficient of a level when the taxon is absent from the reference
+    # level, does not enter the estimation of its bias and is reported as NA
+    est_mask = .estimable_mask(x, y)
+    beta_em = beta
+    beta_em[!est_mask] = NA
 
     # 4. Estimation of the sample-specific bias
     if (verbose) {
@@ -291,7 +331,7 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
     .check_bias_input(beta = beta, var_hat = var_hat)
     fun_list = list(.bias_em)
     bias = foreach(i = seq_len(ncol(beta)), .combine = rbind) %dorng% {
-        output = fun_list[[1]](beta = beta[, i],
+        output = fun_list[[1]](beta = beta_em[, i],
                                var_hat = var_hat[, i],
                                tol = tol,
                                max_iter = max_iter)
@@ -329,6 +369,7 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
         theta_hat[i, ] = y[i, ] - x %*% beta_hat_i
     }
     theta_hat = colMeans(theta_hat, na.rm = TRUE)
+    beta_hat[!est_mask] = NA
 
     # 6. Primary results
     if (verbose) {
@@ -374,7 +415,8 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
                                        beta_hat = beta_hat,
                                        vcov_hat = vcov_hat,
                                        p_adj_method = p_adj_method,
-                                       alpha = alpha)
+                                       alpha = alpha,
+                                       global_p = method_control$global_p)
     } else { res_global = NULL }
 
     # 8. Combine the information of structural zeros
@@ -387,7 +429,7 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
             message(txt)
         }
         zero_idx = as.matrix(zero_ind[, -1])
-        group_ind = grepl(group, c("taxon", covariates))
+        group_ind = grepl(group, c("taxon", covariates), fixed = TRUE)
         zero_mask = 1 - abs((zero_idx - zero_idx[, 1]))
         zero_mask = zero_mask[, -1, drop = FALSE]
         res$se[, group_ind] = res$se[, group_ind] * zero_mask

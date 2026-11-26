@@ -27,7 +27,7 @@
 
     # Single-taxon fit. Ymat[i, ] is theta-adjusted, so it is the response.
     fit_one = function(i) {
-        df = data.frame(y_crt = Ymat[i, ], meta_data)
+        df = data.frame(y_crt = Ymat[i, ], meta_data, check.names = FALSE)
         fit = suppressWarnings(try(stats::lm(tformula, data = df), silent = TRUE))
         if (inherits(fit, "lm")) {
             bi = rep(NA_real_, p)
@@ -87,19 +87,24 @@
     list(beta = beta, fitted = fitted, dof = dof)
 }
 
-# Sandwich (Huber-White) variance estimator. For taxon i,
-# V_i = (X'X)^- ( sum_j eps_ij^2 x_j x_j' ) (X'X)^-. Any entry of a term
-# involving a missing value is set to 0.1. The per-sample outer products
-# x_j x_j' do not depend on the taxon, so they are computed once, stored as the
-# rows of an n_samp x p^2 matrix, and accumulated over samples for all taxa
-# together.
-.sandwich_vcov = function(x, eps, fix_eff) {
+# Sandwich (Huber-White) variance estimator. With vcov = "pooled", for taxon i,
+# V_i = (X'X)^- ( sum_j eps_ij^2 x_j x_j' ) (X'X)^-, where X holds the complete
+# rows of the design. Any entry of a term involving a missing value is set to
+# 0.1. (X'X)^- is computed as G G' with G = X^-, the Moore-Penrose inverse of X,
+# which depends only on the singular values of X and therefore remains accurate
+# when a covariate has a large mean relative to its spread. The per-sample
+# outer products x_j x_j' do not depend on the taxon, so they are computed once,
+# stored as the rows of an n_samp x p^2 matrix, and accumulated over samples
+# for all taxa together. With vcov = "observed", the estimator is computed from
+# the samples of each taxon (see .sandwich_vcov_obs).
+.sandwich_vcov = function(x, eps, fix_eff, vcov = "pooled") {
+    if (vcov == "observed") return(.sandwich_vcov_obs(x, eps, fix_eff))
     n_tax = nrow(eps)
     n_samp = ncol(eps)
     p = ncol(x)
 
-    x_cc = x[stats::complete.cases(x), ]
-    XTX_inv = MASS::ginv(t(x_cc) %*% x_cc)
+    x_cc = x[stats::complete.cases(x), , drop = FALSE]
+    XTX_inv = tcrossprod(MASS::ginv(x_cc))
 
     # Row j of XX is the outer product x_j x_j' in column-major order.
     XX = matrix(NA_real_, nrow = n_samp, ncol = p * p)
@@ -131,9 +136,79 @@
     list(vcov_hat = vcov_hat, var_hat = var_hat)
 }
 
+# Sandwich variance estimator from the samples of each taxon (HC0). For taxon i
+# with usable samples S_i (finite response and complete design row) and design
+# X_i = X[S_i, ], V_i = G_i diag(eps_ij^2, j in S_i) G_i', where G_i = X_i^- is
+# the Moore-Penrose inverse of X_i. Taxa that share S_i share G_i. A coefficient
+# that is not estimable from S_i, that is, whose coordinate vector is not in
+# the row space of X_i, has its row and column of V_i set to NA.
+.sandwich_vcov_obs = function(x, eps, fix_eff) {
+    n_tax = nrow(eps)
+    n_samp = ncol(eps)
+    p = ncol(x)
+    dn = list(fix_eff, fix_eff)
+    vcov_hat = rep(list(matrix(NA_real_, p, p, dimnames = dn)), n_tax)
+    var_hat = matrix(NA_real_, nrow = n_tax, ncol = p)
+    if (n_tax == 0L) return(list(vcov_hat = vcov_hat, var_hat = var_hat))
+
+    use = is.finite(eps) &
+        matrix(stats::complete.cases(x), nrow = n_tax, ncol = n_samp,
+               byrow = TRUE)
+    keys = do.call(paste0, asplit(use * 1L, 2L))
+    groups = split(seq_len(n_tax), factor(keys, levels = unique(keys)))
+    for (idx in groups) {
+        rows = use[idx[1L], ]
+        if (!any(rows)) next
+        xr = x[rows, , drop = FALSE]
+        x_inv = MASS::ginv(xr)
+        estimable = .row_space_coef(x_inv, xr)
+        for (i in idx) {
+            v_i = tcrossprod(sweep(x_inv, 2, eps[i, rows], "*"))
+            v_i[!estimable, ] = NA_real_
+            v_i[, !estimable] = NA_real_
+            dimnames(v_i) = dn
+            vcov_hat[[i]] = v_i
+            var_hat[i, ] = diag(v_i)
+        }
+    }
+    list(vcov_hat = vcov_hat, var_hat = var_hat)
+}
+
+# Coefficients whose coordinate vectors lie in the row space of xr, given its
+# Moore-Penrose inverse x_inv: column k of I - x_inv xr is zero.
+.row_space_coef = function(x_inv, xr) {
+    p = ncol(xr)
+    sqrt(colSums((diag(p) - x_inv %*% xr)^2)) < sqrt(.Machine$double.eps)
+}
+
+# Coefficients that are estimable from the usable samples of each taxon
+# (finite response and complete design row). Returns a taxa x covariate logical
+# matrix; a taxon without usable samples has no estimable coefficient.
+.estimable_mask = function(x, y) {
+    y = as.matrix(y)
+    n_tax = nrow(y)
+    p = ncol(x)
+    est = matrix(FALSE, nrow = n_tax, ncol = p,
+                 dimnames = list(rownames(y), colnames(x)))
+    if (n_tax == 0L) return(est)
+    use = is.finite(y) &
+        matrix(stats::complete.cases(x), nrow = n_tax, ncol = ncol(y),
+               byrow = TRUE)
+    keys = do.call(paste0, asplit(use * 1L, 2L))
+    groups = split(seq_len(n_tax), factor(keys, levels = unique(keys)))
+    for (idx in groups) {
+        rows = use[idx[1L], ]
+        if (!any(rows)) next
+        xr = x[rows, , drop = FALSE]
+        e = .row_space_coef(MASS::ginv(xr), xr)
+        est[idx, ] = matrix(e, nrow = length(idx), ncol = p, byrow = TRUE)
+    }
+    est
+}
+
 # Iterative MLE
 .iter_mle = function(x, y, meta_data, formula, theta = NULL,
-                     tol, max_iter, verbose = FALSE) {
+                     tol, max_iter, verbose = FALSE, vcov = "pooled") {
     y = as.matrix(y)
     tax_id = rownames(y)
     n_tax = nrow(y)
@@ -145,7 +220,7 @@
 
     # Test for over-parameterization
     lm_smoke = stats::lm(formula = tformula,
-                         data = data.frame(y_crt = rnorm(n = n_samp), meta_data))
+                         data = data.frame(y_crt = rnorm(n = n_samp), meta_data, check.names = FALSE))
 
     if (any(is.na(lm_smoke$coefficients))) {
         stop_txt = paste("Estimation failed for the following covariates:",
@@ -206,7 +281,7 @@
         eps = t(t(y - y_crt_hat) - theta)
 
         # Variance-covariance matrices
-        sw = .sandwich_vcov(x, eps, fix_eff)
+        sw = .sandwich_vcov(x, eps, fix_eff, vcov = vcov)
         vcov_hat = sw$vcov_hat
         var_hat = sw$var_hat
     } else {
@@ -223,7 +298,7 @@
         eps = t(t(y - y_crt_hat) - theta)
 
         # Variance-covariance matrices
-        sw = .sandwich_vcov(x, eps, fix_eff)
+        sw = .sandwich_vcov(x, eps, fix_eff, vcov = vcov)
         vcov_hat = sw$vcov_hat
         var_hat = sw$var_hat
     }
@@ -319,7 +394,7 @@
     n_grp = max(grp)
     structs = vector(mode = "list", length = n_grp)
     for (g in seq_len(n_grp)) {
-        df = data.frame(y_crt = y[match(g, grp), ], meta_data)
+        df = data.frame(y_crt = y[match(g, grp), ], meta_data, check.names = FALSE)
         # Single-bracket assignment keeps a NULL element in its slot
         structs[g] = list(tryCatch(
             suppressWarnings(suppressMessages(
@@ -383,7 +458,8 @@
                 suppressWarnings(suppressMessages(
                     .remle_extract(lme4::lmer(tformula,
                                               data = data.frame(y_crt = y_crt,
-                                                                meta_data),
+                                                                meta_data,
+                                                                check.names = FALSE),
                                               control = lme_control))
                 )),
                 error = function(e) NULL)
@@ -431,7 +507,7 @@
 
     # Test for over-parameterization
     lm_smoke = stats::lm(formula = formula(paste0("y ~ ", fix_formula)),
-                         data = data.frame(y = rnorm(n = n_samp), meta_data))
+                         data = data.frame(y = rnorm(n = n_samp), meta_data, check.names = FALSE))
 
     if (any(is.na(lm_smoke$coefficients))) {
       stop_txt = paste("Estimation failed for the following covariates:",
@@ -456,7 +532,7 @@
         y_check = colMeans(y, na.rm = TRUE)
         result <- suppressWarnings(suppressMessages(
             lmerTest::lmer(formula = tformula,
-                           data = data.frame(y_crt = y_check, meta_data),
+                           data = data.frame(y_crt = y_check, meta_data, check.names = FALSE),
                            control = lme_control)))
     },
     error = function(e) {
@@ -533,7 +609,7 @@
     } else {
         # REML fits
         fits = lapply(seq_len(n_tax), function(i) {
-          df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data)
+          df = data.frame(y_crt = unlist(y[i, ]) - theta, meta_data, check.names = FALSE)
           fit = tryCatch(
               {
                   suppressWarnings(suppressMessages(
@@ -653,6 +729,28 @@
     }
 }
 
+# M-step update of the variance kappa of a non-null component of the E-M
+# algorithm: the minimizer over kappa >= 0 of
+#   -sum_i w_i log phi(beta_i; centre, nu0_i + kappa).
+# The objective is minimized by stats::optimize on [0, upper], where upper is
+# the largest squared deviation of beta from centre, beyond which the objective
+# increases. The boundary values and the current value are compared with the
+# interior solution, so that a minimum at 0 is returned exactly.
+.bias_em_kappa = function(beta, nu0, weights, centre, current) {
+    if (!any(weights > 0, na.rm = TRUE)) return(current)
+    upper = max((beta - centre)^2)
+    if (!is.finite(upper) || upper == 0) return(0)
+    objective = function(kappa) {
+        -sum(weights * stats::dnorm(beta, centre, sqrt(nu0 + kappa),
+                                    log = TRUE), na.rm = TRUE)
+    }
+    candidate = stats::optimize(objective, interval = c(0, upper),
+                                tol = .Machine$double.eps^0.5)$minimum
+    candidates = c(0, candidate, upper, current)
+    values = vapply(candidates, objective, numeric(1))
+    candidates[which.min(values)]
+}
+
 # E-M algorithm
 .bias_em = function(beta, var_hat, tol, max_iter) {
     nu0 = var_hat
@@ -692,10 +790,6 @@
     if(is.na(kappa2_0)|kappa2_0 == 0) kappa2_0 = 1
 
     # Apply E-M algorithm
-    # Nelder-Mead options
-    nm_opts = nloptr::nl.opts(list())
-    nm_opts["algorithm"] = "NLOPT_LN_NELDERMEAD"
-
     # Store all paras in vectors/matrices
     pi0_vec = pi0_0
     pi1_vec = pi1_0
@@ -746,24 +840,11 @@
                          sum(r2i/(nu0+kappa2), na.rm = TRUE), 0)
         if (is.na(l2_new)) l2_new = 0
 
-        # Nelder-Mead simplex algorithm for kappa1 and kappa2
-        obj_kappa1 = function(x){
-            log_pdf = log(dnorm(beta, delta + l1, sqrt(nu0 + x)))
-            log_pdf[is.infinite(log_pdf)] = 0
-            -sum(r1i*log_pdf, na.rm = TRUE)
-        }
-        kappa1_new = nloptr::nloptr(x0 = kappa1, eval_f = obj_kappa1,
-                                    lb = 0, ub = NULL,
-                                    opts = nm_opts)$solution
-
-        obj_kappa2 = function(x){
-            log_pdf = log(dnorm(beta, delta + l2, sqrt(nu0 + x)))
-            log_pdf[is.infinite(log_pdf)] = 0
-            -sum(r2i*log_pdf, na.rm = TRUE)
-        }
-        kappa2_new = nloptr::nloptr(x0 = kappa2, eval_f = obj_kappa2,
-                                    lb = 0, ub = NULL,
-                                    opts = nm_opts)$solution
+        # One-dimensional updates of kappa1 and kappa2 on [0, upper]
+        kappa1_new = .bias_em_kappa(beta = beta, nu0 = nu0, weights = r1i,
+                                    centre = delta + l1, current = kappa1)
+        kappa2_new = .bias_em_kappa(beta = beta, nu0 = nu0, weights = r2i,
+                                    centre = delta + l2, current = kappa2)
 
         # Merge to the paras vectors/matrices
         pi0_vec = c(pi0_vec, pi0_new)

@@ -36,8 +36,10 @@ ancombc2(
   iter_control = list(tol = 0.01, max_iter = 20, verbose = FALSE),
   em_control = list(tol = 1e-05, max_iter = 100),
   lme_control = lme4::lmerControl(),
-  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
-  trend_control = list(contrast = NULL, node = NULL, B = 100)
+  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100, pairs = NULL),
+  trend_control = list(contrast = NULL, node = NULL, B = 100),
+  method_control = list(vcov = "pooled", global_p = "two_sided", failed_taxa = "include",
+    dunnet_null = "all", sens_parallel = FALSE)
 )
 }
 \arguments{
@@ -213,8 +215,10 @@ false discovery rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
 wise error (FWER) controlling procedure, such as "holm", "hochberg",
 "bonferroni", etc (default is "holm") and 2) \code{B}: the number of
 bootstrap samples (default is 100). Increase \code{B} will lead to a more
-accurate p-values. See \code{Details} for a more comprehensive discussion on
-mdFDR.}
+accurate p-values. 3) \code{pairs}: a list of pairs of levels of
+\code{group} to be compared in the pairwise directional test (default is
+\code{NULL}, all pairs). See \code{Details} for a more comprehensive
+discussion on mdFDR.}
 
 \item{trend_control}{a named list of control parameters for the trend test,
 including 1) \code{contrast}: the list of contrast matrices for
@@ -222,6 +226,15 @@ constructing inequalities, 2) \code{node}: the list of positions for the
 nodal parameter, and 3) \code{B}: the number of bootstrap samples
 (default is 100). Increase \code{B} will lead to a more accurate p-values.
 See \code{vignette} for the corresponding trend test examples.}
+
+\item{method_control}{a named list selecting alternative estimators and
+tests, including 1) \code{vcov}: \code{"pooled"} (default) or
+\code{"observed"}, 2) \code{global_p}: \code{"two_sided"} (default) or
+\code{"upper"}, 3) \code{failed_taxa}: \code{"include"} (default) or
+\code{"exclude"}, 4) \code{dunnet_null}: \code{"all"} (default) or
+\code{"estimable"}, and 5) \code{sens_parallel}: \code{FALSE} (default)
+or \code{TRUE}. Entries that are not supplied take their default values.
+See \code{Details}.}
 }
 \value{
 a \code{list} with components:
@@ -396,7 +409,58 @@ false positive rate.
 The pairwise directional test and the Dunnett's type of test control the
 mixed directional false discovery rate (mdFDR) through the two-stage
 procedure specified by \code{mdfdr_control}. The mdFDR and the procedure are
-defined in \code{\link{ANCOMBC-concepts}}.
+defined in \code{\link{ANCOMBC-concepts}}. By default, the pairwise
+directional test compares every pair of levels of \code{group}. The entry
+\code{pairs} of \code{mdfdr_control} restricts the test to selected pairs,
+for example \code{pairs = list(c("B", "A"), c("C", "B"))}. Each comparison is
+reported as the later level in \code{levels(group)} minus the earlier level,
+whatever the order within the pair, and only the selected comparisons are
+counted in the mdFDR adjustment.
+
+A coefficient that is not estimable from the samples used for a taxon, for
+example the coefficient of a level when the taxon is absent from the
+reference level and \code{pseudo = 0}, is reported as NA and does not enter
+the estimation of its bias. The sequential F test of the sensitivity analysis
+of the global test under \code{conservative = FALSE} tests \code{group}
+after all other terms of \code{fix_formula}.
+
+The argument \code{method_control} selects alternative estimators and tests.
+The defaults reproduce the results of earlier versions.
+\itemize{
+\item{ \code{vcov}: the covariance matrix of the fixed effects in models
+without random effects. With \code{"pooled"} (default), the sandwich
+estimator uses the design matrix of all samples with complete covariates,
+and each sample excluded for a taxon contributes a constant term. With
+\code{"observed"}, the sandwich estimator (HC0) of each taxon uses only
+the samples used for that taxon, and coefficients that are not estimable
+from these samples receive NA. The two estimators coincide when
+\code{pseudo > 0}. Under \code{pseudo = 0} the \code{"pooled"} estimator
+tends to underestimate the standard errors of taxa with many zeros, so the
+primary results \code{p}, \code{q}, and \code{diff} are anticonservative
+for these taxa; \code{diff_robust} is protected by the sensitivity
+analysis.}
+\item{ \code{global_p}: the p-value of the global test and of the global
+screening step of the pairwise directional test in models without random
+effects. With \code{"two_sided"} (default), the p-value is twice the smaller
+tail probability of the Wald statistic \eqn{W}. With \code{"upper"}, it is
+the upper tail probability of \eqn{W/k} under the F distribution with
+\eqn{k} and the residual degrees of freedom, where \eqn{k} is the number of
+estimable group coefficients, which is the usual p-value of a Wald test.}
+\item{ \code{failed_taxa}: with \code{"include"} (default), a taxon whose
+initial fit failed for every coefficient contributes its centered log counts
+to the estimation of the sampling fractions; with \code{"exclude"}, it does
+not contribute, as in \code{ancombc}.}
+\item{ \code{dunnet_null}: the null distribution of the screening step of
+the Dunnett's type of test. With \code{"all"} (default), the simulated
+maximum of a taxon includes every group coefficient; with
+\code{"estimable"}, it includes only the coefficients with an observed
+test statistic, matching the observed maximum.}
+\item{ \code{sens_parallel}: logical. Whether the three refits of the
+sensitivity analysis under \code{conservative = TRUE} run in parallel when
+\code{n_cl > 1}. Default is FALSE. The results are reproducible under
+\code{set.seed}, but the Monte Carlo components (Dunnett's type of test and
+trend test) use different random numbers than the sequential refits.}
+}
 }
 \examples{
 library(ANCOMBC)

@@ -28,7 +28,8 @@ ancombc(
   alpha = 0.05,
   global = FALSE,
   n_cl = 1,
-  verbose = TRUE
+  verbose = TRUE,
+  method_control = list(vcov = "pooled", global_p = "two_sided")
 )
 }
 \arguments{
@@ -136,6 +137,12 @@ Default is FALSE.}
 
 \item{verbose}{logical. Whether to generate verbose output during the
 ANCOM-BC fitting process. Default is TRUE.}
+
+\item{method_control}{a named list selecting alternative estimators and
+tests, including 1) \code{vcov}: \code{"pooled"} (default) or
+\code{"observed"}, and 2) \code{global_p}: \code{"two_sided"} (default) or
+\code{"upper"}. Entries that are not supplied take their default values.
+See \code{Details}.}
 }
 \value{
 a \code{list} with components:
@@ -197,6 +204,29 @@ their standard errors, p-values, and adjusted p-values set to 0 and
 structural zero status differs from that of the reference level. The
 detection of structural zeros is controlled by \code{struc_zero} and
 \code{neg_lb}, which are defined in \code{\link{ANCOMBC-concepts}}.
+
+A coefficient that is not estimable from the samples used for a taxon, for
+example the coefficient of a level when the taxon is absent from the
+reference level and \code{pseudo = 0}, is reported as NA and does not enter
+the estimation of its bias.
+
+The argument \code{method_control} selects alternative estimators and tests.
+The defaults reproduce the results of earlier versions.
+\itemize{
+\item{ \code{vcov}: the covariance matrix of the coefficients. With
+\code{"pooled"} (default), the sandwich estimator uses the design matrix of
+all samples with complete covariates, and each sample excluded for a taxon
+(a zero count when \code{pseudo = 0}, or a missing covariate) contributes a
+constant term. With \code{"observed"}, the sandwich estimator (HC0) of each
+taxon uses only the samples used for that taxon, and coefficients that are
+not estimable from these samples receive NA.}
+\item{ \code{global_p}: the p-value of the global test. With
+\code{"two_sided"} (default), the p-value is twice the smaller tail
+probability of the Wald statistic \eqn{W} under the chi-square distribution
+with \eqn{k} degrees of freedom, where \eqn{k} is the number of estimable
+group coefficients. With \code{"upper"}, it is the upper tail probability,
+which is the usual p-value of a Wald test.}
+}
 }
 \examples{
 library(ANCOMBC)

@@ -1,6 +1,14 @@
-# ANCOM-BC global test
+# ANCOM-BC global test. W is the Wald statistic of the group coefficients that
+# are estimable for the taxon, q their number. With global_p = "two_sided", the
+# p-value is twice the smaller tail probability of W under the chi-square
+# distribution with q degrees of freedom (dof = NULL) or the F distribution
+# with q and dof degrees of freedom. With global_p = "upper", it is the upper
+# tail probability of W under the chi-square distribution with q degrees of
+# freedom (dof = NULL) or of W/q under the F distribution with q and dof
+# degrees of freedom.
 .ancombc_global_F = function(x, group, beta_hat, vcov_hat,
-                             dof = NULL, p_adj_method, alpha){
+                             dof = NULL, p_adj_method, alpha,
+                             global_p = "two_sided"){
     tax_id = rownames(beta_hat)
     n_tax = nrow(beta_hat)
     covariates = colnames(x)
@@ -9,7 +17,8 @@
     output$taxon = tax_id
 
     # Loop over the parameters of interest
-    group_ind = grepl(group, covariates) & !grepl(":", covariates)
+    group_ind = grepl(group, covariates, fixed = TRUE) &
+        !grepl(":", covariates, fixed = TRUE)
     beta_hat_sub = beta_hat[, group_ind, drop = FALSE]
     vcov_hat_sub = lapply(vcov_hat, function(x) {
         x = x[group_ind, group_ind, drop = FALSE]
@@ -38,7 +47,14 @@
         } else {
             W_global = as.numeric(W_global)
             W_vec[i] = W_global
-            if (use_chisq) {
+            if (global_p == "upper") {
+                p_vec[i] = if (use_chisq) {
+                    pchisq(W_global, df = n_grp, lower.tail = FALSE)
+                } else {
+                    pf(W_global / n_grp, df1 = n_grp,
+                       df2 = unique(dof[i, ]), lower.tail = FALSE)
+                }
+            } else if (use_chisq) {
                 p_vec[i] = 2 * min(pchisq(W_global, df = n_grp,
                                           lower.tail = TRUE),
                                    pchisq(W_global, df = n_grp,
@@ -94,7 +110,7 @@
                                   "+ ", rand_formula))
 
   reduced_model = lapply(seq_len(n_tax), function(i) {
-    df = data.frame(y = unlist(y[i, ]), meta_data)
+    df = data.frame(y = unlist(y[i, ]), meta_data, check.names = FALSE)
     fit = try(suppressMessages(lmerTest::lmer(reduce_formula,
                                               data = df,
                                               control = control)),
@@ -130,14 +146,17 @@
   return(output)
 }
 
-# ANCOM-BC multiple pairwise comparisons
+# ANCOM-BC multiple pairwise comparisons. pair_col selects the comparisons to
+# report and to count in the mdFDR adjustment (NULL for all pairs).
 .ancombc_pair = function(x, group, beta_hat, var_hat, vcov_hat, dof,
                          fwer_ctrl_method, alpha, full_model,
-                         fix_formula, rand_formula, control, y, meta_data) {
+                         fix_formula, rand_formula, control, y, meta_data,
+                         pair_col = NULL, global_p = "two_sided") {
     covariates = colnames(x)
 
     # Subset the parameters of interest
-    group_ind = grepl(group, covariates) & !grepl(":", covariates)
+    group_ind = grepl(group, covariates, fixed = TRUE) &
+        !grepl(":", covariates, fixed = TRUE)
     beta_hat_sub = beta_hat[, group_ind, drop = FALSE]
     vcov_hat_sub = lapply(vcov_hat, function(x) {
         x[group_ind, group_ind, drop = FALSE]
@@ -151,6 +170,16 @@
         .combn_fun2(x, fun = .var_diff, sep = "_"),
         FUN.VALUE = double(ncol(beta_hat_pair))))
     rownames(var_hat_pair) = rownames(beta_hat_pair)
+    if (!is.null(pair_col)) {
+        # The degrees of freedom of the full set of comparisons repeat the
+        # columns of dof_group in turn
+        dof_group = matrix(rep_len(as.vector(dof_group), length(beta_hat_pair)),
+                           nrow = nrow(beta_hat_pair),
+                           dimnames = dimnames(beta_hat_pair))
+        dof_group = dof_group[, pair_col, drop = FALSE]
+        beta_hat_pair = beta_hat_pair[, pair_col, drop = FALSE]
+        var_hat_pair = var_hat_pair[, pair_col, drop = FALSE]
+    }
     se_hat_pair = sqrt(var_hat_pair)
     W_pair = beta_hat_pair/se_hat_pair
 
@@ -168,7 +197,8 @@
                       rand_formula = rand_formula,
                       control = control,
                       y = y,
-                      meta_data = meta_data)
+                      meta_data = meta_data,
+                      global_p = global_p)
     p_hat_pair = p_q_pair$p_val
     q_hat_pair = p_q_pair$q_val
     diff_pair = ifelse(q_hat_pair <= alpha, TRUE, FALSE)
@@ -179,10 +209,14 @@
     return(output)
 }
 
-# ANCOM-BC Dunnet's type of test
-.dunn_global = function(x, group, W, B, dof, p_adj_method, alpha) {
+# ANCOM-BC Dunnet's type of test. With dunnet_null = "estimable", the null
+# draws of a taxon are restricted to the cells in which its statistic W is
+# observed; the random numbers drawn are the same for both settings.
+.dunn_global = function(x, group, W, B, dof, p_adj_method, alpha,
+                        dunnet_null = "all") {
     covariates = colnames(x)
-    group_ind = grepl(group, covariates) & !grepl(":", covariates)
+    group_ind = grepl(group, covariates, fixed = TRUE) &
+        !grepl(":", covariates, fixed = TRUE)
     n_group = sum(group_ind)
     n_tax = nrow(W)
     tax_id = rownames(W)
@@ -201,6 +235,7 @@
         W_null_b = rep(NA_real_, length(dof_vec))
         W_null_b[dof_ok] = rt(sum(dof_ok), df = dof_vec[dof_ok])
         W_null_b = matrix(W_null_b, nrow = nrow(dof), ncol = ncol(dof))
+        if (dunnet_null == "estimable") W_null_b[is.na(W)] = NA
         suppressWarnings(W_global_null_b <- apply(W_null_b, 1, function(x)
             max(abs(x), na.rm = TRUE)))
         W_global_null[, b] = W_global_null_b
@@ -221,11 +256,12 @@
 }
 
 .ancombc_dunn = function(x, group, beta_hat, var_hat, dof,
-                         B, fwer_ctrl_method, alpha) {
+                         B, fwer_ctrl_method, alpha, dunnet_null = "all") {
     covariates = colnames(x)
 
     # Subset the parameters of interest
-    group_ind = grepl(group, covariates) & !grepl(":", covariates)
+    group_ind = grepl(group, covariates, fixed = TRUE) &
+        !grepl(":", covariates, fixed = TRUE)
     beta_hat_dunn = beta_hat[, group_ind]
     var_hat_dunn = var_hat[, group_ind]
     se_hat_dunn = sqrt(var_hat_dunn)
@@ -235,7 +271,8 @@
     # Obtain p-values and mdFDR adjusted p-values
     p_q_dunn = .mdfdr(global_test = "dunnet", W = W_dunn, dof = dof_dunn,
                       fwer_ctrl_method = fwer_ctrl_method,
-                      x = x, group = group, B = B, alpha = alpha)
+                      x = x, group = group, B = B, alpha = alpha,
+                      dunnet_null = dunnet_null)
     p_hat_dunn = p_q_dunn$p_val
     q_hat_dunn = p_q_dunn$q_val
     diff_dunn = ifelse(q_hat_dunn <= alpha, TRUE, FALSE)
@@ -256,7 +293,8 @@
     n_tax = nrow(beta_hat)
     covariates = colnames(x)
 
-    group_ind = grepl(group, covariates) & !grepl(":", covariates)
+    group_ind = grepl(group, covariates, fixed = TRUE) &
+        !grepl(":", covariates, fixed = TRUE)
     n_group = sum(group_ind)
     beta_hat_sub = beta_hat[, group_ind, drop = FALSE]
     var_hat_sub = var_hat[, group_ind, drop = FALSE]

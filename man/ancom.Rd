@@ -164,6 +164,14 @@ are removed from the log-ratio comparisons and are reported in \code{res}
 with \code{W} set to infinity and the detection indicators set to TRUE. The
 detection of structural zeros is controlled by \code{struc_zero} and
 \code{neg_lb}, which are defined in \code{\link{ANCOMBC-concepts}}.
+
+Each additive log-ratio is regressed on \code{main_var} and the terms of
+\code{adj_formula}. For a two-level or numeric \code{main_var}, the test is
+the t test of the coefficient of \code{main_var}. For a \code{main_var} with
+three or more levels, the test is the F test of \code{main_var} given the
+terms of \code{adj_formula} (in models without random effects, the
+sequential F test with \code{main_var} entered last; in mixed-effects models,
+the F test of \code{lmerTest::anova}).
 }
 \examples{
 library(ANCOMBC)

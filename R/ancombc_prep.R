@@ -106,7 +106,11 @@
                                                B = 100),
                           trend_control = list(contrast = NULL,
                                                node = NULL,
-                                               B = 100)){
+                                               B = 100),
+                          method_control = list(vcov = "pooled",
+                                                global_p = "two_sided",
+                                                failed_taxa = "include",
+                                                dunnet_null = "all")){
 
     # 1. Data pre-processing
     O1 = data + pseudo
@@ -144,7 +148,8 @@
                           formula = fix_formula,
                           theta = NULL, tol = iter_control$tol,
                           max_iter = iter_control$max_iter,
-                          verbose = iter_control$verbose)
+                          verbose = iter_control$verbose,
+                          vcov = method_control$vcov)
     } else {
         para1 = .iter_remle(x = x, y = y1, meta_data = meta_data,
                             fix_formula = fix_formula,
@@ -156,6 +161,13 @@
     }
     beta1 = para1$beta
     var_hat1 = para1$var_hat
+    failed1 = rowSums(!is.na(beta1)) == 0
+
+    # A coefficient that is not estimable from the samples of a taxon, such as
+    # the coefficient of a level when the taxon is absent from the reference
+    # level, does not enter the estimation of its bias
+    beta1_em = beta1
+    beta1_em[!.estimable_mask(x, y1)] = NA
 
     # Apply E-M algorithm
     if (verbose) {
@@ -165,7 +177,7 @@
     fun_list = list(.bias_em)
 
     bias1 = foreach(i = seq_len(ncol(beta1)), .combine = rbind) %dorng% {
-        output = fun_list[[1]](beta = beta1[, i],
+        output = fun_list[[1]](beta = beta1_em[, i],
                                var_hat = var_hat1[, i],
                                tol = em_control$tol,
                                max_iter = em_control$max_iter)
@@ -179,13 +191,15 @@
 
     # Obtain the final estimates for sample-specific biases. A coefficient that
     # is not estimable for a fitted taxon is set to 0 before its bias is
-    # subtracted
+    # subtracted. With failed_taxa = "exclude", a taxon whose fit failed for
+    # every coefficient does not contribute to the sampling fractions
     na_coef = is.na(beta1) & rowSums(!is.na(beta1)) > 0
     beta1[na_coef] = 0
     beta1 = t(t(beta1) - delta_em)
     theta_hat = matrix(NA, nrow = nrow(y1), ncol = ncol(y1))
     n_samp = nrow(x)
     for (i in seq_len(nrow(y1))) {
+        if (failed1[i] && method_control$failed_taxa == "exclude") next
         theta_hat[i, ] = y1[i, ] -
             base::rowSums(x * rep(beta1[i, ], each = n_samp), na.rm = TRUE)
     }
@@ -210,7 +224,8 @@
                           formula = fix_formula,
                           theta = theta_hat, tol = iter_control$tol,
                           max_iter = iter_control$max_iter,
-                          verbose = iter_control$verbose)
+                          verbose = iter_control$verbose,
+                          vcov = method_control$vcov)
     } else {
         para2 = .iter_remle(x = x, y = y2, meta_data = meta_data,
                             fix_formula = fix_formula,
@@ -223,6 +238,9 @@
     beta_hat = para2$beta
     var_hat = para2$var_hat
     dof = para2$dof
+    # Coefficients that are not estimable from the samples of a taxon are
+    # reported as NA
+    beta_hat[!.estimable_mask(x, y2)] = NA
 
     # Account for the variance of delta
     var_hat = sweep(var_hat, 2, var_delta, "+") +
@@ -281,7 +299,8 @@
                                            vcov_hat = vcov_hat,
                                            dof = dof,
                                            p_adj_method = p_adj_method,
-                                           alpha = alpha)
+                                           alpha = alpha,
+                                           global_p = method_control$global_p)
         } else {
             res_global = .ancombc_global_LRT(full_model = para2$fits,
                                              fix_formula = fix_formula,
@@ -313,7 +332,12 @@
                                  rand_formula = rand_formula,
                                  control = lme_control,
                                  y = y_bias_crt,
-                                 meta_data = meta_data)
+                                 meta_data = meta_data,
+                                 pair_col = .pair_columns(
+                                     x = x, group = group,
+                                     group_levels = levels(meta_data[[group]]),
+                                     pairs = mdfdr_control$pairs),
+                                 global_p = method_control$global_p)
         beta_pair = data.frame(res_pair$beta, check.names = FALSE)
         se_pair = data.frame(res_pair$se, check.names = FALSE)
         W_pair = data.frame(res_pair$W, check.names = FALSE)
@@ -345,7 +369,8 @@
         res_dunn = .ancombc_dunn(x = x, group = group, beta_hat = beta_hat,
                                  var_hat = var_hat, dof = dof,
                                  fwer_ctrl_method = mdfdr_control$fwer_ctrl_method,
-                                 B = mdfdr_control$B, alpha = alpha)
+                                 B = mdfdr_control$B, alpha = alpha,
+                                 dunnet_null = method_control$dunnet_null)
         beta_dunn = data.frame(res_dunn$beta, check.names = FALSE)
         se_dunn = data.frame(res_dunn$se, check.names = FALSE)
         W_dunn = data.frame(res_dunn$W, check.names = FALSE)

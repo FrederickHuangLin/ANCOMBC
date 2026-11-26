@@ -717,6 +717,68 @@ aggregate_data = microbiome::abundances(microbiome::aggregate_taxa(pseq, "Family
 meta_data = microbiome::meta(pseq)
 ```
 
+A metadata column whose name is not syntactically valid in R, such as
+`body-site`, is quoted with backticks in `fix_formula`, as in `lm()`, while
+`group` takes the plain column name:
+`` fix_formula = "`body-site` + age", group = "body-site" ``. The coefficient
+names in the output follow those of `lm()`, for example `` lfc_`body-site`gut ``.
+
+## Selected pairwise comparisons
+
+By default, the pairwise directional test compares every pair of levels of
+`group`. The entry `pairs` of `mdfdr_control` restricts the test to the pairs of
+interest. Each comparison is reported as the later level in `levels(group)`
+minus the earlier level, whatever the order within the pair, and only the
+selected comparisons are counted in the mdFDR adjustment, which increases power
+when fewer comparisons are of interest. With the levels `obese`, `overweight`,
+and `lean`, the call below compares lean with obese and with overweight.
+
+```{r, eval=FALSE}
+output_pairs = ancombc2(data = pseq, tax_level = "Family",
+                        fix_formula = "age + region + bmi",
+                        p_adj_method = "holm", prv_cut = 0.10,
+                        lib_cut = 1000, group = "bmi", struc_zero = TRUE,
+                        neg_lb = TRUE, pairwise = TRUE,
+                        mdfdr_control = list(fwer_ctrl_method = "holm",
+                                             B = 100,
+                                             pairs = list(c("lean", "obese"),
+                                                          c("lean", "overweight"))))
+output_pairs$res_pair
+```
+
+## Alternative estimators and tests
+
+The argument `method_control` selects alternative estimators and tests. Its
+defaults reproduce the results of earlier versions of the package.
+
+* `vcov = "observed"` estimates the covariance matrix of the fixed effects of
+  each taxon from the samples used for that taxon (the HC0 sandwich estimator).
+  Under the default `pseudo = 0`, the default estimator, which uses the design
+  matrix of all samples, tends to underestimate the standard errors of taxa with
+  many zeros, so that the primary columns `p`, `q`, and `diff` are
+  anticonservative for these taxa. The sensitivity analysis protects
+  `diff_robust`, which is the column to use under the default.
+* `global_p = "upper"` reports the upper tail p-value of the Wald statistic of
+  the global test, and of the global screening step of the pairwise directional
+  test, instead of twice the smaller tail probability.
+* `failed_taxa = "exclude"` excludes taxa whose initial fit failed for every
+  coefficient from the estimation of the sampling fractions.
+* `dunnet_null = "estimable"` restricts the simulated null distribution of the
+  screening step of the Dunnett's type of test to the coefficients that are
+  estimable for each taxon.
+* `sens_parallel = TRUE` runs the refits of the sensitivity analysis in parallel
+  when `n_cl > 1`.
+
+```{r, eval=FALSE}
+output_alt = ancombc2(data = pseq, tax_level = "Family",
+                      fix_formula = "age + region + bmi",
+                      p_adj_method = "holm", prv_cut = 0.10,
+                      lib_cut = 1000, group = "bmi", struc_zero = TRUE,
+                      neg_lb = TRUE, global = TRUE,
+                      method_control = list(vcov = "observed",
+                                            global_p = "upper"))
+```
+
 # Run ANCOM-BC2 on a real longitudinal dataset {.tabset}
 
 ## Import example data

@@ -45,7 +45,9 @@
 #' abundances for each taxon depend on the fixed effects in metadata. When
 #' specifying the \code{fix_formula}, make sure to include the \code{group}
 #' variable in the formula if it is not NULL. This argument is required and has
-#' no default. Set it to NULL to skip the check of the fixed effects.
+#' no default. Set it to NULL to skip the check of the fixed effects. A variable
+#' name that is not syntactically valid in R, such as \code{body-site}, is
+#' quoted with backticks, as in \code{"`body-site` + age"}.
 #' @param group character. the name of the group variable in metadata.
 #' The \code{group} parameter should be a character string representing the name
 #' of the group variable in the metadata. The \code{group} variable should be
@@ -70,7 +72,9 @@
 #' wise error (FWER) controlling procedure, such as "holm", "hochberg",
 #' "bonferroni", etc (default is "holm") and 2) \code{B}: the number of
 #' bootstrap samples (default is 100). Increase \code{B} will lead to a more
-#' accurate p-values. See \code{\link{ANCOMBC-concepts}} for a more
+#' accurate p-values. 3) \code{pairs}: a list of pairs of levels of
+#' \code{group} to be compared in the pairwise directional test (default is
+#' \code{NULL}, all pairs). See \code{\link{ANCOMBC-concepts}} for a more
 #' comprehensive discussion on mdFDR.
 #' @param trend logical. Whether to perform trend test. Default is FALSE.
 #' @param trend_control a named list of control parameters for the trend test,
@@ -97,6 +101,8 @@
 #'         \item{ \code{global}, logical. Whether to perform the global test.}
 #'         \item{ \code{pairwise}, logical. Whether to perform the pairwise
 #'         directional test.}
+#'         \item{ \code{mdfdr_control}, the input \code{mdfdr_control}, with
+#'         \code{pairs} converted to a list of character vectors.}
 #'         \item{ \code{dunnet}, logical. Whether to perform the Dunnett's type
 #'         of test.}
 #'         \item{ \code{trend}, logical. Whether to perform the trend test.}
@@ -167,6 +173,8 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
         # Process the phyloseq object
         feature_table = microbiome::abundances(data)
         meta_data = microbiome::meta(data)
+        meta_data = .restore_names(meta_data,
+                                   colnames(phyloseq::sample_data(data)))
         if (!is.null(tax_level)) {
             aggregate_data = microbiome::aggregate_taxa(data, level = tax_level)
             feature_table_aggregate = microbiome::abundances(aggregate_data)
@@ -190,6 +198,8 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
         # Process the phyloseq object
         feature_table = microbiome::abundances(pseq)
         meta_data = microbiome::meta(pseq)
+        meta_data = .restore_names(meta_data,
+                                   colnames(SummarizedExperiment::colData(data)))
         if (!is.null(tax_level)) {
             aggregate_data = mia::agglomerateByRank(data, rank = tax_level)
             pseq_aggregate = mia::convertToPhyloseq(aggregate_data,
@@ -248,10 +258,11 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
     meta_data[] = lapply(meta_data, function(x)
         if(is.factor(x)) factor(x) else x)
 
-    # Check if all covariates specified in the fix_formula are columns in metadata
+    # Check if all covariates specified in the fix_formula are columns in metadata.
+    # Variable names that are not syntactically valid are quoted with backticks
+    # in the formula.
     if (!is.null(fix_formula)) {
-        fix_formula_non_interact = gsub("\\*", "+", fix_formula)
-        vars = unlist(strsplit(fix_formula_non_interact, split = "\\s*\\+\\s*")) # \\s* matches zero or more spaces
+        vars = all.vars(stats::formula(paste("~", fix_formula)))
 
         if (verbose) {
             message("The specified variables in the formula: ",
@@ -317,6 +328,30 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
                 stop("Please specify `mdfdr_control` for pairwise or dunnet's test",
                      call. = FALSE)
             }
+        }
+
+        # Check the selected pairs for the pairwise directional test
+        if (pairwise && !is.null(mdfdr_control$pairs)) {
+            pairs = mdfdr_control$pairs
+            if (is.matrix(pairs) && ncol(pairs) == 2) {
+                pairs = lapply(seq_len(nrow(pairs)), function(i) pairs[i, ])
+            }
+            group_levels = levels(meta_data[, group])
+            pair_ok = is.list(pairs) && length(pairs) > 0 &&
+                all(vapply(pairs, function(pr) {
+                    pr = as.character(pr)
+                    length(pr) == 2 && all(pr %in% group_levels) &&
+                        pr[1] != pr[2]
+                }, FUN.VALUE = logical(1)))
+            if (!pair_ok) {
+                stop_txt = paste0("`mdfdr_control$pairs` should be a list of pairs of distinct levels of `",
+                                  group, "`, for example list(c(\"",
+                                  group_levels[2], "\", \"", group_levels[1],
+                                  "\")) \n",
+                                  "The levels are: ", .name_list(group_levels))
+                stop(stop_txt, call. = FALSE)
+            }
+            mdfdr_control$pairs = lapply(pairs, as.character)
         }
 
         # Check contrast matrices and nodes for trend test
@@ -411,6 +446,7 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
                   global = global,
                   pairwise = pairwise,
                   dunnet = dunnet,
+                  mdfdr_control = mdfdr_control,
                   trend = trend,
                   trend_control = trend_control)
     return(output)
@@ -418,3 +454,14 @@ data_sanity_check = function(data, taxa_are_rows = TRUE,
 
 
 
+
+# Restore the column names of sample metadata that were converted to
+# syntactically valid names when the metadata were extracted from a phyloseq or
+# TreeSummarizedExperiment object
+.restore_names = function(meta_data, orig_names) {
+    if (length(orig_names) == ncol(meta_data) &&
+        identical(make.names(orig_names, unique = TRUE), colnames(meta_data))) {
+        colnames(meta_data) = orig_names
+    }
+    meta_data
+}

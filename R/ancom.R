@@ -12,6 +12,14 @@
 #' detection of structural zeros is controlled by \code{struc_zero} and
 #' \code{neg_lb}, which are defined in \code{\link{ANCOMBC-concepts}}.
 #'
+#' Each additive log-ratio is regressed on \code{main_var} and the terms of
+#' \code{adj_formula}. For a two-level or numeric \code{main_var}, the test is
+#' the t test of the coefficient of \code{main_var}. For a \code{main_var} with
+#' three or more levels, the test is the F test of \code{main_var} given the
+#' terms of \code{adj_formula} (in models without random effects, the
+#' sequential F test with \code{main_var} entered last; in mixed-effects models,
+#' the F test of \code{lmerTest::anova}).
+#'
 #' @param data the input data. The \code{data} parameter should be either a
 #' \code{matrix}, \code{data.frame}, \code{phyloseq} or a \code{TreeSummarizedExperiment}
 #' object. Both \code{phyloseq} and \code{TreeSummarizedExperiment} objects
@@ -170,6 +178,11 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
     if (!missing(assay.type) && missing(assay_name)) assay_name = assay.type
     if (!missing(rank) && missing(tax_level)) tax_level = rank
 
+    # A main variable whose name is not syntactically valid is quoted with
+    # backticks in the model formulas
+    main_term = if (identical(make.names(main_var), main_var)) main_var else
+        paste0("`", main_var, "`")
+
     # 1. Data pre-processing
     # Data sanity check
     check_results = data_sanity_check(data = data,
@@ -180,7 +193,8 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
                                       tax_level = tax_level,
                                       aggregate_data = aggregate_data,
                                       meta_data = meta_data,
-                                      fix_formula = paste(main_var, adj_formula, sep = " + "),
+                                      fix_formula = if (is.null(adj_formula)) main_term else
+                                          paste(main_term, adj_formula, sep = " + "),
                                       group = main_var,
                                       struc_zero = struc_zero,
                                       verbose = verbose)
@@ -286,10 +300,16 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
         # Model: linear model
         tfun = stats::lm
         # Formula
+        # For a main variable with three or more levels, the main variable is
+        # entered last, so that its sequential F test is adjusted for the terms
+        # of adj_formula. Otherwise the main variable is entered first, so that
+        # its coefficient is on the second row.
         if (is.null(adj_formula)) {
-            tformula = formula(paste("x ~", main_var), sep = " ")
-        }else {
-            tformula = formula(paste("x ~", main_var, "+", adj_formula), sep = " ")
+            tformula = formula(paste("x ~", main_term))
+        } else if (main_cat == 1) {
+            tformula = formula(paste("x ~", adj_formula, "+", main_term))
+        } else {
+            tformula = formula(paste("x ~", main_term, "+", adj_formula))
         }
     }else if (!is.null(rand_formula)) {
         # Model: linear mixed-effects model
@@ -297,10 +317,10 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
         # Formula
         if (is.null(adj_formula)) {
             # Random intercept model
-            tformula = formula(paste0("x ~ ", main_var, "+ ", rand_formula))
+            tformula = formula(paste0("x ~ ", main_term, "+ ", rand_formula))
         }else {
             # Random coefficients/slope model
-            tformula = formula(paste0("x ~ ", main_var, "+ ",
+            tformula = formula(paste0("x ~ ", main_term, "+ ",
                                       adj_formula, "+ ", rand_formula))
         }
     }
@@ -343,7 +363,7 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
     dsg = NULL
     if (is.null(rand_formula) && all(is.finite(comp_table))) {
         dsg = .ancom_alr_design(tformula = tformula, meta_data = meta_data,
-                                n_samp = n_samp, main_var = main_var)
+                                n_samp = n_samp, main_var = main_term)
     }
 
     if (!is.null(dsg)) {
@@ -395,8 +415,8 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
                             beta_mat[k, idx2] = fit_coef[2, "t value"]
                         } else {
                             fit_aov = anova(lm_fit)
-                            p_mat[k, idx2] = fit_aov[main_var, "Pr(>F)"]
-                            beta_mat[k, idx2] = fit_aov[main_var, "F value"]
+                            p_mat[k, idx2] = fit_aov[main_term, "Pr(>F)"]
+                            beta_mat[k, idx2] = fit_aov[main_term, "F value"]
                         }
                     }
                 } else {
@@ -415,8 +435,8 @@ ancom = function(data = NULL, taxa_are_rows = TRUE,
                                 beta_mat[k, idx2] = fit_coef[2, "Estimate"]
                             } else {
                                 fit_aov = anova(lme_fit)
-                                p_mat[k, idx2] = fit_aov[main_var, "Pr(>F)"]
-                                beta_mat[k, idx2] = fit_aov[main_var, "F value"]
+                                p_mat[k, idx2] = fit_aov[main_term, "Pr(>F)"]
+                                beta_mat[k, idx2] = fit_aov[main_term, "F value"]
                             }
                         }
                     }

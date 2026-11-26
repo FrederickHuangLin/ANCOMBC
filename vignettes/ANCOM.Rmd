@@ -44,6 +44,12 @@ of interest. The larger the value of W, the stronger the evidence that the
 taxon is differentially abundant. For more details, see the
 [ANCOM](https://www.tandfonline.com/doi/full/10.3402/mehd.v26.27663) paper.
 
+Each ALR model regresses the log-ratio on the variable of interest
+(`main_var`) and the covariates in `adj_formula`. For a two-level or continuous
+`main_var`, the test is the t test of its coefficient. For a `main_var` with
+three or more levels, the test is the F test of `main_var` given the
+covariates in `adj_formula`.
+
 # Installation
 
 Download package. 

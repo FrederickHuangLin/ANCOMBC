@@ -77,7 +77,9 @@ otherwise) in \code{data}.}
 abundances for each taxon depend on the fixed effects in metadata. When
 specifying the \code{fix_formula}, make sure to include the \code{group}
 variable in the formula if it is not NULL. This argument is required and has
-no default. Set it to NULL to skip the check of the fixed effects.}
+no default. Set it to NULL to skip the check of the fixed effects. A variable
+name that is not syntactically valid in R, such as \code{body-site}, is
+quoted with backticks, as in \code{"`body-site` + age"}.}
 
 \item{group}{character. the name of the group variable in metadata.
 The \code{group} parameter should be a character string representing the name
@@ -108,7 +110,9 @@ false discovery rate (mdFDR), including 1) \code{fwer_ctrl_method}: family
 wise error (FWER) controlling procedure, such as "holm", "hochberg",
 "bonferroni", etc (default is "holm") and 2) \code{B}: the number of
 bootstrap samples (default is 100). Increase \code{B} will lead to a more
-accurate p-values. See \code{\link{ANCOMBC-concepts}} for a more
+accurate p-values. 3) \code{pairs}: a list of pairs of levels of
+\code{group} to be compared in the pairwise directional test (default is
+\code{NULL}, all pairs). See \code{\link{ANCOMBC-concepts}} for a more
 comprehensive discussion on mdFDR.}
 
 \item{trend}{logical. Whether to perform trend test. Default is FALSE.}
@@ -139,6 +143,8 @@ a \code{list} with components:
         \item{ \code{global}, logical. Whether to perform the global test.}
         \item{ \code{pairwise}, logical. Whether to perform the pairwise
         directional test.}
+        \item{ \code{mdfdr_control}, the input \code{mdfdr_control}, with
+        \code{pairs} converted to a list of character vectors.}
         \item{ \code{dunnet}, logical. Whether to perform the Dunnett's type
         of test.}
         \item{ \code{trend}, logical. Whether to perform the trend test.}
