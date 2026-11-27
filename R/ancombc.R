@@ -283,9 +283,11 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
     # -Inf, which is recorded as missing.
     y = log(feature_table + pseudo)
     y[is.infinite(y)] = NA
+    tt = stats::terms(stats::formula(paste0("~", formula)), data = meta_data)
     options(na.action = "na.pass") # Keep NA's in rows of x
-    x = stats::model.matrix(formula(paste0("~", formula)), data = meta_data)
+    x = stats::model.matrix(tt, data = meta_data)
     options(na.action = "na.omit") # Switch it back
+    attr(x, "terms") = tt
     covariates = colnames(x)
     n_covariates = length(covariates)
 
@@ -429,7 +431,7 @@ ancombc = function(data = NULL, taxa_are_rows = TRUE,
             message(txt)
         }
         zero_idx = as.matrix(zero_ind[, -1])
-        group_ind = grepl(group, c("taxon", covariates), fixed = TRUE)
+        group_ind = c(FALSE, .group_coef_ind(x, group))
         zero_mask = 1 - abs((zero_idx - zero_idx[, 1]))
         zero_mask = zero_mask[, -1, drop = FALSE]
         res$se[, group_ind] = res$se[, group_ind] * zero_mask

@@ -770,8 +770,13 @@ ancombc2 = function(data, taxa_are_rows = TRUE,
         if (is.null(group)) {
             group_eff = NULL
         } else {
-            group_eff = fix_eff[grepl(group, fix_eff, fixed = TRUE) &
-                                    !grepl(":", fix_eff, fixed = TRUE)]
+            tt = stats::terms(stats::formula(paste0("~", fix_formula)),
+                              data = meta_data)
+            options(na.action = "na.pass")
+            x_sens = stats::model.matrix(tt, data = meta_data)
+            options(na.action = "na.omit")
+            attr(x_sens, "terms") = tt
+            group_eff = colnames(x_sens)[.group_coef_ind(x_sens, group)]
         }
 
         fun_list = list(.ancombc2_sens_fit, .ancombc2_sens_p)
