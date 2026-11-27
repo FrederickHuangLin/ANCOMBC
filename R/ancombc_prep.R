@@ -120,9 +120,11 @@
     tax_name = rownames(O2)
 
     # 2. Estimation of the sample-specific biases
+    tt = stats::terms(stats::formula(paste0("~", fix_formula)), data = meta_data)
     options(na.action = "na.pass") # Keep NA's in rows of x
-    x = stats::model.matrix(formula(paste0("~", fix_formula)), data = meta_data)
+    x = stats::model.matrix(tt, data = meta_data)
     options(na.action = "na.omit") # Switch it back
+    attr(x, "terms") = tt
     fix_eff = colnames(x)
     n_fix_eff = length(fix_eff)
 

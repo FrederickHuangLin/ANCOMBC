@@ -247,6 +247,26 @@
     out
 }
 
+# Logical index of model-matrix columns belonging to the main effect of group.
+# Uses the formula terms and assign attribute on model.matrix() output when
+# available so unrelated covariates whose names contain `group` and interaction
+# terms are excluded. Falls back to substring matching for plain matrices.
+.group_coef_ind = function(x, group) {
+    assign_idx = attr(x, "assign")
+    tt = attr(x, "terms")
+    if (!is.null(assign_idx) && !is.null(tt)) {
+        term_labels = attr(tt, "term.labels")
+        term_order = attr(tt, "order")
+        is_group_term = term_order == 1L & vapply(term_labels, function(v) {
+            vars = all.vars(str2lang(v))
+            length(vars) == 1L && identical(vars, group)
+        }, FUN.VALUE = logical(1))
+        return(assign_idx %in% which(is_group_term))
+    }
+    covariates = colnames(x)
+    grepl(group, covariates, fixed = TRUE) & !grepl(":", covariates, fixed = TRUE)
+}
+
 # Columns of the pairwise comparison results selected by pairs, a list of
 # pairs of levels of the group variable. Each comparison is the later level in
 # levels(group) minus the earlier level, as in the full set of pairwise
@@ -255,8 +275,7 @@
 .pair_columns = function(x, group, group_levels, pairs) {
     if (is.null(pairs)) return(NULL)
     covariates = colnames(x)
-    group_ind = grepl(group, covariates, fixed = TRUE) &
-        !grepl(":", covariates, fixed = TRUE)
+    group_ind = .group_coef_ind(x, group)
     coef_name = covariates[group_ind]
     names(coef_name) = group_levels[-1]
     unique(vapply(pairs, function(pr) {
